@@ -1,6 +1,6 @@
 # TrafficVerse Engineering Standards
 
-> 版本：v1.1  
+> 版本：v1.2  
 > 状态：Accepted  
 > 适用范围：本仓库全部源代码、测试、配置、脚本、迁移和文档  
 > 相关文档：[PRD](docs/PRD.md)、[System Design](docs/SYSTEM_DESIGN.md)、[Agent Development Guide](docs/AGENT_DEVELOPMENT_GUIDE.md)、[ADR](docs/ADR.md)
@@ -199,6 +199,106 @@ bootstrap/cli → application + concrete adapters
 - `controllers` 不持有 TraCI connection、不调用 CARLA，不访问数据库或 WebSocket。
 - `__init__.py` 保持轻量，不启动线程、不连接外部系统、不读取文件、不执行注册副作用。
 - 禁止循环导入。若出现循环，优先修正职责边界，不使用函数内 import 掩盖问题。
+
+### 3.4 功能责任与并行开发边界
+
+本节用于多人并行开发时减少同文件冲突。功能负责人对其垂直功能切片负责，但不因此获得修改共享
+装配文件和公共契约的默认权限。若任务单另有明确分工，以任务单为准，并在开始开发前同步更新本节。
+
+#### 3.4.1 默认功能分工
+
+| 负责人 | 产品功能 | 默认可修改范围 |
+|---|---|---|
+| 吴思睿 | 工作台、资产中心、地图/车辆智能体资产管理、相关功能弹窗 | `ui/views/asset_center_page.py`、工作台与资产中心新增页面、`ui/widgets/asset_directory.py`、`ui/models/assets.py`、`src/trafficverse/maps/`、`src/trafficverse/api/map_catalog.py` 及对应测试 |
+| 赵彦豪 | 项目详情、场景配置、交通需求与仿真参数配置 | `ui/views/scene_configuration_page.py`、项目详情新增页面、`src/trafficverse/application/scenario_service.py`、场景功能专属 model/service 及对应测试 |
+| 姜云涛 | 仿真运行、实验管理、数据回放与分析 | `ui/views/live_monitor_page.py`、`ui/views/experiment_management_page.py`、`ui/views/data_analysis_page.py`、运行/回放功能专属 application 模块及对应测试 |
+| 当轮集成负责人 | 主窗口装配、公共导航、公共协议、依赖与发布集成 | 下述共享热点文件；每轮只能指定一名集成负责人 |
+
+功能负责人可以在自己的范围内新增 feature-local 文件。不得因为调用方需要某能力，就直接进入其他
+负责人的页面、service 或测试文件实现。跨功能需求优先通过 Port、signal、REST/WS 契约或小型公共
+model 交付。
+
+#### 3.4.2 共享热点文件
+
+以下文件容易被多个功能同时修改，默认视为受保护共享热点：
+
+```text
+AGENTS.md
+pyproject.toml
+uv.lock
+src/trafficverse/bootstrap.py
+src/trafficverse/cli.py
+src/trafficverse/api/app.py
+src/trafficverse/api/dependencies.py
+src/trafficverse/api/rest/routes.py
+src/trafficverse/api/contracts.py
+src/trafficverse/domain/models/
+contracts/
+ui/app/main.py
+ui/views/main_window.py
+ui/views/navigation.py
+ui/views/components.py
+ui/viewmodels/run_viewmodel.py
+ui/models/protocol.py
+ui/api_client/
+migrations/
+```
+
+- 并行开发期间，只有当轮集成负责人可以修改共享热点文件。
+- 功能分支需要接入导航、主窗口、依赖注入或公共 API 时，先在功能目录完成实现和测试，再提交一份
+  “集成清单”，列出需要注册的页面、路由、依赖和 signal；由集成负责人集中接线。
+- 紧急情况下确需由功能负责人修改共享热点，必须先在任务记录中声明文件、改动目的和预计完成时间，
+  获得其他受影响负责人确认后再修改；同一时间一个共享热点文件只能有一个写入者。
+- 禁止在功能分支中顺带格式化、重命名或重排共享热点及其他负责人文件。
+
+#### 3.4.3 新功能文件组织
+
+新增功能应优先按功能拆文件，避免继续扩大单体页面或单体路由：
+
+```text
+ui/views/<feature>_page.py
+ui/views/<feature>_dialogs.py
+ui/viewmodels/<feature>_viewmodel.py
+src/trafficverse/api/rest/<feature>.py
+src/trafficverse/application/<feature>_service.py
+tests/unit/ui/test_<feature>_*.py
+tests/unit/application/test_<feature>_service.py
+```
+
+- 页面私有弹窗放在对应 `<feature>_dialogs.py`，不得把功能弹窗加入
+  `ui/views/components.py`；只有两个以上已落地功能复用且接口稳定后才可提升为公共组件。
+- 页面状态和业务逻辑放 feature-local viewmodel；不得继续向 `RunViewModel` 添加与运行控制无关的
+  工作台、资产或场景表单状态。
+- 新 REST 能力放 feature route 模块，避免多人直接修改 `api/rest/routes.py`；路由注册由集成负责人
+  完成。
+- 测试默认只修改与本功能对应的测试文件。公共契约测试由集成负责人统一生成和更新。
+
+#### 3.4.4 开工、交付与冲突处理
+
+每个并行任务开始前必须在任务说明中写明：
+
+1. 功能负责人和功能名称；
+2. 计划新增文件；
+3. 计划修改文件（写入白名单）；
+4. 是否需要共享热点集成；
+5. 对其他功能提供或依赖的契约。
+
+开发过程中必须遵守：
+
+- 只修改写入白名单中的文件；范围变化时先更新任务说明并通知受影响负责人。
+- 不覆盖、不回退、不“顺手修复”其他负责人未合并的改动。
+- 发现跨功能缺陷时，先提交最小复现或接口需求给对应负责人；未经协调不得跨区修复。
+- 公共契约先定生产者、消费者和兼容性，再由功能负责人分别实现两端；禁止双方同时编辑同一文件。
+- 合并顺序固定为：领域/契约基础 → 功能实现 → 集成接线 → 生成契约与回归验证。
+- 发生冲突时由文件当前负责人处理语义合并；不得使用整文件覆盖解决冲突。
+
+功能交付必须附带：
+
+- 实际修改文件清单；
+- 对外接口、signal、路由或 model 变更；
+- 需要集成负责人执行的接线步骤；
+- 已运行测试和未运行测试；
+- 已知会影响其他负责人的后续事项。
 
 ## 4. Python 代码规范
 
