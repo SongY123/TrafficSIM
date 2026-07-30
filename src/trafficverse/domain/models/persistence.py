@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, JsonValue
+from pydantic import Field, JsonValue, field_validator
 
 from trafficverse.domain.enums import ExperimentStatus
 from trafficverse.domain.models.common import StrictModel
@@ -57,6 +57,36 @@ class ScenarioListQuery(StrictModel):
 
 class ScenarioPage(StrictModel):
     items: tuple[ScenarioRecord, ...]
+    total: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1)
+
+
+class WorkspaceRecord(StrictModel):
+    workspace_id: UUID
+    name: str = Field(min_length=1, max_length=200)
+    description: str
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+
+class WorkspaceListQuery(StrictModel):
+    q: str | None = None
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=50, ge=1, le=200)
+
+    @field_validator("q", mode="before")
+    @classmethod
+    def normalize_query(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        return stripped or None
+
+
+class WorkspacePage(StrictModel):
+    items: tuple[WorkspaceRecord, ...]
     total: int = Field(ge=0)
     offset: int = Field(ge=0)
     limit: int = Field(ge=1)

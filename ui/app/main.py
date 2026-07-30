@@ -10,7 +10,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from ui.api_client import RealtimeClient, RestApiClient
-from ui.viewmodels import RunViewModel
+from ui.viewmodels import RunViewModel, WorkspaceViewModel
 from ui.views import MainWindow
 
 DEFAULT_SCENARIO_ID = UUID("00000000-0000-0000-0000-000000000042")
@@ -22,9 +22,11 @@ def run(api_url: str, scenario_id: UUID = DEFAULT_SCENARIO_ID) -> int:
     rest = RestApiClient(api_url)
     realtime = RealtimeClient(api_url)
     viewmodel = RunViewModel(rest, realtime, scenario_id)
-    window = MainWindow(viewmodel)
+    workspace_viewmodel = WorkspaceViewModel(rest)
+    window = MainWindow(viewmodel, workspace_viewmodel)
     window.show()
     QTimer.singleShot(0, viewmodel.initialize)
+    QTimer.singleShot(0, workspace_viewmodel.initialize)
     return app.exec()
 
 

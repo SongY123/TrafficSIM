@@ -83,6 +83,21 @@ class MapSummary(ProtocolModel):
     network_schema_version: str = Field(min_length=1)
 
 
+class WorkspaceSummary(ProtocolModel):
+    workspace_id: UUID
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkspacePage(ProtocolModel):
+    items: tuple[WorkspaceSummary, ...]
+    total: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=200)
+
+
 class MapManifest(ProtocolModel):
     schema_version: Literal["2.0"] = "2.0"
     map_id: str = Field(min_length=1)

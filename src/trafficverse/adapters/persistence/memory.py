@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from uuid import UUID
 
 from trafficverse.domain.enums import ErrorCode, ExperimentStatus
 from trafficverse.domain.errors import TrafficVerseError
-from trafficverse.domain.models import DomainEvent, MetricSample
+from trafficverse.domain.models import (
+    DomainEvent,
+    MetricSample,
+    WorkspaceListQuery,
+    WorkspacePage,
+    WorkspaceRecord,
+)
 
 
 class InMemoryExperimentRepository:
@@ -59,3 +66,39 @@ class InMemoryExperimentRepository:
     async def append_metric(self, metric: MetricSample) -> None:
         async with self._lock:
             self._metrics.setdefault(metric.experiment_id, []).append(metric)
+
+
+class InMemoryWorkspaceRepository:
+    def __init__(self, seed: Sequence[WorkspaceRecord] = ()) -> None:
+        self._records = {record.workspace_id: record for record in seed}
+        self._lock = asyncio.Lock()
+
+    async def get_workspace(self, workspace_id: UUID) -> WorkspaceRecord:
+        async with self._lock:
+            record = self._records.get(workspace_id)
+            if record is None or record.deleted_at is not None:
+                raise TrafficVerseError(
+                    ErrorCode.RESOURCE_NOT_FOUND,
+                    f"workspace does not exist: {workspace_id}",
+                )
+            return record
+
+    async def list_workspaces(self, query: WorkspaceListQuery) -> WorkspacePage:
+        async with self._lock:
+            records = [record for record in self._records.values() if record.deleted_at is None]
+            if query.q is not None:
+                needle = query.q.casefold()
+                records = [
+                    record
+                    for record in records
+                    if needle in record.name.casefold() or needle in record.description.casefold()
+                ]
+            records.sort(key=lambda record: str(record.workspace_id))
+            records.sort(key=lambda record: record.updated_at, reverse=True)
+            total = len(records)
+            return WorkspacePage(
+                items=tuple(records[query.offset : query.offset + query.limit]),
+                total=total,
+                offset=query.offset,
+                limit=query.limit,
+            )

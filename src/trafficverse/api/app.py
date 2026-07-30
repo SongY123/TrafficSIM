@@ -57,7 +57,7 @@ def create_app(dependencies: ApiDependencies) -> FastAPI:
 
     app = FastAPI(
         title="TrafficVerse API",
-        version="1.0.0",
+        version="2.1.0",
         lifespan=lifespan,
     )
 

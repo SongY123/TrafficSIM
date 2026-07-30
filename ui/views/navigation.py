@@ -19,6 +19,7 @@ from ui.views.element_plus_icons import ICON_SIZE, render_element_plus_icon, ren
 from ui.views.theme import ThemeMode, load_icon_colors
 
 _NAVIGATION = (
+    ("workspace", "data-board.svg", "工作台"),
     ("live", "monitor.svg", "实时监控"),
     ("scene", "set-up.svg", "场景配置"),
     ("experiments", "data-board.svg", "实验管理"),
@@ -51,14 +52,14 @@ class NavigationRail(QWidget):
         section.setObjectName("sectionLabel")
         layout.addWidget(section)
         layout.addSpacing(5)
-        for key, icon, label in _NAVIGATION[:5]:
+        for key, icon, label in _NAVIGATION[:-1]:
             layout.addWidget(self._nav_button(key, icon, label))
 
         layout.addStretch(1)
         section = QLabel("系统")
         section.setObjectName("sectionLabel")
         layout.addWidget(section)
-        layout.addWidget(self._nav_button(*_NAVIGATION[5]))
+        layout.addWidget(self._nav_button(*_NAVIGATION[-1]))
 
         divider = QFrame()
         divider.setObjectName("navigationDivider")
@@ -68,7 +69,7 @@ class NavigationRail(QWidget):
         version.setObjectName("brandCaption")
         version.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(version)
-        self.set_active("live")
+        self.set_active("workspace")
 
     def set_active(self, key: str) -> None:
         for button_key, button in self._buttons.items():

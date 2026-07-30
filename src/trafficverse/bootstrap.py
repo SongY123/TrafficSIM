@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
 from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from trafficverse.adapters.messaging import DiscardDataLogger, FrameBroker
-from trafficverse.adapters.persistence import InMemoryExperimentRepository
+from trafficverse.adapters.persistence import (
+    InMemoryExperimentRepository,
+    InMemoryWorkspaceRepository,
+)
+from trafficverse.adapters.persistence.postgres import PostgresRepository, create_postgres_engine
 from trafficverse.adapters.sumo import SumoTrafficEngineAdapter
 from trafficverse.api import ApiDependencies, RuntimeDirectory, create_app
 from trafficverse.api.command_bus import ExperimentCommandBus
@@ -18,6 +24,7 @@ from trafficverse.api.models import ReadinessComponent
 from trafficverse.application.experiment_registry import ExperimentRegistry
 from trafficverse.application.simulation_manager import SimulationManager
 from trafficverse.application.simulation_runner import SimulationRunner
+from trafficverse.application.workspace_service import WorkspaceService
 from trafficverse.config.loader import load_scenario, validate_map_manifest
 from trafficverse.config.models import ScenarioConfig
 from trafficverse.domain.enums import ComponentStatus, ExperimentStatus
@@ -26,6 +33,7 @@ from trafficverse.ports import (
     EventPublisherPort,
     ExperimentRepositoryPort,
     TrafficEnginePort,
+    WorkspaceRepositoryPort,
 )
 
 
@@ -134,6 +142,7 @@ def build_core_api(
     *,
     repository_root: Path,
     artifact_root: Path | None = None,
+    database_url: str | None = None,
 ) -> FastAPI:
     scenario = load_scenario(scenario_path)
     resolved = _resolve_scenario_paths(scenario, repository_root)
@@ -145,13 +154,34 @@ def build_core_api(
     )
     factory = CoreRuntimeFactory(resolved, repository_root, broker, maps)
     runtimes = RuntimeDirectory(factory.create)
+    configured_database_url = (
+        database_url
+        if database_url is not None
+        else os.getenv("TRAFFICVERSE_DATABASE_URL")
+    )
+    engine: AsyncEngine | None = None
+    workspace_repository: WorkspaceRepositoryPort
+    if configured_database_url and configured_database_url.strip():
+        engine = create_postgres_engine(configured_database_url.strip())
+        workspace_repository = PostgresRepository(engine)
+    else:
+        workspace_repository = InMemoryWorkspaceRepository()
+
+    async def shutdown() -> None:
+        try:
+            await factory.close()
+        finally:
+            if engine is not None:
+                await engine.dispose()
+
     dependencies = ApiDependencies(
         runtimes=runtimes,
         maps=maps,
         commands=ExperimentCommandBus(runtimes),
         broker=broker,
         readiness=factory.readiness,
-        shutdown=factory.close,
+        shutdown=shutdown,
+        workspaces=WorkspaceService(workspace_repository),
     )
     return create_app(dependencies)
 

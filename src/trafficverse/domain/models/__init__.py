@@ -13,6 +13,9 @@ from trafficverse.domain.models.persistence import (
     ScenarioRecord,
     ScenarioVersionRecord,
     ScenarioWrite,
+    WorkspaceListQuery,
+    WorkspacePage,
+    WorkspaceRecord,
 )
 from trafficverse.domain.models.simulation import (
     ComponentHealth,
@@ -51,4 +54,7 @@ __all__ = [
     "Vector3",
     "VehicleState",
     "WebSocketEnvelope",
+    "WorkspaceListQuery",
+    "WorkspacePage",
+    "WorkspaceRecord",
 ]

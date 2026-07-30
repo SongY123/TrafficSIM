@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.models import ControlAvailability, MapSummary
-from ui.viewmodels import RunViewModel
+from ui.viewmodels import RunViewModel, WorkspaceViewModel
 from ui.views.asset_center_page import AssetCenterPage
 from ui.views.data_analysis_page import DataAnalysisPage
 from ui.views.experiment_management_page import ExperimentManagementPage
@@ -26,6 +26,7 @@ from ui.views.navigation import NavigationRail
 from ui.views.scene_configuration_page import SceneConfigurationPage
 from ui.views.system_settings_page import SystemSettingsPage
 from ui.views.theme import ThemeMode, configure_application_font, load_stylesheet
+from ui.views.workspace_page import WorkspacePageWidget
 
 _WINDOW_ICON_PATH = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg"
 
@@ -33,10 +34,17 @@ _WINDOW_ICON_PATH = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg
 class MainWindow(QMainWindow):
     """Compose the navigation shell and route view-model state into pages."""
 
-    def __init__(self, viewmodel: RunViewModel, *, load_web_map: bool = True) -> None:
+    def __init__(
+        self,
+        viewmodel: RunViewModel,
+        workspace_viewmodel: WorkspaceViewModel | None = None,
+        *,
+        load_web_map: bool = True,
+    ) -> None:
         configure_application_font()
         super().__init__()
         self._viewmodel = viewmodel
+        self._workspace_viewmodel = workspace_viewmodel
         self.setWindowIcon(QIcon(str(_WINDOW_ICON_PATH)))
         self.setWindowTitle("TrafficVerse · 交互式交通仿真系统")
         self.resize(1600, 960)
@@ -50,6 +58,7 @@ class MainWindow(QMainWindow):
         self.notice.setWordWrap(True)
         self.notice.hide()
 
+        self.workspace_page = WorkspacePageWidget()
         self.live_page = LiveMonitorPage(load_web_map=load_web_map)
         self.scene_page = SceneConfigurationPage()
         self.experiments_page = ExperimentManagementPage()
@@ -57,6 +66,7 @@ class MainWindow(QMainWindow):
         self.assets_page = AssetCenterPage(load_web_map=load_web_map)
         self.settings_page = SystemSettingsPage()
         self._pages = {
+            "workspace": self.workspace_page,
             "live": self.live_page,
             "scene": self.scene_page,
             "experiments": self.experiments_page,
@@ -105,6 +115,13 @@ class MainWindow(QMainWindow):
         self.assets_page.import_requested.connect(self._choose_map)
         self.assets_page.preview_requested.connect(vm.preview_map_asset)
         self.settings_page.theme_changed.connect(self._apply_theme)
+        if self._workspace_viewmodel is not None:
+            self.workspace_page.search_changed.connect(
+                self._workspace_viewmodel.set_search_query
+            )
+            self.workspace_page.workspace_selected.connect(
+                self._workspace_viewmodel.select
+            )
 
     def _connect_viewmodel(self) -> None:
         vm = self._viewmodel
@@ -120,6 +137,12 @@ class MainWindow(QMainWindow):
         vm.control_availability_changed.connect(self._set_controls)
         vm.connection_changed.connect(self.live_page.set_connection)
         vm.notification.connect(self._show_notice)
+        workspace_vm = self._workspace_viewmodel
+        if workspace_vm is not None:
+            workspace_vm.workspaces_changed.connect(self.workspace_page.set_workspaces)
+            workspace_vm.selection_changed.connect(self.workspace_page.set_selection)
+            workspace_vm.loading_changed.connect(self.workspace_page.set_loading)
+            workspace_vm.notification.connect(self._show_notice)
 
     @Slot(str)
     def _show_page(self, key: str) -> None:

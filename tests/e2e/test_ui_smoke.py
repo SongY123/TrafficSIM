@@ -47,12 +47,15 @@ def test_core_run_window_constructs_and_closes_without_backend() -> None:
 
     page_stack = window.findChild(QStackedWidget, "pageStack")
     assert page_stack is not None
-    assert page_stack.count() == 6
-    assert page_stack.currentWidget().objectName() == "liveMonitorPage"
+    assert page_stack.count() == 7
+    assert page_stack.currentWidget().objectName() == "workspacePage"
     assert window.findChild(MapLibreDeckMapWidget) is not None
     assert window.findChild(QWidget, "monitorMapSplitter") is None
     window.show()
     app.processEvents()
+    live_button = window.findChild(QPushButton, "nav_live")
+    assert live_button is not None
+    live_button.click()
     page_title = window.live_page.findChild(QLabel, "pageTitle")
     assert page_title is not None
     live_labels = window.live_page.findChildren(QLabel)
@@ -104,6 +107,7 @@ def test_core_run_window_constructs_and_closes_without_backend() -> None:
     assert window.property("theme") == "light"
 
     expected_pages = {
+        "workspace": "workspacePage",
         "scene": "sceneConfigurationPage",
         "experiments": "experimentManagementPage",
         "analysis": "dataAnalysisPage",

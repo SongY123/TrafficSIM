@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from uuid import UUID
 
-from PySide6.QtCore import QFile, QIODeviceBase, QObject, QUrl, Signal
+from PySide6.QtCore import QFile, QIODeviceBase, QObject, QUrl, QUrlQuery, Signal
 from PySide6.QtNetwork import (
     QHttpMultiPart,
     QHttpPart,
@@ -37,6 +37,22 @@ class RestApiClient(QObject):
 
     def list_maps(self) -> None:
         self._get("maps.list", "/api/v1/maps")
+
+    def list_workspaces(
+        self,
+        query: str | None = None,
+        *,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> None:
+        url = self._url("/api/v1/workspaces")
+        parameters = QUrlQuery()
+        if query:
+            parameters.addQueryItem("q", query)
+        parameters.addQueryItem("offset", str(offset))
+        parameters.addQueryItem("limit", str(limit))
+        url.setQuery(parameters)
+        self._watch("workspaces.list", self._network.get(QNetworkRequest(url)))
 
     def get_map_network(self, map_id: str) -> None:
         self._get(f"map.network:{map_id}", f"/api/v1/maps/{map_id}/network")

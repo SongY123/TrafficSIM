@@ -18,6 +18,9 @@ from trafficverse.domain.models import (
     ScenarioPage,
     ScenarioRecord,
     ScenarioWrite,
+    WorkspaceListQuery,
+    WorkspacePage,
+    WorkspaceRecord,
 )
 
 
@@ -41,6 +44,12 @@ class ScenarioRepositoryPort(Protocol):
     ) -> ScenarioRecord: ...
 
     async def soft_delete_scenario(self, scenario_id: UUID) -> None: ...
+
+
+class WorkspaceRepositoryPort(Protocol):
+    async def get_workspace(self, workspace_id: UUID) -> WorkspaceRecord: ...
+
+    async def list_workspaces(self, query: WorkspaceListQuery) -> WorkspacePage: ...
 
 
 class ExperimentRepositoryPort(Protocol):

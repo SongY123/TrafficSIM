@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from trafficverse.adapters.messaging.frame_broker import FrameBroker
     from trafficverse.api.command_bus import ExperimentCommandBus
     from trafficverse.api.map_catalog import MapCatalog
+    from trafficverse.application.workspace_service import WorkspaceService
 
 
 class SimulationControlPort(Protocol):
@@ -115,3 +116,4 @@ class ApiDependencies:
     broker: FrameBroker
     readiness: ReadinessCheck
     shutdown: ShutdownHook | None = None
+    workspaces: WorkspaceService | None = None

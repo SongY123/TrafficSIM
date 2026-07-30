@@ -6,6 +6,7 @@ from trafficverse.ports.persistence import (
     ExperimentMetadataRepositoryPort,
     ExperimentRepositoryPort,
     ScenarioRepositoryPort,
+    WorkspaceRepositoryPort,
 )
 from trafficverse.ports.simulation import TrafficEnginePort
 
@@ -17,4 +18,5 @@ __all__ = [
     "ExperimentRepositoryPort",
     "ScenarioRepositoryPort",
     "TrafficEnginePort",
+    "WorkspaceRepositoryPort",
 ]

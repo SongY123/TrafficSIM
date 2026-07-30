@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Response, UploadFile, status
+from fastapi import APIRouter, File, Query, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from trafficverse.api.command_bus import ExperimentCommandBus
@@ -20,9 +20,12 @@ from trafficverse.api.models import (
     ReadinessResponse,
     SetSpeedRequest,
     StopExperimentRequest,
+    WorkspacePageResponse,
+    WorkspaceSummary,
 )
 from trafficverse.domain.enums import ErrorCode
 from trafficverse.domain.errors import TrafficVerseError
+from trafficverse.domain.models import WorkspaceListQuery, WorkspaceRecord
 
 
 def _require_accepted(outcome: CommandOutcome) -> None:
@@ -40,6 +43,16 @@ async def _execute(
     outcome = await commands.execute(experiment_id, command_type, payload)
     _require_accepted(outcome)
     return outcome
+
+
+def _workspace_summary(record: WorkspaceRecord) -> WorkspaceSummary:
+    return WorkspaceSummary(
+        workspace_id=record.workspace_id,
+        name=record.name,
+        description=record.description,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
 
 
 def build_router(dependencies: ApiDependencies) -> APIRouter:
@@ -92,6 +105,36 @@ def build_router(dependencies: ApiDependencies) -> APIRouter:
     @router.get("/maps/import/{job_id}", response_model=MapImportJob)
     async def import_status(job_id: UUID) -> MapImportJob:
         return dependencies.maps.import_job(job_id)
+
+    @router.get("/workspaces", response_model=WorkspacePageResponse)
+    async def list_workspaces(
+        q: Annotated[str | None, Query()] = None,
+        offset: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    ) -> WorkspacePageResponse:
+        if dependencies.workspaces is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "workspace repository is not configured",
+            )
+        page = await dependencies.workspaces.list(
+            WorkspaceListQuery(q=q, offset=offset, limit=limit)
+        )
+        return WorkspacePageResponse(
+            items=tuple(_workspace_summary(record) for record in page.items),
+            total=page.total,
+            offset=page.offset,
+            limit=page.limit,
+        )
+
+    @router.get("/workspaces/{workspace_id}", response_model=WorkspaceSummary)
+    async def get_workspace(workspace_id: UUID) -> WorkspaceSummary:
+        if dependencies.workspaces is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "workspace repository is not configured",
+            )
+        return _workspace_summary(await dependencies.workspaces.get(workspace_id))
 
     @router.post(
         "/experiments",

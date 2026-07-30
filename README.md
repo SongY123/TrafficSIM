@@ -38,6 +38,15 @@ uv run trafficverse serve --host 127.0.0.1 --port 8000
 uv run trafficverse ui --api-url http://127.0.0.1:8000
 ```
 
+工作台数据需要 PostgreSQL 持久化。启动 API 前设置
+`TRAFFICVERSE_DATABASE_URL=postgresql+psycopg://...`，并执行：
+
+```bash
+uv run alembic upgrade head
+```
+
+未设置数据库地址时，API 会使用空的进程内工作台目录，便于运行仿真核心和 UI 冒烟测试。
+
 调试时可把 `sumo` 换为 `sumo-gui`；该窗口保持独立，不属于 TrafficVerse 产品 UI。
 
 二维页面使用仓库内置的 MapLibre/deck.gl 离线 bundle，运行时不需要 Node.js、CDN 或公网。

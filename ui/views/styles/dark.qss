@@ -95,6 +95,14 @@ QTreeWidget {
 QTreeWidget::item { padding: 5px 4px; }
 QTreeWidget::item:hover { background: #262727; }
 QTreeWidget::item:selected { background: #18222c; color: #409eff; }
+QListWidget#workspaceList {
+  background: #1d1e1f; alternate-background-color: #18191a;
+  border: 1px solid #414243; border-radius: 4px; color: #cfd3dc;
+}
+QListWidget#workspaceList::item { padding: 10px 8px; }
+QListWidget#workspaceList::item:hover { background: #262727; }
+QListWidget#workspaceList::item:selected { background: #18222c; color: #409eff; }
+QLabel#workspaceDescription { color: #cfd3dc; font-size: 14px; }
 QHeaderView::section {
   background: #262727; border: 0; border-bottom: 1px solid #414243;
   color: #a3a6ad; padding: 8px; font-weight: 500;

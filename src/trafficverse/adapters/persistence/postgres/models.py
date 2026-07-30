@@ -63,6 +63,39 @@ class ScenarioRow(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class WorkspaceRow(Base):
+    __tablename__ = "workspace"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        Index(
+            "ix_workspace_active_updated_id",
+            updated_at.desc(),
+            id,
+            postgresql_where=deleted_at.is_(None),
+        ),
+        Index(
+            "ix_workspace_active_lower_name",
+            func.lower(name),
+            postgresql_where=deleted_at.is_(None),
+        ),
+        Index(
+            "ix_workspace_active_lower_description",
+            func.lower(description),
+            postgresql_where=deleted_at.is_(None),
+        ),
+    )
+
+
 class ScenarioVersionRow(Base):
     __tablename__ = "scenario_version"
     __table_args__ = (

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -61,6 +62,21 @@ class MapImportJob(StrictModel):
     map_id: str | None = None
     error_code: str | None = None
     errors: tuple[str, ...] = ()
+
+
+class WorkspaceSummary(StrictModel):
+    workspace_id: UUID
+    name: str = Field(min_length=1, max_length=200)
+    description: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkspacePageResponse(StrictModel):
+    items: tuple[WorkspaceSummary, ...]
+    total: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1)
 
 
 class ExperimentCreateRequest(StrictModel):

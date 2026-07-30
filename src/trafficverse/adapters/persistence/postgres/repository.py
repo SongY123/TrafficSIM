@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import JsonValue, TypeAdapter
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -24,6 +24,7 @@ from trafficverse.adapters.persistence.postgres.models import (
     MetricSampleRow,
     ScenarioRow,
     ScenarioVersionRow,
+    WorkspaceRow,
 )
 from trafficverse.domain.enums import ErrorCode, EventSeverity, ExperimentStatus
 from trafficverse.domain.errors import TrafficVerseError
@@ -41,6 +42,9 @@ from trafficverse.domain.models import (
     ScenarioRecord,
     ScenarioVersionRecord,
     ScenarioWrite,
+    WorkspaceListQuery,
+    WorkspacePage,
+    WorkspaceRecord,
 )
 from trafficverse.domain.state_machine import require_transition
 
@@ -73,6 +77,51 @@ class PostgresRepository:
                 )
         except IntegrityError as error:
             raise self._conflict("map asset already exists", error) from error
+
+    async def get_workspace(self, workspace_id: UUID) -> WorkspaceRecord:
+        async with self._sessions() as session:
+            row = await session.scalar(
+                select(WorkspaceRow).where(
+                    WorkspaceRow.id == workspace_id,
+                    WorkspaceRow.deleted_at.is_(None),
+                )
+            )
+            if row is None:
+                raise self._not_found("workspace", workspace_id)
+            return self._workspace_record(row)
+
+    async def list_workspaces(self, query: WorkspaceListQuery) -> WorkspacePage:
+        filters = [WorkspaceRow.deleted_at.is_(None)]
+        if query.q is not None:
+            escaped = (
+                query.q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            )
+            pattern = f"%{escaped}%"
+            filters.append(
+                or_(
+                    WorkspaceRow.name.ilike(pattern, escape="\\"),
+                    WorkspaceRow.description.ilike(pattern, escape="\\"),
+                )
+            )
+        async with self._sessions() as session:
+            total = await session.scalar(
+                select(func.count()).select_from(WorkspaceRow).where(*filters)
+            )
+            rows = (
+                await session.scalars(
+                    select(WorkspaceRow)
+                    .where(*filters)
+                    .order_by(WorkspaceRow.updated_at.desc(), WorkspaceRow.id)
+                    .offset(query.offset)
+                    .limit(query.limit)
+                )
+            ).all()
+            return WorkspacePage(
+                items=tuple(self._workspace_record(row) for row in rows),
+                total=int(total or 0),
+                offset=query.offset,
+                limit=query.limit,
+            )
 
     async def create_scenario(self, write: ScenarioWrite) -> ScenarioRecord:
         now = datetime.now(timezone.utc)
@@ -467,6 +516,17 @@ class PostgresRepository:
             created_at=scenario.created_at,
             updated_at=scenario.updated_at,
             deleted_at=scenario.deleted_at,
+        )
+
+    @staticmethod
+    def _workspace_record(row: WorkspaceRow) -> WorkspaceRecord:
+        return WorkspaceRecord(
+            workspace_id=row.id,
+            name=row.name,
+            description=row.description,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+            deleted_at=row.deleted_at,
         )
 
     @staticmethod

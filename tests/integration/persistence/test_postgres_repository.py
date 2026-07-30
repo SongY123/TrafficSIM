@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from trafficverse.adapters.persistence.postgres import (
     create_postgres_engine,
 )
 from trafficverse.application.scenario_service import ScenarioDraft, ScenarioService
+from trafficverse.application.workspace_service import WorkspaceService
 from trafficverse.config.loader import load_scenario
 from trafficverse.domain.enums import ErrorCode, EventSeverity, ExperimentStatus
 from trafficverse.domain.errors import TrafficVerseError
@@ -23,6 +25,7 @@ from trafficverse.domain.models import (
     MapAssetRegistration,
     MetricSample,
     ScenarioListQuery,
+    WorkspaceListQuery,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -61,6 +64,7 @@ def test_migration_round_trip_and_schema_contract() -> None:
             "event",
             "metric_sample",
             "artifact",
+            "workspace",
         }
         unique_names = {
             constraint["name"]
@@ -89,6 +93,7 @@ def test_migration_round_trip_and_schema_contract() -> None:
                 "event",
                 "metric_sample",
                 "artifact",
+                "workspace",
             )
             for index in inspector.get_indexes(table)
         }
@@ -97,6 +102,9 @@ def test_migration_round_trip_and_schema_contract() -> None:
             "ix_metric_experiment_name_time",
             "ix_artifact_experiment_kind",
             "ix_state_change_experiment_occurred",
+            "ix_workspace_active_updated_id",
+            "ix_workspace_active_lower_name",
+            "ix_workspace_active_lower_description",
         }
     finally:
         engine.dispose()
@@ -251,6 +259,63 @@ def test_repository_contract_crud_conflict_rollback_and_metadata() -> None:
                 for table in ("event", "metric_sample", "artifact")
             }
         assert counts == {"event": 1, "metric_sample": 1, "artifact": 1}
+        await engine.dispose()
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.integration
+@pytest.mark.postgres
+def test_workspace_repository_search_pagination_and_soft_delete() -> None:
+    url = database_url()
+    migrate("base")
+    migrate("head")
+
+    async def exercise() -> None:
+        engine = create_postgres_engine(url)
+        repository = PostgresRepository(engine)
+        service = WorkspaceService(repository)
+        now = datetime.now(timezone.utc)
+        ids = [uuid4() for _ in range(4)]
+        rows = (
+            (ids[0], "Traffic baseline", "morning commute", now, None),
+            (ids[1], "Percent % study", "literal_underbar", now + timedelta(minutes=1), None),
+            (ids[2], "Description match", "traffic analysis", now + timedelta(minutes=2), None),
+            (ids[3], "Deleted traffic", "hidden", now + timedelta(minutes=3), now),
+        )
+        async with engine.begin() as connection:
+            for workspace_id, name, description, updated_at, deleted_at in rows:
+                await connection.execute(
+                    text(
+                        """
+                        INSERT INTO workspace
+                            (id, name, description, created_at, updated_at, deleted_at)
+                        VALUES
+                            (:id, :name, :description, :created_at, :updated_at, :deleted_at)
+                        """
+                    ),
+                    {
+                        "id": workspace_id,
+                        "name": name,
+                        "description": description,
+                        "created_at": now,
+                        "updated_at": updated_at,
+                        "deleted_at": deleted_at,
+                    },
+                )
+
+        page = await service.list(WorkspaceListQuery(limit=1))
+        assert page.total == 3
+        assert page.items[0].workspace_id == ids[2]
+        assert (await service.list(WorkspaceListQuery(q="baseline"))).items[0].workspace_id == ids[0]
+        assert (await service.list(WorkspaceListQuery(q="analysis"))).items[0].workspace_id == ids[2]
+        assert (await service.list(WorkspaceListQuery(q="%"))).items[0].workspace_id == ids[1]
+        assert (await service.list(WorkspaceListQuery(q="_"))).items[0].workspace_id == ids[1]
+        assert (await service.list(WorkspaceListQuery(q="missing"))).total == 0
+        assert (await service.get(ids[1])).name == "Percent % study"
+        with pytest.raises(TrafficVerseError) as deleted:
+            await service.get(ids[3])
+        assert deleted.value.code is ErrorCode.RESOURCE_NOT_FOUND
         await engine.dispose()
 
     asyncio.run(exercise())
