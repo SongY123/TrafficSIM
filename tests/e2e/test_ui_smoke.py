@@ -10,9 +10,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QSplitter,
     QStackedWidget,
     QTreeWidget,
+    QWidget,
 )
 from ui.viewmodels import RunViewModel
 from ui.views import MainWindow
@@ -31,7 +31,7 @@ class _Realtime(QObject):
 
 
 @pytest.mark.e2e
-def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> None:
+def test_core_run_window_constructs_and_closes_without_backend() -> None:
     app = QApplication.instance() or QApplication([])
     assert isinstance(app, QCoreApplication)
     viewmodel = RunViewModel(
@@ -50,9 +50,7 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
     assert page_stack.count() == 6
     assert page_stack.currentWidget().objectName() == "liveMonitorPage"
     assert window.findChild(MapLibreDeckMapWidget) is not None
-    map_splitter = window.findChild(QSplitter, "monitorMapSplitter")
-    assert map_splitter is not None
-    assert map_splitter.count() == 2
+    assert window.findChild(QWidget, "monitorMapSplitter") is None
     window.show()
     app.processEvents()
     page_title = window.live_page.findChild(QLabel, "pageTitle")
@@ -72,8 +70,20 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
     assert not window.windowIcon().isNull()
 
     live_text = " ".join(label.text() for label in live_labels)
-    assert "MapLibre" not in live_text
-    assert "deck.gl" not in live_text
+    assert "MapLibre" in live_text
+    assert "deck.gl" in live_text
+    assert "CARLA" not in live_text
+    assert "ROI" not in live_text
+    viewmodel.component_health_changed.emit(
+        (
+            type(
+                "Health",
+                (),
+                {"component": "sumo", "status": "HEALTHY", "message": "connected"},
+            )(),
+        )
+    )
+    assert "正常" in {label.text() for label in window.live_page.findChildren(QLabel)}
     visible_text = " ".join(label.text() for label in window.findChildren(QLabel))
     for english_copy in (
         "CONTROL CENTER",

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "trafficverse"
 version = "0.1.0"
-description = "SUMO traffic truth with TrafficVerse 2D UI and local CARLA 3D mirroring"
+description = "SUMO traffic simulation with TrafficVerse 2D UI"
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
 dependencies = [
@@ -20,9 +20,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-carla = [
-  "carla==0.9.16; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
-]
 sumo = [
   "sumolib==1.27.1",
   "traci==1.27.1",
@@ -83,7 +80,6 @@ testpaths = ["tests"]
 markers = [
   "integration: requires a real external component",
   "traffic: native traffic engine integration test",
-  "carla: requires CARLA",
   "postgres: requires PostgreSQL",
   "e2e: end-to-end test",
   "performance: performance test",

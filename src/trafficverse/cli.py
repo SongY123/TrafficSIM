@@ -2,14 +2,11 @@
 
 import argparse
 import json
-import math
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 from uuid import UUID
 
-from trafficverse.adapters.carla import CarlaAdapter, CarlaDiagnostics
 from trafficverse.adapters.sumo import SumoTrafficEngineAdapter
 from trafficverse.config.compatibility import (
     default_baseline_path,
@@ -18,28 +15,16 @@ from trafficverse.config.compatibility import (
 )
 from trafficverse.config.loader import (
     configuration_hash,
-    load_map_manifest,
     load_runtime_baseline,
     load_scenario,
     validate_map_manifest,
     validate_scenario_environment,
 )
 from trafficverse.config.models import ScenarioConfig
-from trafficverse.domain.enums import (
-    ErrorCode,
-    RequirementMode,
-    TrafficLightColor,
-)
 from trafficverse.domain.errors import TrafficVerseError
-from trafficverse.domain.models import (
-    ActorSpawnResult,
-    TrafficLightUpdate,
-    Vector3,
-)
 from trafficverse.maps import (
     NETWORK_SCHEMA_VERSION,
     OpenDriveMapCompiler,
-    load_network,
     validate_compiled_bundle,
 )
 
@@ -77,7 +62,7 @@ def _build_parser() -> argparse.ArgumentParser:
     validate.add_argument(
         "--environment",
         action="store_true",
-        help="also require referenced native map assets",
+        help="also validate referenced SUMO assets, manifest versions, and checksums",
     )
 
     map_parser = subcommands.add_parser("map", help="map asset operations")
@@ -97,9 +82,8 @@ def _build_parser() -> argparse.ArgumentParser:
     map_compile = map_commands.add_parser("compile", help="compile OpenDRIVE native map assets")
     map_compile.add_argument("source", type=Path)
     map_compile.add_argument("output", type=Path)
-    map_compile.add_argument("--map-id", default="town04-carla-0.9.16-native-1.0")
-    map_compile.add_argument("--carla-map", default="Town04")
-    map_compile.add_argument("--carla-version", default="0.9.16")
+    map_compile.add_argument("--map-id", default="town04-sumo-1.27.1-native-1.0")
+    map_compile.add_argument("--sumo-version", default="1.27.1")
 
     traffic = subcommands.add_parser("traffic", help="SUMO traffic adapter operations")
     traffic_commands = traffic.add_subparsers(dest="traffic_command", required=True)
@@ -110,27 +94,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=_repository_root() / "configs" / "scenarios" / "core-run-town04.yaml",
     )
     smoke.add_argument("--ticks", type=int, default=2400)
-
-    carla = subcommands.add_parser("carla", help="local CARLA operations")
-    carla_commands = carla.add_subparsers(dest="carla_command", required=True)
-    carla_doctor = carla_commands.add_parser(
-        "doctor", help="verify the local CARLA version handshake"
-    )
-    carla_doctor.add_argument(
-        "--scenario",
-        type=Path,
-        default=_repository_root() / "configs" / "scenarios" / "core-run-town04.yaml",
-    )
-    carla_smoke = carla_commands.add_parser(
-        "smoke", help="spawn, move, signal, and clean up local actors"
-    )
-    carla_smoke.add_argument(
-        "--scenario",
-        type=Path,
-        default=_repository_root() / "configs" / "scenarios" / "core-run-town04.yaml",
-    )
-    carla_smoke.add_argument("--vehicles", type=int, default=10)
-    carla_smoke.add_argument("--ticks", type=int, default=240)
 
     ui = subcommands.add_parser("ui", help="open the TrafficVerse Core Run desktop UI")
     ui.add_argument(
@@ -154,12 +117,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--scenario",
         type=Path,
         default=_repository_root() / "configs/scenarios/core-run-town04.yaml",
-    )
-    serve.add_argument(
-        "--carla-mode",
-        choices=[mode.value for mode in RequirementMode],
-        default=None,
-        help="override the scenario CARLA mode; use disabled for a local 2D demo",
     )
     serve.add_argument(
         "--artifact-root",
@@ -204,7 +161,6 @@ def _run_map_validate(args: argparse.Namespace) -> int:
     )
     manifest = validate_map_manifest(
         args.path,
-        expected_carla_version=profile.carla.version,
         expected_network_schema_version=NETWORK_SCHEMA_VERSION,
         expected_sumo_version=profile.sumo.version,
     )
@@ -227,8 +183,7 @@ def _run_map_compile(args: argparse.Namespace) -> int:
         args.source,
         args.output,
         map_id=args.map_id,
-        carla_map=args.carla_map,
-        carla_version=args.carla_version,
+        sumo_version=args.sumo_version,
     )
     print(
         json.dumps(
@@ -294,46 +249,6 @@ def _run_traffic_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
-@dataclass(frozen=True, slots=True)
-class _SmokeVehicle:
-    vehicle_id: str
-    blueprint_id: str
-    position: Vector3
-    heading_rad: float
-
-
-@dataclass(frozen=True, slots=True)
-class _SmokeTransform:
-    actor_id: int
-    position: Vector3
-    heading_rad: float
-
-
-def _run_carla_doctor(args: argparse.Namespace) -> int:
-    scenario = load_scenario(args.scenario)
-    adapter = CarlaAdapter()
-    try:
-        adapter.connect(scenario.carla)
-        diagnostics = adapter.diagnostics()
-    finally:
-        adapter.close()
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": f"{scenario.carla.host}:{scenario.carla.port}",
-                "endpoint_mode": scenario.carla.endpoint_mode,
-                "client_version": diagnostics.client_version,
-                "server_version": diagnostics.server_version,
-            },
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-        )
-    )
-    return 0
-
-
 def _configure_software_webgl() -> None:
     current_flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").split()
     for flag in SOFTWARE_WEBGL_FLAGS:
@@ -368,131 +283,13 @@ def _run_serve(args: argparse.Namespace) -> int:
 
     from trafficverse.bootstrap import build_core_api
 
-    mode = RequirementMode(args.carla_mode) if args.carla_mode is not None else None
     app = build_core_api(
         args.scenario,
         repository_root=_repository_root(),
-        carla_mode=mode,
         artifact_root=args.artifact_root,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
-
-
-def _run_carla_smoke(args: argparse.Namespace) -> int:
-    if args.vehicles < 10:
-        raise ValueError("--vehicles must be at least 10")
-    if args.ticks <= 0:
-        raise ValueError("--ticks must be greater than zero")
-    scenario = load_scenario(args.scenario)
-    network_path = Path(scenario.traffic.network)
-    if not network_path.is_absolute():
-        network_path = _repository_root() / network_path
-    network = load_network(network_path)
-    manifest_path = Path(scenario.map_registration.manifest)
-    if not manifest_path.is_absolute():
-        manifest_path = _repository_root() / manifest_path
-    manifest = load_map_manifest(manifest_path)
-    candidates = [lane for lane in network.lanes if len(lane.centerline) >= 2]
-    if len(candidates) < args.vehicles:
-        raise ValueError("compiled map does not contain enough spawn lanes")
-    specs: list[_SmokeVehicle] = []
-    for index, lane in enumerate(candidates[: args.vehicles]):
-        start, following = lane.centerline[0], lane.centerline[1]
-        specs.append(
-            _SmokeVehicle(
-                vehicle_id=f"carla-smoke-{index:03d}",
-                blueprint_id=scenario.carla.fallback_blueprints[
-                    index % len(scenario.carla.fallback_blueprints)
-                ],
-                position=Vector3(x=start.x, y=start.y, z=start.z + 0.5),
-                heading_rad=math.atan2(following.y - start.y, following.x - start.x),
-            )
-        )
-
-    adapter = CarlaAdapter()
-    baseline_actor_count = 0
-    spawn_results: tuple[ActorSpawnResult, ...] = ()
-    diagnostics: CarlaDiagnostics
-    frozen_lights = False
-    signal_colors: list[str] = []
-    try:
-        adapter.connect(scenario.carla)
-        adapter.load_world(manifest.carla_map, scenario.weather)
-        baseline_actor_count = adapter.actor_count()
-        spawn_results = adapter.spawn_vehicles(specs)
-        if any(not result.success for result in spawn_results):
-            failures = [result.error for result in spawn_results if not result.success]
-            raise TrafficVerseError(
-                ErrorCode.CARLA_OPERATION_FAILED,
-                f"CARLA smoke spawn failures: {failures}",
-            )
-        actor_ids = [result.actor_id for result in spawn_results if result.actor_id is not None]
-        lights = adapter.traffic_lights()
-        frozen_lights = bool(lights) and all(light.frozen for light in lights)
-        expected_signal_ids = {signal.opendrive_id for signal in network.signals}
-        mapped_light = next(
-            (light for light in lights if light.opendrive_id in expected_signal_ids),
-            None,
-        )
-        if mapped_light is None:
-            raise TrafficVerseError(
-                ErrorCode.CARLA_OPERATION_FAILED,
-                "Town04 contains no runtime traffic light referenced by network bindings",
-            )
-        if mapped_light:
-            for color in (
-                TrafficLightColor.RED,
-                TrafficLightColor.YELLOW,
-                TrafficLightColor.GREEN,
-            ):
-                adapter.update_traffic_lights(
-                    (TrafficLightUpdate(carla_actor_id=mapped_light.actor_id, color=color),)
-                )
-                signal_colors.append(color.value)
-                adapter.tick((len(signal_colors)) * scenario.simulation.step_ms)
-        time_offset = len(signal_colors)
-        for sequence in range(1, args.ticks + 1):
-            adapter.update_actors(
-                tuple(
-                    _SmokeTransform(
-                        actor_id=actor_id,
-                        position=Vector3(
-                            x=spec.position.x + sequence * 0.05,
-                            y=spec.position.y,
-                            z=spec.position.z,
-                        ),
-                        heading_rad=spec.heading_rad,
-                    )
-                    for actor_id, spec in zip(actor_ids, specs, strict=True)
-                )
-            )
-            adapter.tick((time_offset + sequence) * scenario.simulation.step_ms)
-        diagnostics = adapter.diagnostics()
-        adapter.destroy_actors(actor_ids)
-    finally:
-        adapter.close()
-
-    probe = CarlaAdapter()
-    try:
-        probe.connect(scenario.carla)
-        restored_actor_count = probe.actor_count()
-    finally:
-        probe.close()
-    result = {
-        "ok": frozen_lights and restored_actor_count == baseline_actor_count,
-        "endpoint": f"{scenario.carla.host}:{scenario.carla.port}",
-        "spawned_vehicles": sum(result.success for result in spawn_results),
-        "ticks": args.ticks,
-        "latest_carla_frame": diagnostics.last_carla_frame,
-        "traffic_lights_frozen": frozen_lights,
-        "mapped_signal_id": mapped_light.opendrive_id,
-        "signal_colors_tested": signal_colors,
-        "baseline_actor_count": baseline_actor_count,
-        "restored_actor_count": restored_actor_count,
-    }
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0 if result["ok"] else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -509,10 +306,6 @@ def main(argv: list[str] | None = None) -> int:
             return _run_map_compile(args)
         if args.command == "traffic" and args.traffic_command == "smoke":
             return _run_traffic_smoke(args)
-        if args.command == "carla" and args.carla_command == "doctor":
-            return _run_carla_doctor(args)
-        if args.command == "carla" and args.carla_command == "smoke":
-            return _run_carla_smoke(args)
         if args.command == "ui":
             return _run_ui(args)
         if args.command == "serve":

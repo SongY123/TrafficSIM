@@ -18,14 +18,12 @@ class RuntimeProfile(StrictModel):
     operating_system: Literal["Darwin", "Linux", "Windows"]
     architectures: tuple[str, ...] = Field(min_length=1)
     python_version: str = Field(pattern=r"^\d+\.\d+$")
-    carla: ComponentRequirement
     sumo: ComponentRequirement
-    native_window: ComponentRequirement
     postgres: ComponentRequirement
 
 
 class RuntimeBaseline(StrictModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["2.0"] = "2.0"
     default_profile: str = Field(min_length=1)
     profiles: dict[str, RuntimeProfile] = Field(min_length=1)
 
@@ -75,17 +73,8 @@ class SumoConfig(StrictModel):
     connect_retries: int = Field(default=3, ge=0, le=100)
 
 
-class CarlaViewConfig(StrictModel):
-    mode: Literal["native_window"] = "native_window"
-    native_window_id_env: str = Field(
-        default="TRAFFICVERSE_CARLA_WINDOW_ID",
-        pattern=r"^[A-Z][A-Z0-9_]+$",
-    )
-
-
 class UiConfig(StrictModel):
     api_url: str = Field(default="http://127.0.0.1:8000", min_length=1)
-    carla_view: CarlaViewConfig = Field(default_factory=CarlaViewConfig)
 
 
 class AutomationConfig(StrictModel):
@@ -104,54 +93,6 @@ class AutomationConfig(StrictModel):
             raise ValueError("automation proportions must be between 0 and 1")
         if not math.isclose(sum(value.values()), 1.0, abs_tol=1e-9):
             raise ValueError("automation proportions must sum to 1.0")
-        return value
-
-
-class RoiFocusConfig(StrictModel):
-    mode: Literal["fixed", "follow_vehicle"]
-    x: float | None = None
-    y: float | None = None
-    vehicle_id: str | None = None
-
-    @model_validator(mode="after")
-    def fields_must_match_focus_mode(self) -> "RoiFocusConfig":
-        if self.mode == "fixed" and (self.x is None or self.y is None):
-            raise ValueError("fixed ROI focus requires x and y")
-        if self.mode == "follow_vehicle" and not self.vehicle_id:
-            raise ValueError("follow_vehicle ROI focus requires vehicle_id")
-        return self
-
-
-class RoiConfig(StrictModel):
-    radius_m: float = Field(gt=0.0)
-    buffer_m: float = Field(gt=0.0)
-    max_actors: int = Field(default=200, gt=0)
-    focus: RoiFocusConfig
-
-
-class CarlaConfig(StrictModel):
-    mode: RequirementMode
-    endpoint_mode: Literal["local_server"] = "local_server"
-    host: str = Field(min_length=1)
-    port: int = Field(ge=1, le=65535)
-    timeout_s: float = Field(gt=0.0)
-    expected_version: str = Field(min_length=1)
-    step_ms: int = Field(default=50, gt=0)
-    worker_threads: int = Field(default=0, ge=0)
-    blueprint_filter: str = Field(default="vehicle.*", min_length=1)
-    fallback_blueprints: tuple[str, ...] = Field(
-        default=("vehicle.tesla.model3", "vehicle.audi.tt"),
-        min_length=1,
-    )
-    spawn_retries: int = Field(default=2, ge=0, le=10)
-
-    @field_validator("fallback_blueprints")
-    @classmethod
-    def fallback_blueprints_must_be_unique(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if any(not blueprint for blueprint in value):
-            raise ValueError("fallback blueprint IDs must not be empty")
-        if len(set(value)) != len(value):
-            raise ValueError("fallback blueprint IDs must be unique")
         return value
 
 
@@ -176,14 +117,6 @@ class TrafficEngineConfig(StrictModel):
     behavior: TrafficBehaviorConfig = Field(default_factory=TrafficBehaviorConfig)
 
 
-class WeatherConfig(StrictModel):
-    preset: str = Field(min_length=1)
-
-
-class MapRegistrationConfig(StrictModel):
-    manifest: str = Field(min_length=1)
-
-
 class LoggingConfig(StrictModel):
     trajectory_hz: int = Field(gt=0)
     parquet_batch_rows: int = Field(gt=0)
@@ -194,37 +127,26 @@ class ReplayConfig(StrictModel):
 
 
 class ScenarioConfig(StrictModel):
-    schema_version: Literal["1.2"] = "1.2"
+    schema_version: Literal["2.0"] = "2.0"
     scenario: ScenarioIdentityConfig
     simulation: SimulationConfig
     traffic: TrafficConfig
     sumo: SumoConfig
     automation: AutomationConfig
-    roi: RoiConfig
-    carla: CarlaConfig
-    weather: WeatherConfig
-    map_registration: MapRegistrationConfig
     logging: LoggingConfig
     replay: ReplayConfig
     ui: UiConfig = Field(default_factory=UiConfig)
 
     @model_validator(mode="after")
-    def duplicated_engine_values_must_match(self) -> "ScenarioConfig":
-        mismatches = []
+    def simulation_and_sumo_steps_must_match(self) -> "ScenarioConfig":
         if self.simulation.step_ms != self.sumo.step_ms:
-            mismatches.append("sumo.step_ms")
-        if self.simulation.step_ms != self.carla.step_ms:
-            mismatches.append("carla.step_ms")
-        if mismatches:
-            raise ValueError("simulation step values must match: " + ", ".join(mismatches))
+            raise ValueError("simulation.step_ms must match sumo.step_ms")
         return self
 
 
 class MapManifest(StrictModel):
-    schema_version: Literal["1.1"] = "1.1"
+    schema_version: Literal["2.0"] = "2.0"
     map_id: str = Field(min_length=1)
-    carla_map: str = Field(min_length=1)
-    carla_version: str = Field(min_length=1)
     sumo_version: str = Field(min_length=1)
     network_schema_version: Literal["traffic-network/1.0"]
     compiler_version: str = Field(min_length=1)
@@ -232,8 +154,6 @@ class MapManifest(StrictModel):
     source_ref: str = Field(min_length=1)
     sumo_generation_command: str = Field(min_length=1)
     validated: bool
-    max_registration_error_m: float = Field(gt=0.0)
-    strict_signal_mapping: bool
     files: dict[str, str] = Field(min_length=1)
 
     @field_validator("files")

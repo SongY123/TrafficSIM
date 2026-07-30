@@ -60,7 +60,6 @@ QLabel#assetStatusBadge {
 }
 QLabel#emptyIcon { color: #c0c4cc; font-size: 40px; font-weight: 500; }
 QLabel#emptyTitle { color: #606266; font-size: 17px; font-weight: 500; }
-QLabel#carlaStatus { background: #f5f7fa; color: #909399; border-radius: 4px; }
 QPushButton, QComboBox, QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox {
   background: #ffffff; border: 1px solid #dcdfe6; border-radius: 4px;
   color: #606266; padding: 7px 12px; selection-background-color: #a0cfff;

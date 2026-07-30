@@ -43,7 +43,7 @@ class AssetCenterPage(QWidget):
         root.addWidget(
             page_header(
                 "资产中心",
-                "以地图包目录统一管理 SUMO、CARLA 与 Web 可视化资源",
+                "统一管理 OpenDRIVE 编译源、SUMO 地图包与 Web 可视化资源",
                 self._header_actions(),
             )
         )
@@ -100,7 +100,7 @@ class AssetCenterPage(QWidget):
         title_stack.addWidget(self.asset_id)
         heading.addLayout(title_stack)
         heading.addStretch(1)
-        self.compatibility = QLabel("SUMO · CARLA · deck.gl · MapLibre")
+        self.compatibility = QLabel("OpenDRIVE · SUMO · deck.gl · MapLibre")
         self.compatibility.setObjectName("compatibilityTag")
         self.status = QLabel("等待选择")
         self.status.setObjectName("assetStatusBadge")
@@ -122,7 +122,7 @@ class AssetCenterPage(QWidget):
         layout.addLayout(footer)
         formats = QLabel(
             "可收录格式：.xodr、.net.xml、.sumocfg、.rou.xml、.geojson、.json、"
-            ".fbx、.glb、.gltf、.bin、.yaml；当前直接导入源为 .xodr。"
+            ".fbx、.glb、.gltf、.bin、.yaml；.xodr 是 OpenDRIVE/SUMO 编译源。"
         )
         formats.setObjectName("caption")
         formats.setWordWrap(True)
@@ -169,8 +169,11 @@ class AssetCenterPage(QWidget):
         summary = self._maps[map_id]
         manifest = self._manifests.get(map_id)
         entry: AssetDirectoryEntry = map_asset_entry(summary, manifest)
-        self.asset_name.setText(summary.carla_map)
-        self.asset_id.setText(f"地图 ID：{map_id}  ·  CARLA {summary.carla_version}")
+        self.asset_name.setText(map_id)
+        self.asset_id.setText(
+            f"地图 ID：{map_id}  ·  SUMO {summary.sumo_version}  ·  "
+            f"{summary.network_schema_version}"
+        )
         self.status.setText("已验证" if summary.validated else "待验证")
         self.compatibility.setText(" · ".join(entry.compatibility) or "正在加载清单")
         self.file_count.setText(f"{len(entry.files)} 个文件")

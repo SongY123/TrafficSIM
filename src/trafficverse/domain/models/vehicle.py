@@ -3,12 +3,11 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from trafficverse.domain.enums import (
     AutomationLevel,
     LaneChangeDirection,
-    TrafficLightColor,
     VehicleAction,
 )
 from trafficverse.domain.models.common import StrictModel, Vector3
@@ -40,54 +39,6 @@ class TrafficLightState(StrictModel):
     remaining_ms: int | None = Field(default=None, ge=0)
 
 
-class SignalBinding(StrictModel):
-    traffic_signal_id: str = Field(min_length=1)
-    controlled_link_ids: tuple[str, ...] = Field(min_length=1)
-    carla_opendrive_ids: tuple[str, ...] = Field(min_length=1)
-    phase_map: dict[str, TrafficLightColor]
-
-    @field_validator("controlled_link_ids")
-    @classmethod
-    def link_ids_must_be_unique_and_non_empty(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if any(not link_id for link_id in value):
-            raise ValueError("controlled link IDs must not be empty")
-        if len(set(value)) != len(value):
-            raise ValueError("controlled link IDs must be unique")
-        return value
-
-    @field_validator("carla_opendrive_ids")
-    @classmethod
-    def opendrive_ids_must_be_unique(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if any(not signal_id for signal_id in value):
-            raise ValueError("CARLA OpenDRIVE signal IDs must not be empty")
-        if len(set(value)) != len(value):
-            raise ValueError("CARLA OpenDRIVE signal IDs must be unique")
-        return value
-
-
-class ActorSpawnResult(StrictModel):
-    vehicle_id: str = Field(min_length=1)
-    success: bool
-    actor_id: int | None = Field(default=None, ge=0)
-    error: str | None = None
-
-    @model_validator(mode="after")
-    def result_fields_must_match_success(self) -> "ActorSpawnResult":
-        if self.success and self.actor_id is None:
-            raise ValueError("successful spawn result requires actor_id")
-        if not self.success and not self.error:
-            raise ValueError("failed spawn result requires error")
-        return self
-
-
-class CarlaTrafficLight(StrictModel):
-    """Stable traffic-light identity exposed by the CARLA port."""
-
-    actor_id: int = Field(ge=0)
-    opendrive_id: str = Field(min_length=1)
-    frozen: bool
-
-
 class ControlCommand(StrictModel):
     desired_acceleration_mps2: float | None = None
     desired_speed_mps: float | None = Field(default=None, ge=0.0)
@@ -106,8 +57,3 @@ class ControlCommand(StrictModel):
         ):
             raise ValueError("control command must contain at least one intent")
         return self
-
-
-class TrafficLightUpdate(StrictModel):
-    carla_actor_id: int = Field(ge=0)
-    color: TrafficLightColor

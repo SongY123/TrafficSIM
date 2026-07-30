@@ -1,4 +1,4 @@
-schema_version: "1.0"
+schema_version: "2.0"
 default_profile: auto
 profiles:
   macos-dev:
@@ -7,15 +7,9 @@ profiles:
       - arm64
       - x86_64
     python_version: "3.10"
-    carla:
-      mode: disabled
-      version: "0.9.16"
     sumo:
       mode: required
       version: "1.27.1"
-    native_window:
-      mode: disabled
-      version: qt-foreign-window/1.0
     postgres:
       mode: disabled
       version: "16"
@@ -24,15 +18,9 @@ profiles:
     architectures:
       - x86_64
     python_version: "3.10"
-    carla:
-      mode: required
-      version: "0.9.16"
     sumo:
       mode: required
       version: "1.27.1"
-    native_window:
-      mode: required
-      version: qt-foreign-window/1.0
     postgres:
       mode: optional
       version: "16"

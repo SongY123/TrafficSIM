@@ -1,4 +1,4 @@
-"""Deterministic MVP compiler from CARLA OpenDRIVE to native traffic assets."""
+"""Deterministic MVP compiler from OpenDRIVE to SUMO-oriented traffic assets."""
 
 import hashlib
 import json
@@ -185,10 +185,10 @@ class OpenDriveMapCompiler:
         output_directory: Path,
         *,
         map_id: str,
-        carla_map: str = "Town04",
-        carla_version: str = "0.9.16",
-        source_repository: str = "https://github.com/carla-simulator/carla",
-        source_ref: str = "294096eb1c38eabf246e4f3a9cdab704e33a7f4c",
+        sumo_version: str = "1.27.1",
+        source_repository: str = "local-opendrive",
+        source_ref: str = "unversioned",
+        sumo_generation_command: str = "netconvert --opendrive-files <source>",
     ) -> MapCompileResult:
         try:
             root = ET.fromstring(source.read_bytes())
@@ -216,38 +216,6 @@ class OpenDriveMapCompiler:
         copied_source = output_directory / source.name
         if copied_source.resolve() != source.resolve():
             copied_source.write_bytes(source.read_bytes())
-        registration = output_directory / "registration.yaml"
-        registration.write_text(
-            yaml.safe_dump(
-                {
-                    "schema_version": "1.0",
-                    "source_coordinate_system": "OpenDRIVE",
-                    "target_coordinate_system": "CARLA",
-                    "transform": {
-                        "axis_matrix": [[1.0, 0.0], [0.0, 1.0]],
-                        "translation_m": {"x": 0.0, "y": 0.0, "z": 0.0},
-                        "heading_sign": 1,
-                        "heading_offset_rad": 0.0,
-                    },
-                    "control_points": [
-                        {
-                            "traffic": {"x": 0.0, "y": 0.0, "z": 0.0},
-                            "carla": {"x": 0.0, "y": 0.0, "z": 0.0},
-                        },
-                        {
-                            "traffic": {"x": 100.0, "y": 0.0, "z": 0.0},
-                            "carla": {"x": 100.0, "y": 0.0, "z": 0.0},
-                        },
-                        {
-                            "traffic": {"x": 0.0, "y": 100.0, "z": 0.0},
-                            "carla": {"x": 0.0, "y": 100.0, "z": 0.0},
-                        },
-                    ],
-                },
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
         files = {}
         asset_names = {
             source.name,
@@ -255,23 +223,20 @@ class OpenDriveMapCompiler:
             "network.geojson",
             "routes.yaml",
             "signals.yaml",
-            "registration.yaml",
         }
         for name in sorted(asset_names):
             path = output_directory / name
             files[name] = f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
         manifest = {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "map_id": map_id,
-            "carla_map": carla_map,
-            "carla_version": carla_version,
+            "sumo_version": sumo_version,
             "network_schema_version": NETWORK_SCHEMA_VERSION,
             "compiler_version": MAP_COMPILER_VERSION,
             "source_repository": source_repository,
             "source_ref": source_ref,
+            "sumo_generation_command": sumo_generation_command,
             "validated": True,
-            "max_registration_error_m": 0.001,
-            "strict_signal_mapping": True,
             "files": files,
         }
         manifest_path = output_directory / "manifest.yaml"

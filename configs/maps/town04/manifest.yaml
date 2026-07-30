@@ -1,24 +1,19 @@
-schema_version: '1.1'
-map_id: town04-carla-0.9.16-sumo-1.27.1-v1
-carla_map: Town04
-carla_version: 0.9.16
+schema_version: '2.0'
+map_id: town04-sumo-1.27.1-v2
 sumo_version: 1.27.1
 network_schema_version: traffic-network/1.0
 compiler_version: 1.1.0
-source_repository: https://github.com/carla-simulator/carla
+source_repository: local-opendrive
 source_ref: 294096eb1c38eabf246e4f3a9cdab704e33a7f4c
 sumo_generation_command: python scripts/maps/generate_town04_sumo.py --map-dir configs/maps/town04
 validated: true
-max_registration_error_m: 0.001
-strict_signal_mapping: true
 files:
-  Town04.xodr: sha256:ccf97e74c45d6e036feb5506b9859b4b15a84f4f75895081e3fd0531684f1779
-  Town04.net.xml: sha256:f9a73832256b39999d2404970b1c097ea35d91a8bf012f1ff586265f11126e18
-  Town04.rou.xml: sha256:889e42afb63bd1750bcf956ae346ebabefe40a938a2fffdd7cd5df0f3f83eed7
-  vtypes.rou.xml: sha256:7acc925d32a5b9e537d0009d3c86b0ae59db07373c02e6fd338ceea25bcb7989
-  map.sumocfg: sha256:7c971bb699983fe69ebdb32246e0441654dc5721bd37a86a48245c536c88437e
-  network.geojson: sha256:a140f978656fdcad52d9ea8e026d965d1a9cdf8b10f9868028ddf8df21d0d61f
-  network.json: sha256:cb4fa33665117c8d3b5ef7adb371d1ebb4f4e76c6bd4a028aee68043f73ad060
-  registration.yaml: sha256:6c15dd9ca8c5935a378b493060a1d8ffca4f11aefeaffd4ba6794aff126df079
-  routes.yaml: sha256:ae920c11a360d06f5029f567f7b04bbad5c14aaf718ef0b9213e0a8b7d8949b7
-  signals.yaml: sha256:53fc8c7507f4f8d79de78c1e183a02b69536035ee024d74f554bd064deb30930
+  Town04.xodr: sha256:eeba5c7bb3eff46384f95e4550fbf230599424cb69be322c0f4e316ca8a3cd25
+  Town04.net.xml: sha256:efe6d7b2fcf831d3a7b3f04636206e9fdbf3367160acbcde68b42dcb2d662398
+  Town04.rou.xml: sha256:45619ac2456e32f11fc800c09dea96e1b2742897d4d8b1012579deaebfe7c994
+  vtypes.rou.xml: sha256:b11e77b00bd9deaf95db4325677127b060f3ed71560f3be2ba18ad6e32f5c48a
+  map.sumocfg: sha256:797a1574e14aeab5725f7fa4584c87a0cbf68a622375ee6fd571d439a723c719
+  network.geojson: sha256:c2a0d462c6022bf7ad566533fb1705421b3df9ba6fd7103794fd55c998923596
+  network.json: sha256:209da0151e5a646aa7b66299f029ea5723863a73bdbfd0890dd0b442790ddb19
+  routes.yaml: sha256:a0f261c7569d0073a7c9ccef842124dceeb9236dd2c078bb2a494ec3f27ef7a1
+  signals.yaml: sha256:f9bf058bc9d9001fbe5043d669021ab8767f0e88a9260a4fb8aa5ef466bdd093

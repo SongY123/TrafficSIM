@@ -1,14 +1,19 @@
-# SUMO + CARLA 架构迁移计划
+# SUMO + CARLA 架构迁移计划（Obsolete）
 
 > 版本：v1.0
 >
-> 状态：Proposed for Implementation
+> 状态：**Obsolete — 已被 ADR-027 替代**
 >
 > 日期：2026-07-17
 >
 > 目标基线：[PRD v1.3](./PRD.md)
 >
 > 决策依据：[ADR-024 与 ADR-025](./ADR.md)
+
+> [!IMPORTANT]
+> 本文是历史迁移记录，不是当前产品计划、安装指南或验收依据。ADR-027 已移除 CARLA、ROI、
+> RGB 图像和 native-window 产品能力；当前架构以 [PRD](./PRD.md) 和
+> [System Design](./SYSTEM_DESIGN.md) 为准。以下历史正文为保留决策上下文，不应继续执行。
 
 ## 1. 迁移目标
 

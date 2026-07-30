@@ -8,6 +8,7 @@ from ui.viewmodels import RunViewModel
 
 EXPERIMENT_ID = UUID("00000000-0000-0000-0000-000000000010")
 SCENARIO_ID = UUID("00000000-0000-0000-0000-000000000042")
+MAP_ID = "town04-sumo-1.27.1-v2"
 
 
 class FakeRest(QObject):
@@ -137,9 +138,8 @@ def test_map_catalog_auto_selects_verified_map_and_loads_network() -> None:
         "maps.list",
         [
             {
-                "map_id": "town04",
-                "carla_map": "Town04",
-                "carla_version": "0.9.16",
+                "map_id": MAP_ID,
+                "sumo_version": "1.27.1",
                 "validated": True,
                 "network_schema_version": "traffic-network/1.0",
             }
@@ -147,9 +147,9 @@ def test_map_catalog_auto_selects_verified_map_and_loads_network() -> None:
     )
     viewmodel.create_experiment()
 
-    assert ("network", "town04") in rest.calls
-    assert ("manifest", "town04") in rest.calls
-    assert ("create", (SCENARIO_ID, "town04")) in rest.calls
+    assert ("network", MAP_ID) in rest.calls
+    assert ("manifest", MAP_ID) in rest.calls
+    assert ("create", (SCENARIO_ID, MAP_ID)) in rest.calls
 
 
 def test_asset_manifest_and_preview_network_are_forwarded_separately() -> None:
@@ -166,19 +166,16 @@ def test_asset_manifest_and_preview_network_are_forwarded_separately() -> None:
         "maps.list",
         [
             {
-                "map_id": "town04",
-                "carla_map": "Town04",
-                "carla_version": "0.9.16",
+                "map_id": MAP_ID,
+                "sumo_version": "1.27.1",
                 "validated": True,
                 "network_schema_version": "traffic-network/1.0",
             }
         ],
     )
     manifest = {
-        "schema_version": "1.1",
-        "map_id": "town04",
-        "carla_map": "Town04",
-        "carla_version": "0.9.16",
+        "schema_version": "2.0",
+        "map_id": MAP_ID,
         "sumo_version": "1.27.1",
         "network_schema_version": "traffic-network/1.0",
         "compiler_version": "1.1.0",
@@ -186,18 +183,16 @@ def test_asset_manifest_and_preview_network_are_forwarded_separately() -> None:
         "source_ref": "fixture",
         "sumo_generation_command": "fixture",
         "validated": True,
-        "max_registration_error_m": 0.001,
-        "strict_signal_mapping": True,
         "files": {"network.geojson": "sha256:" + "a" * 64},
     }
-    viewmodel.handle_rest_success("map.manifest:town04", manifest)
-    viewmodel.preview_map_asset("town04")
+    viewmodel.handle_rest_success(f"map.manifest:{MAP_ID}", manifest)
+    viewmodel.preview_map_asset(MAP_ID)
     network = {"type": "FeatureCollection", "features": []}
-    viewmodel.handle_rest_success("asset.map.network:town04", network)
+    viewmodel.handle_rest_success(f"asset.map.network:{MAP_ID}", network)
 
-    assert manifests and manifests[0][0] == "town04"
-    assert ("asset-network", "town04") in rest.calls
-    assert previews == [("town04", network)]
+    assert manifests and manifests[0][0] == MAP_ID
+    assert ("asset-network", MAP_ID) in rest.calls
+    assert previews == [(MAP_ID, network)]
 
 
 def test_start_prepares_created_experiment_then_starts_when_ready() -> None:
@@ -239,7 +234,6 @@ def test_vehicle_sequence_gap_requests_world_snapshot() -> None:
             2,
             {
                 "traffic": {"vehicles": [_vehicle(2)], "traffic_lights": []},
-                "carla": None,
                 "events": [],
                 "metrics": [],
             },

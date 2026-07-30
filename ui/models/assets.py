@@ -66,12 +66,19 @@ def map_asset_entry(summary: MapSummary, manifest: MapManifest | None) -> AssetD
     )
     compatibility = tuple(
         platform
-        for platform in ("SUMO", "CARLA", "deck.gl", "MapLibre")
+        for platform in (
+            "OpenDRIVE",
+            "SUMO 编译源",
+            "SUMO",
+            "deck.gl",
+            "MapLibre",
+            "3D 模型源",
+        )
         if any(platform in file.compatibility for file in files)
     )
     return AssetDirectoryEntry(
         asset_id=summary.map_id,
-        name=summary.carla_map,
+        name=summary.map_id,
         validated=summary.validated,
         compatibility=compatibility,
         files=files,
@@ -94,8 +101,10 @@ def asset_file_compatibility(name: str) -> tuple[str, ...]:
     suffix = asset_file_suffix(name)
     if suffix in {".net.xml", ".rou.xml", ".add.xml", ".sumocfg"}:
         return ("SUMO",)
-    if suffix in {".xodr", ".fbx"}:
-        return ("CARLA",)
+    if suffix == ".xodr":
+        return ("OpenDRIVE", "SUMO 编译源")
+    if suffix == ".fbx":
+        return ("3D 模型源",)
     if suffix in {".geojson", ".json", ".tileset.json"}:
         return ("deck.gl", "MapLibre")
     if suffix in {".glb", ".gltf", ".bin", ".b3dm"}:

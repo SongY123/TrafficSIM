@@ -1,6 +1,6 @@
 # TrafficVerse Architecture Decision Record
 
-> 版本：v1.3
+> 版本：v1.4
 > 状态：Target Baseline（实现迁移中）
 >
 > 输入：[PRD.md](./PRD.md)
@@ -18,7 +18,8 @@
 - **Proposed**：待验证或待评审；
 - **Accepted**：实现必须遵守；
 - **Deprecated**：仍可能存在但不可用于新实现；
-- **Superseded**：已被另一个 ADR 替代。
+- **Superseded**：已被另一个 ADR 替代；
+- **Obsolete**：所描述的产品能力已移除，不再有替代实现。
 
 变更规则：
 
@@ -31,38 +32,39 @@
 
 | ID | 决策 | 状态 |
 |---|---|---|
-| ADR-001 | 使用 SUMO + CARLA 混合仿真 | Superseded by ADR-022 |
-| ADR-002 | SUMO 是全局运动学 Truth Source | Superseded by ADR-022 |
-| ADR-003 | 使用核心 ROI + Buffer 滞回同步 | Accepted |
+| ADR-001 | 使用 SUMO + CARLA 混合仿真 | Superseded by ADR-027 |
+| ADR-002 | SUMO 是全局运动学 Truth Source | Superseded by ADR-027 |
+| ADR-003 | 使用核心 ROI + Buffer 滞回同步 | Obsolete by ADR-027 |
 | ADR-004 | 使用中央固定步长与单一仿真时钟 | Accepted |
 | ADR-005 | 核心编排和后端采用 Python | Accepted |
 | ADR-006 | FastAPI + REST + WebSocket 分工 | Accepted |
 | ADR-007 | YAML 场景配置 + 类型化启动校验 | Accepted |
 | ADR-008 | 契约优先、统一领域模型和 Port/Adapter | Accepted |
-| ADR-009 | 自动驾驶控制意图回写 SUMO，不由 CARLA 反向定真值 | Superseded by ADR-022 |
+| ADR-009 | 自动驾驶控制意图回写 SUMO，不由 CARLA 反向定真值 | Superseded by ADR-027 |
 | ADR-010 | PostgreSQL + Parquet + JSON/YAML 分层存储 | Accepted |
 | ADR-011 | PySide6 作为第一阶段 UI，保留 React 替换边界 | Accepted |
 | ADR-012 | 回放采用 Snapshot + Delta/Event，而非重跑仿真 | Accepted |
-| ADR-013 | 显式地图配准与集中坐标转换 | Accepted |
+| ADR-013 | 显式地图配准与集中坐标转换 | Obsolete by ADR-027 |
 | ADR-014 | 有界队列、可观察降级与差异化故障策略 | Accepted |
 | ADR-015 | MVP 采用模块化单体，外部仿真器保持进程边界 | Accepted |
 | ADR-016 | 统一 ID、仿真时间、单位、版本与确定性规则 | Accepted |
 | ADR-017 | MVP 二维地图采用 Leaflet，指标图表采用 Plotly | Superseded by ADR-026 |
 | ADR-018 | 固定首个可运行环境与版本矩阵 | Superseded by ADR-024/025 |
-| ADR-019 | 固定 Town04 同源地图资产并由 SUMO 主控信号灯 | Superseded by ADR-022 |
-| ADR-020 | MVP 采用 Leaflet 平面坐标与 JSON JPEG 相机帧 | Superseded by ADR-025 |
+| ADR-019 | 固定 Town04 同源地图资产并由 SUMO 主控信号灯 | Superseded by ADR-027 |
+| ADR-020 | MVP 采用 Leaflet 平面坐标与 JSON JPEG 相机帧 | Obsolete by ADR-027 |
 | ADR-021 | 先通过 Core Run Gate，再实现产品与优化能力 | Superseded by ADR-024/025 |
 | ADR-022 | 自研 Native Traffic Engine 替代 SUMO，MVP 只实现基础交通能力 | Superseded by ADR-024 |
-| ADR-023 | macOS 控制端使用远程 CARLA Simulation Runtime | Superseded by ADR-024/025 |
-| ADR-024 | 恢复 SUMO 为全局交通真值并由 TrafficVerse 统一联仿 | Accepted |
-| ADR-025 | PySide6 托管本机 CARLA 原生窗口，不传输 RGB 画面 | Accepted |
-| ADR-026 | 左侧地图迁移到 MapLibre + deck.gl | Accepted |
+| ADR-023 | macOS 控制端使用远程 CARLA Simulation Runtime | Obsolete by ADR-027 |
+| ADR-024 | 恢复 SUMO 为全局交通真值并由 TrafficVerse 统一联仿 | Superseded by ADR-027 |
+| ADR-025 | PySide6 托管本机 CARLA 原生窗口，不传输 RGB 画面 | Obsolete by ADR-027 |
+| ADR-026 | 左侧地图迁移到 MapLibre + deck.gl | Superseded by ADR-027 |
+| ADR-027 | 移除 CARLA，产品聚焦 SUMO + TrafficVerse 2D | Accepted |
 
 ---
 
 ## ADR-001 — 使用 SUMO + CARLA 混合仿真
 
-- 状态：Superseded by ADR-022
+- 状态：Superseded by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -96,7 +98,7 @@
 
 ## ADR-002 — SUMO 是全局运动学 Truth Source
 
-- 状态：Superseded by ADR-022
+- 状态：Superseded by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -130,7 +132,7 @@ SUMO 是所有车辆存在性、位置、速度、加速度、车道、路线和
 
 ## ADR-003 — 使用核心 ROI + Buffer 滞回同步
 
-- 状态：Accepted
+- 状态：Obsolete by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -336,7 +338,7 @@ SUMO TraCI、CARLA、科研计算、数据处理和 FastAPI 都有成熟 Python 
 
 ## ADR-009 — 自动驾驶控制意图回写 SUMO，不由 CARLA 反向定真值
 
-- 状态：Superseded by ADR-022
+- 状态：Superseded by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -474,7 +476,7 @@ v1.0 使用 PySide6 实现四页面桌面 UI。UI 只通过 REST/WebSocket 使�
 
 ## ADR-013 — 显式地图配准与集中坐标转换
 
-- 状态：Accepted
+- 状态：Obsolete by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -692,7 +694,7 @@ CARLA server、Python client、SUMO/TraCI 和地图资产具有强版本关联�
 
 ## ADR-019 — 固定 Town04 同源地图资产并由 SUMO 主控信号灯
 
-- 状态：Superseded by ADR-022
+- 状态：Superseded by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -729,7 +731,7 @@ Core Run 只支持 CARLA 0.9.16 Town04。SUMO 网络从同一 Town04 OpenDRIVE �
 
 ## ADR-020 — MVP 采用 Leaflet 平面坐标与 JSON JPEG 相机帧
 
-- 状态：Superseded by ADR-025
+- 状态：Obsolete by ADR-027
 - 日期：2026-07-15
 
 ### 背景
@@ -857,7 +859,7 @@ MVP 固定范围：
 
 ## ADR-023 — macOS 控制端使用远程 CARLA Simulation Runtime
 
-- 状态：Superseded by ADR-024/025
+- 状态：Obsolete by ADR-027
 - 日期：2026-07-16
 - 澄清：ADR-015、ADR-018、ADR-020、ADR-022 的 CARLA 部署边界
 
@@ -905,7 +907,7 @@ CARLA RPC 默认端口 2000/2001 只向受控网络开放，产品用户入口�
 
 ## ADR-024 — 恢复 SUMO 为全局交通真值并由 TrafficVerse 统一联仿
 
-- 状态：Accepted
+- 状态：Superseded by ADR-027
 - 日期：2026-07-17
 - 替代：ADR-022
 - 同时替代：ADR-018 和 ADR-021 的旧运行环境与旧 Core Run 呈现基线；保留固定版本、先验收主链的原则
@@ -998,7 +1000,7 @@ CARLA endpoint 固定为 `127.0.0.1:2000`。官方 `run_synchronization.py` 只�
 
 ## ADR-025 — PySide6 托管本机 CARLA 原生窗口，不传输 RGB 画面
 
-- 状态：Accepted
+- 状态：Obsolete by ADR-027
 - 日期：2026-07-17
 - 替代：ADR-020 中 JSON JPEG 相机帧的三维呈现方案
 - 同时替代：ADR-018、ADR-021 和 ADR-023 中以远程无头 Runtime、RGB 帧作为 CARLA 呈现的产品基线
@@ -1068,7 +1070,7 @@ native window ID 或受测试的平台 locator 获得句柄，调用 `QWindow.fr
 
 ## ADR-026 — 左侧地图迁移到 MapLibre + deck.gl
 
-- 状态：Accepted
+- 状态：Superseded by ADR-027
 - 日期：2026-07-17
 - 替代：ADR-017 中 Leaflet 作为左侧地图技术栈的决定
 - 详细设计：[MAPLIBRE_DECKGL_ARCHITECTURE.md](./MAPLIBRE_DECKGL_ARCHITECTURE.md)
@@ -1138,14 +1140,69 @@ Web 构建基线固定为服务器现有 Node.js 16.20.2 和 npm 8.19.4。MapLib
 
 ---
 
+## ADR-027 — 移除 CARLA，产品聚焦 SUMO + TrafficVerse 2D
+
+- 状态：Accepted
+- 日期：2026-07-29
+- 替代：ADR-001、ADR-002、ADR-009、ADR-019、ADR-024、ADR-026
+- 废止：ADR-003、ADR-013、ADR-020、ADR-023、ADR-025
+- 澄清：其他 Accepted ADR 中所有 CARLA、ROI、SUMO→CARLA 配准、RGB 画面和原生窗口条款均不再适用，其余技术原则继续有效
+
+### 背景
+
+CARLA 联仿要求维护第二套运行时、地图配准、ROI Actor 生命周期、固定步同步、信号灯映射和
+原生窗口或图像呈现链路。这些能力增加了部署与验收复杂度，却不再服务当前产品目标。产品范围现
+聚焦于可复现的 SUMO 交通仿真和 TrafficVerse 自有二维交互、分析及回放能力。
+
+### 决策
+
+TrafficVerse 彻底移除 CARLA 集成。SUMO 是车辆、路线、车道、运动学状态和信号灯的唯一真值源；
+`TrafficEnginePort` 是唯一仿真器 Port。TrafficVerse 使用标准化 `TrafficSnapshot` 驱动二维地图、
+Dashboard、记录和回放，不再创建或同步三维 Actor。
+
+以下能力从产品与公共契约删除：
+
+1. CARLA 配置、健康、错误码、帧、Actor、信号灯镜像和 Adapter Port；
+2. ROI、Buffer、焦点、Actor 上限及 SUMO→CARLA 坐标配准；
+3. RGB camera、JPEG/base64/WebSocket 画面和 CARLA 原生窗口托管；
+4. CARLA 地图名、版本、OpenDRIVE signal binding 和窗口运行时基线。
+
+二维 UI 继续采用 MapLibre + deck.gl 的适用部分，但只负责 TrafficVerse 2D 地图和数据图层；
+不再承担 CARLA 视图、CARLA 资产或左右分屏语义。固定步长、单一仿真时钟、类型化配置、Port/Adapter
+边界、有界队列、统一 ID/单位/版本以及 SUMO 控制意图写入原则继续有效。
+
+### 选择理由
+
+- 单一 SUMO 真值与单一展示数据流更容易复现、测试和解释；
+- 去除 GPU、CARLA SDK、配准和跨窗口依赖，降低安装、运行和 CI 门槛；
+- 产品资源可集中投入二维交互、交通分析、实验管理和回放；
+- 公共领域模型和契约不再泄漏已移除仿真器的 Actor、frame 或窗口概念。
+
+### 放弃的方案
+
+- **保留可选 CARLA 模式**：仍需长期维护配置、Port、契约和测试矩阵，不能达到彻底移除目标。
+- **只隐藏三维 UI**：后端同步、ROI 和运行时依赖依然存在，复杂度没有实质下降。
+- **保留通用 ROI/Actor 类型备用**：当前没有第二个真实消费者，会把已废止语义继续固化为公共 API。
+
+### 后果与迁移约束
+
+- 删除字段属于不兼容变更；场景配置 schema 从 `1.2` 升级到 `2.0`，旧配置必须移除
+  `carla`、`roi`、`weather`、`map_registration` 和 `ui.carla_view` 后再迁移；
+- runtime baseline schema 升级到 `2.0`，不再声明 `carla` 或 `native_window` 组件；
+- map manifest schema 升级到 `2.0`，不再声明 CARLA 地图、版本或配准校验字段；
+- 第一阶段先收缩权威模型、Port 和生成契约；runtime、bootstrap、CLI、UI、测试、配置 YAML、
+  依赖和剩余文档中的断裂引用由后续阶段按消费者到实现的顺序清理；
+- 迁移期间允许仓库暂时无法完成全量导入或测试，但不得通过兼容别名重新暴露已删除的 CARLA/ROI API；
+- 后续若重新引入三维仿真器，必须新增 ADR 和独立主版本契约，不恢复本次删除的隐式兼容。
+
+---
+
 ## 3. 待验证但不改变当前基线的议题
 
 以下事项需要实现和基准测试后量化，目前不构成新的架构方向：
 
-1. 在目标硬件上 CARLA 可稳定承载的最大 ROI Actor 数；
-2. SUMO 在 50 ms step 下的 50/500/2,500 车辆实时因子；
-3. Parquet batch size、snapshot interval 与 seek 延迟的最优平衡；
-4. 目标桌面平台上原生 CARLA 窗口的 resize、focus 和崩溃恢复稳定性；
-5. 单机多实验并发是否值得引入独立 worker。
+1. SUMO 在 50 ms step 下的 50/500/2,500 车辆实时因子；
+2. Parquet batch size、snapshot interval 与 seek 延迟的最优平衡；
+3. 单机多实验并发是否值得引入独立 worker。
 
 这些议题应通过 T10 性能和集成报告给出证据。若证据要求改变已接受方向，应新增 ADR，而不是在代码中局部绕开。

@@ -54,7 +54,6 @@ def test_world_state_replaces_snapshot_and_detects_vehicle_sequence_gap() -> Non
                 "vehicles": [_vehicle("vehicle-1", 1.0)],
                 "traffic_lights": [{"signal_id": "signal-1", "phase": "RED", "remaining_ms": 500}],
             },
-            "carla": None,
             "events": [],
             "metrics": [],
         },

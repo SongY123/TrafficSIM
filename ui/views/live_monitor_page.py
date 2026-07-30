@@ -1,8 +1,8 @@
-"""Live two-dimensional and CARLA monitoring page."""
+"""Live MapLibre/deck.gl traffic monitoring page."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDoubleSpinBox,
@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -25,7 +24,7 @@ from ui.views.components import (
     page_header,
     panel,
 )
-from ui.widgets import CarlaNativeWindowHost, MapLibreDeckMapWidget
+from ui.widgets import MapLibreDeckMapWidget
 
 
 class LiveMonitorPage(QWidget):
@@ -43,61 +42,36 @@ class LiveMonitorPage(QWidget):
         super().__init__(parent)
         self.setObjectName("liveMonitorPage")
         self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map)
-        self.carla_window = CarlaNativeWindowHost()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(
-            page_header("实时监控", "全局交通态势与 ROI 三维镜像", self._header_actions())
+            page_header(
+                "实时监控",
+                "MapLibre/deck.gl 全宽二维交通态势",
+                self._header_actions(),
+            )
         )
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(PAGE_CONTENT_MARGIN, 14, PAGE_CONTENT_MARGIN, 16)
         body_layout.setSpacing(12)
-        body_layout.addWidget(self._workspace(), 1)
+        body_layout.addWidget(
+            panel("全局交通态势", self.map_widget, kicker="MapLibre / deck.gl"),
+            1,
+        )
+        body_layout.addWidget(self._statistics_panel())
         body_layout.addWidget(self._vehicle_console())
         root.addWidget(body, 1)
 
         self.map_widget.vehicle_selected.connect(self.set_vehicle_id)
 
-    def _workspace(self) -> QWidget:
-        map_panel = panel(
-            "全局交通态势",
-            self.map_widget,
-        )
-        carla_panel = panel(
-            "ROI 局部三维",
-            self.carla_window,
-        )
-        stats_panel = self._statistics_panel()
-
-        self.map_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.map_splitter.setObjectName("monitorMapSplitter")
-        self.map_splitter.setChildrenCollapsible(False)
-        self.map_splitter.setOpaqueResize(True)
-        self.map_splitter.setHandleWidth(8)
-        self.map_splitter.addWidget(map_panel)
-        self.map_splitter.addWidget(carla_panel)
-        self.map_splitter.setSizes([620, 460])
-        self.map_splitter.setStretchFactor(0, 5)
-        self.map_splitter.setStretchFactor(1, 4)
-
-        workspace = QWidget()
-        layout = QHBoxLayout(workspace)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        layout.addWidget(self.map_splitter, 1)
-        layout.addWidget(stats_panel)
-        return workspace
-
     def _statistics_panel(self) -> QFrame:
         frame = QFrame()
         frame.setObjectName("panel")
-        frame.setMinimumWidth(188)
-        frame.setMaximumWidth(240)
-        layout = QVBoxLayout(frame)
+        layout = QHBoxLayout(frame)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(9)
         kicker = QLabel("实时统计")
@@ -106,14 +80,14 @@ class LiveMonitorPage(QWidget):
         title.setObjectName("panelTitle")
         layout.addWidget(kicker)
         layout.addWidget(title)
+        layout.addStretch(1)
 
         self.vehicle_metric = metric_card("全局车辆", "0", "SUMO 实时状态")
-        self.carla_metric = metric_card("CARLA", "等待", "本机原生窗口")
+        self.sumo_metric = metric_card("SUMO", "未知", "组件健康")
         self.experiment_metric = metric_card("实验状态", "未创建", "核心运行")
         layout.addWidget(self.vehicle_metric)
-        layout.addWidget(self.carla_metric)
+        layout.addWidget(self.sumo_metric)
         layout.addWidget(self.experiment_metric)
-        layout.addStretch(1)
         return frame
 
     def _vehicle_console(self) -> QFrame:
@@ -225,8 +199,9 @@ class LiveMonitorPage(QWidget):
     def set_vehicle_count(self, count: int) -> None:
         self._metric_value(self.vehicle_metric).setText(str(count))
 
-    def set_carla_status(self, status: str) -> None:
-        self._metric_value(self.carla_metric).setText(status)
+    def set_sumo_status(self, status: str, message: str | None = None) -> None:
+        self._metric_value(self.sumo_metric).setText(status)
+        self.sumo_metric.setToolTip(message or "")
 
     def set_status(self, status: str) -> None:
         self.status_label.setText(status)

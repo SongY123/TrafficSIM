@@ -78,17 +78,14 @@ class Envelope(ProtocolModel):
 
 class MapSummary(ProtocolModel):
     map_id: str = Field(min_length=1)
-    carla_map: str = Field(min_length=1)
-    carla_version: str = Field(min_length=1)
+    sumo_version: str = Field(min_length=1)
     validated: bool
     network_schema_version: str = Field(min_length=1)
 
 
 class MapManifest(ProtocolModel):
-    schema_version: Literal["1.1"] = "1.1"
+    schema_version: Literal["2.0"] = "2.0"
     map_id: str = Field(min_length=1)
-    carla_map: str = Field(min_length=1)
-    carla_version: str = Field(min_length=1)
     sumo_version: str = Field(min_length=1)
     network_schema_version: Literal["traffic-network/1.0"]
     compiler_version: str = Field(min_length=1)
@@ -96,8 +93,6 @@ class MapManifest(ProtocolModel):
     source_ref: str = Field(min_length=1)
     sumo_generation_command: str = Field(min_length=1)
     validated: bool
-    max_registration_error_m: float = Field(gt=0.0)
-    strict_signal_mapping: bool
     files: dict[str, str] = Field(min_length=1)
 
 

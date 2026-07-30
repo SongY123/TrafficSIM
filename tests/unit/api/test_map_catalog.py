@@ -19,16 +19,21 @@ def test_catalog_publishes_builtin_map_and_geojson(tmp_path: Path) -> None:
     assert catalog.network_geojson(maps[0].map_id)["type"] == "FeatureCollection"
 
 
-def test_town04_upload_compiles_as_async_job(tmp_path: Path) -> None:
+def test_opendrive_upload_is_not_published_without_runnable_sumo_assets(
+    tmp_path: Path,
+) -> None:
     async def exercise() -> None:
         catalog = MapCatalog((MAP_DIRECTORY,), artifact_root=tmp_path)
+        original_map_ids = {item.map_id for item in catalog.list_maps()}
         job = await catalog.import_opendrive((MAP_DIRECTORY / "Town04.xodr").read_bytes())
 
         completed = await catalog.wait_for_job(job.job_id)
 
-        assert completed.status == "SUCCEEDED"
-        assert completed.map_id is not None
-        assert catalog.manifest(completed.map_id).validated
+        assert completed.status == "FAILED"
+        assert completed.map_id is None
+        assert completed.error_code == "MAP_ASSET_INVALID"
+        assert "map.sumocfg is missing" in completed.errors[0]
+        assert {item.map_id for item in catalog.list_maps()} == original_map_ids
         await catalog.close()
 
     asyncio.run(exercise())

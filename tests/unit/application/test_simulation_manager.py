@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -11,36 +11,26 @@ from trafficverse.application.clock import SimulationClock
 from trafficverse.application.experiment_registry import ExperimentRegistry
 from trafficverse.application.simulation_manager import SimulationManager
 from trafficverse.config.loader import load_scenario
-from trafficverse.config.models import CarlaConfig, SumoConfig, WeatherConfig
+from trafficverse.config.models import SumoConfig
 from trafficverse.domain.enums import (
     AutomationLevel,
     ComponentStatus,
     ErrorCode,
-    EventSeverity,
     ExperimentStatus,
-    RequirementMode,
-    TrafficLightColor,
     VehicleAction,
 )
 from trafficverse.domain.errors import TrafficVerseError
 from trafficverse.domain.models import (
-    ActorSpawnResult,
-    CarlaFrame,
-    CarlaTrafficLight,
     ComponentHealth,
     ControlCommand,
     DomainEvent,
     MetricSample,
     SimulationFrame,
     TrafficLightState,
-    TrafficLightUpdate,
     TrafficSnapshot,
     Vector3,
     VehicleState,
 )
-from trafficverse.ports.simulation import ActorTransform, RenderVehicleSpec
-from trafficverse.roi.models import RoiApplyPlan, RoiApplyResult
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 SCENARIO_PATH = REPOSITORY_ROOT / "configs/scenarios/core-run-town04.yaml"
 
@@ -124,74 +114,6 @@ class TraceTraffic:
         self.failures.check("traffic.close")
 
 
-class TraceCarla:
-    def __init__(self, trace: list[str], failures: FailureInjector) -> None:
-        self.trace = trace
-        self.failures = failures
-        self.closed = False
-        self.frame = 0
-
-    def connect(self, config: CarlaConfig) -> None:
-        del config
-        self.trace.append("carla.connect")
-        self.failures.check("carla.connect")
-
-    def load_world(self, map_name: str, weather: WeatherConfig) -> None:
-        del map_name, weather
-        self.trace.append("carla.load_world")
-        self.failures.check("carla.load_world")
-
-    def spawn_vehicle(self, spec: RenderVehicleSpec) -> int:
-        del spec
-        return 1
-
-    def spawn_vehicles(self, specs: Sequence[RenderVehicleSpec]) -> tuple[ActorSpawnResult, ...]:
-        self.trace.append(f"carla.spawn:{len(specs)}")
-        self.failures.check("carla.spawn")
-        return tuple(
-            ActorSpawnResult(vehicle_id=spec.vehicle_id, success=True, actor_id=index + 1)
-            for index, spec in enumerate(specs)
-        )
-
-    def update_actors(self, updates: Sequence[ActorTransform]) -> None:
-        self.trace.append(f"carla.update:{len(updates)}")
-        self.failures.check("carla.update")
-
-    def destroy_actors(self, actor_ids: Sequence[int]) -> None:
-        self.trace.append(f"carla.destroy:{len(actor_ids)}")
-        self.failures.check("carla.destroy")
-
-    def existing_actor_ids(self, actor_ids: Sequence[int]) -> frozenset[int]:
-        return frozenset(actor_ids)
-
-    def traffic_lights(self) -> tuple[CarlaTrafficLight, ...]:
-        return ()
-
-    def update_traffic_lights(self, updates: Sequence[TrafficLightUpdate]) -> None:
-        self.trace.append(f"carla.signals:{len(updates)}")
-        self.failures.check("carla.signals")
-
-    def tick(self, target_time_ms: int) -> CarlaFrame:
-        self.trace.append(f"carla.tick:{target_time_ms}")
-        self.failures.check("carla.tick")
-        self.frame += 1
-        return CarlaFrame(
-            simulation_time_ms=target_time_ms,
-            carla_frame=self.frame,
-            actor_count=0,
-        )
-
-    def health(self) -> ComponentHealth:
-        self.trace.append("carla.health")
-        self.failures.check("carla.health")
-        return ComponentHealth(component="carla", status=ComponentStatus.HEALTHY, version="fake")
-
-    def close(self) -> None:
-        self.trace.append("carla.close")
-        self.closed = True
-        self.failures.check("carla.close")
-
-
 class TraceRepository:
     def __init__(self, experiment_id: UUID, trace: list[str]) -> None:
         self.statuses = {experiment_id: ExperimentStatus.CREATED}
@@ -238,45 +160,6 @@ class TraceController:
         return {"vehicle-1": ControlCommand(desired_speed_mps=5.0)}
 
 
-class TraceRoiPlanner:
-    def __init__(self, trace: list[str], failures: FailureInjector) -> None:
-        self.trace = trace
-        self.failures = failures
-
-    def plan(self, snapshot: TrafficSnapshot) -> RoiApplyPlan:
-        self.trace.append(f"roi:{snapshot.sequence}")
-        self.failures.check("roi")
-        return RoiApplyPlan()
-
-    def actor_ids(self) -> frozenset[int]:
-        return frozenset()
-
-    def report_missing_actor_ids(self, actor_ids: frozenset[int]) -> None:
-        del actor_ids
-
-    def commit(self, result: RoiApplyResult) -> None:
-        del result
-
-
-class TraceSignalPlanner:
-    def __init__(self, trace: list[str], failures: FailureInjector) -> None:
-        self.trace = trace
-        self.failures = failures
-
-    def initialize(self, traffic_lights: tuple[CarlaTrafficLight, ...]) -> None:
-        del traffic_lights
-
-    def plan(self, traffic_lights: tuple[TrafficLightState, ...]) -> tuple[TrafficLightUpdate, ...]:
-        self.trace.append(f"signal:{len(traffic_lights)}")
-        self.failures.check("signal")
-        return (
-            TrafficLightUpdate(
-                carla_actor_id=99,
-                color=TrafficLightColor.RED,
-            ),
-        )
-
-
 class TraceLogger:
     def __init__(self, trace: list[str], failures: FailureInjector) -> None:
         self.trace = trace
@@ -315,35 +198,26 @@ class Harness:
     def __init__(
         self,
         *,
-        carla_mode: RequirementMode = RequirementMode.REQUIRED,
         registry: ExperimentRegistry | None = None,
     ) -> None:
         self.experiment_id = uuid4()
         self.trace: list[str] = []
         self.failures = FailureInjector()
         self.traffic = TraceTraffic(self.experiment_id, self.trace, self.failures)
-        self.carla = TraceCarla(self.trace, self.failures)
         self.repository = TraceRepository(self.experiment_id, self.trace)
         self.controller = TraceController(self.trace, self.failures)
         self.logger = TraceLogger(self.trace, self.failures)
         self.publisher = TracePublisher(self.trace, self.failures)
         scenario = load_scenario(SCENARIO_PATH, apply_environment=False)
         scenario = scenario.model_copy(
-            update={
-                "carla": scenario.carla.model_copy(update={"mode": carla_mode}),
-                "simulation": scenario.simulation.model_copy(update={"duration_ms": 1000}),
-            }
+            update={"simulation": scenario.simulation.model_copy(update={"duration_ms": 1000})}
         )
         self.manager = SimulationManager(
             scenario=scenario,
-            carla_map_name="Town04",
             traffic=self.traffic,
-            carla=self.carla,
             experiments=self.repository,
             data_logger=self.logger,
             controller=self.controller,
-            roi_planner=TraceRoiPlanner(self.trace, self.failures),
-            signal_planner=TraceSignalPlanner(self.trace, self.failures),
             frame_publisher=self.publisher,
             registry=registry,
             clock=SimulationClock(50),
@@ -365,15 +239,10 @@ def test_complete_lifecycle_tick_order_pause_and_speed() -> None:
             "controller:None",
             "traffic.apply:1",
             "traffic.step:50",
-            "roi:1",
-            "signal:1",
-            "carla.update:0",
-            "carla.signals:1",
-            "carla.tick:50",
             "logger.frame",
             "publisher.frame",
         ]
-        assert first.carla is not None
+        assert first.traffic.sequence == 1
 
         await harness.manager.pause()
         paused = await harness.manager.run_tick()
@@ -397,7 +266,6 @@ def test_complete_lifecycle_tick_order_pause_and_speed() -> None:
             ExperimentStatus.COMPLETED,
         ]
         assert harness.traffic.closed
-        assert harness.carla.closed
 
     asyncio.run(exercise())
 
@@ -440,8 +308,6 @@ def test_repeated_lifecycle_commands_are_idempotent() -> None:
         await harness.manager.stop()
 
         assert harness.trace.count("traffic.load") == 1
-        assert harness.trace.count("carla.connect") == 1
-        assert harness.trace.count("carla.close") == 1
         assert harness.trace.count("traffic.close") == 1
         assert harness.trace.count("logger.flush") == 1
 
@@ -453,9 +319,6 @@ def test_repeated_lifecycle_commands_are_idempotent() -> None:
     [
         "traffic.load",
         "traffic.health",
-        "carla.connect",
-        "carla.load_world",
-        "carla.health",
     ],
 )
 def test_initialization_failure_enters_failed_and_cleans_reverse_order(
@@ -470,9 +333,6 @@ def test_initialization_failure_enters_failed_and_cleans_reverse_order(
 
         assert harness.repository.statuses[harness.experiment_id] is ExperimentStatus.FAILED
         assert harness.traffic.closed
-        if stage.startswith("carla"):
-            assert harness.carla.closed
-            assert harness.trace.index("carla.close") < harness.trace.index("traffic.close")
 
     asyncio.run(exercise())
 
@@ -483,11 +343,6 @@ def test_initialization_failure_enters_failed_and_cleans_reverse_order(
         "controller",
         "traffic.apply",
         "traffic.step",
-        "roi",
-        "signal",
-        "carla.update",
-        "carla.signals",
-        "carla.tick",
         "logger.frame",
         "publisher.frame",
     ],
@@ -503,26 +358,6 @@ def test_tick_failure_enters_failed_and_cleans_all_components(stage: str) -> Non
 
         assert harness.repository.statuses[harness.experiment_id] is ExperimentStatus.FAILED
         assert harness.traffic.closed
-        assert harness.carla.closed
-        assert harness.trace.index("carla.close") < harness.trace.index("traffic.close")
-
-    asyncio.run(exercise())
-
-
-def test_optional_carla_failure_degrades_to_two_dimensional_run() -> None:
-    async def exercise() -> None:
-        harness = Harness(carla_mode=RequirementMode.OPTIONAL)
-        await harness.ready_and_started()
-        harness.failures.stage = "carla.tick"
-
-        frame = await harness.manager.run_tick()
-
-        assert frame.carla is None
-        assert harness.manager.carla_degraded
-        assert harness.repository.statuses[harness.experiment_id] is ExperimentStatus.RUNNING
-        assert harness.repository.events[0].event_type == "carla.degraded"
-        assert harness.repository.events[0].severity is EventSeverity.WARNING
-        await harness.manager.stop()
 
     asyncio.run(exercise())
 
@@ -551,7 +386,7 @@ def test_registry_enforces_explicit_single_running_limit() -> None:
     asyncio.run(exercise())
 
 
-@pytest.mark.parametrize("stage", ["logger.flush", "carla.close"])
+@pytest.mark.parametrize("stage", ["logger.flush", "traffic.close"])
 def test_cleanup_failure_continues_reverse_cleanup_and_can_retry(stage: str) -> None:
     async def exercise() -> None:
         harness = Harness()
@@ -567,6 +402,5 @@ def test_cleanup_failure_continues_reverse_cleanup_and_can_retry(stage: str) -> 
         harness.failures.stage = None
         await harness.manager.stop()
         assert harness.traffic.closed
-        assert harness.carla.closed
 
     asyncio.run(exercise())

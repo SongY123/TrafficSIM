@@ -50,8 +50,7 @@ class ReadinessResponse(StrictModel):
 
 class MapSummary(StrictModel):
     map_id: str = Field(min_length=1)
-    carla_map: str = Field(min_length=1)
-    carla_version: str = Field(min_length=1)
+    sumo_version: str = Field(min_length=1)
     validated: bool
     network_schema_version: str = Field(min_length=1)
 

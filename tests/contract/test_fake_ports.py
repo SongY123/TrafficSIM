@@ -2,7 +2,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from tests.fakes import (
-    FakeCarlaPort,
     FakeDataLogger,
     FakeEventPublisher,
     FakeExperimentRepository,
@@ -23,28 +22,20 @@ def test_fake_ports_drive_minimal_external_free_tick() -> None:
         apply_environment=False,
     )
     traffic = FakeTrafficEnginePort(experiment_id)
-    carla = FakeCarlaPort()
     repository = FakeExperimentRepository()
     container = AppContainer(
         traffic=traffic,
-        carla=carla,
         experiments=repository,
         events=FakeEventPublisher(),
         data_logger=FakeDataLogger(),
     )
 
     container.traffic.load(scenario.sumo)
-    container.carla.connect(scenario.carla)
-    container.carla.load_world("Town04", scenario.weather)
     snapshot = container.traffic.step(50)
-    carla_frame = container.carla.tick(50)
 
     assert snapshot.simulation_time_ms == 50
-    assert carla_frame.simulation_time_ms == 50
     assert container.traffic.health().status is ComponentStatus.HEALTHY
-    assert container.carla.health().status is ComponentStatus.HEALTHY
 
-    container.carla.close()
     container.traffic.close()
     assert container.traffic.health().status is ComponentStatus.UNAVAILABLE
     assert ExperimentStatus.CREATED.value == "CREATED"

@@ -1,153 +1,153 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
-    <vehicle id="vehicle-0" type="carla-passenger" depart="0.00" departSpeed="max">
+    <vehicle id="vehicle-0" type="passenger" depart="0.00" departSpeed="max">
         <route edges="-325 -324 -287 -288 -279 -272" />
     </vehicle>
-    <vehicle id="vehicle-1" type="carla-passenger" depart="0.50" departSpeed="max">
+    <vehicle id="vehicle-1" type="passenger" depart="0.50" departSpeed="max">
         <route edges="-293 -351 -323 -289" />
     </vehicle>
-    <vehicle id="vehicle-2" type="carla-passenger" depart="1.00" departSpeed="max">
+    <vehicle id="vehicle-2" type="passenger" depart="1.00" departSpeed="max">
         <route edges="-334 -302 -303 -309 -310 -353 -329 -328" />
     </vehicle>
-    <vehicle id="vehicle-3" type="carla-passenger" depart="1.50" departSpeed="max">
+    <vehicle id="vehicle-3" type="passenger" depart="1.50" departSpeed="max">
         <route edges="-347 -346 -343 -341 -334 -302 -303 -304 -306 -277" />
     </vehicle>
-    <vehicle id="vehicle-4" type="carla-passenger" depart="2.00" departSpeed="max">
+    <vehicle id="vehicle-4" type="passenger" depart="2.00" departSpeed="max">
         <route edges="-306 -277 -278 -279 -272" />
     </vehicle>
-    <vehicle id="vehicle-5" type="carla-passenger" depart="2.50" departSpeed="max">
+    <vehicle id="vehicle-5" type="passenger" depart="2.50" departSpeed="max">
         <route edges="-289 -290 -328 -313" />
     </vehicle>
-    <vehicle id="vehicle-6" type="carla-passenger" depart="3.00" departSpeed="max">
+    <vehicle id="vehicle-6" type="passenger" depart="3.00" departSpeed="max">
         <route edges="-272 -273 -332 -324 -287" />
     </vehicle>
-    <vehicle id="vehicle-7" type="carla-passenger" depart="3.50" departSpeed="max">
+    <vehicle id="vehicle-7" type="passenger" depart="3.50" departSpeed="max">
         <route edges="-326 -342 -332 -324 -327 -317" />
     </vehicle>
-    <vehicle id="vehicle-8" type="carla-passenger" depart="4.00" departSpeed="max">
+    <vehicle id="vehicle-8" type="passenger" depart="4.00" departSpeed="max">
         <route edges="-289 -314 -321" />
     </vehicle>
-    <vehicle id="vehicle-9" type="carla-passenger" depart="4.50" departSpeed="max">
+    <vehicle id="vehicle-9" type="passenger" depart="4.50" departSpeed="max">
         <route edges="-340 -339 -338 -337 -344 -350 -349 -348 -345 -341 -334 -302 -303 -309 -352 -270" />
     </vehicle>
-    <vehicle id="vehicle-10" type="carla-passenger" depart="5.00" departSpeed="max">
+    <vehicle id="vehicle-10" type="passenger" depart="5.00" departSpeed="max">
         <route edges="-340 -339 -338 -337 -344 -350 -349 -348 -345 -341 -334 -302 -303 -309 -310 -311 -272 -330" />
     </vehicle>
-    <vehicle id="vehicle-11" type="carla-passenger" depart="5.50" departSpeed="max">
+    <vehicle id="vehicle-11" type="passenger" depart="5.50" departSpeed="max">
         <route edges="-299 -301 -302 -303 -309 -310 -311 -280 -281 -283" />
     </vehicle>
-    <vehicle id="vehicle-12" type="carla-passenger" depart="6.00" departSpeed="max">
+    <vehicle id="vehicle-12" type="passenger" depart="6.00" departSpeed="max">
         <route edges="-353 -279 -280 -281 -305 -294 -295 -296 -298 -299" />
     </vehicle>
-    <vehicle id="vehicle-13" type="carla-passenger" depart="6.50" departSpeed="max">
+    <vehicle id="vehicle-13" type="passenger" depart="6.50" departSpeed="max">
         <route edges="-278" />
     </vehicle>
-    <vehicle id="vehicle-14" type="carla-passenger" depart="7.00" departSpeed="max">
+    <vehicle id="vehicle-14" type="passenger" depart="7.00" departSpeed="max">
         <route edges="-343 -341 -334 -302 -303 -309 -310 -311 -272 -330 -322" />
     </vehicle>
-    <vehicle id="vehicle-15" type="carla-passenger" depart="7.50" departSpeed="max">
+    <vehicle id="vehicle-15" type="passenger" depart="7.50" departSpeed="max">
         <route edges="-340 -339 -338 -337 -344 -350 -349 -348 -345 -341 -334 -302 -303 -309 -352 -270 -333" />
     </vehicle>
-    <vehicle id="vehicle-16" type="carla-passenger" depart="8.00" departSpeed="max">
+    <vehicle id="vehicle-16" type="passenger" depart="8.00" departSpeed="max">
         <route edges="-316 -315 -314 -356 -355 -354" />
     </vehicle>
-    <vehicle id="vehicle-17" type="carla-passenger" depart="8.50" departSpeed="max">
+    <vehicle id="vehicle-17" type="passenger" depart="8.50" departSpeed="max">
         <route edges="-302 -303 -304 -306 -300 -318" />
     </vehicle>
-    <vehicle id="vehicle-18" type="carla-passenger" depart="9.00" departSpeed="max">
+    <vehicle id="vehicle-18" type="passenger" depart="9.00" departSpeed="max">
         <route edges="-342 -274 -275 -326 -323" />
     </vehicle>
-    <vehicle id="vehicle-19" type="carla-passenger" depart="9.50" departSpeed="max">
+    <vehicle id="vehicle-19" type="passenger" depart="9.50" departSpeed="max">
         <route edges="-344 -350 -349 -348 -345 -341 -334 -302 -303 -309 -310 -353 -320" />
     </vehicle>
-    <vehicle id="vehicle-20" type="carla-passenger" depart="10.00" departSpeed="max">
+    <vehicle id="vehicle-20" type="passenger" depart="10.00" departSpeed="max">
         <route edges="-331 -273" />
     </vehicle>
-    <vehicle id="vehicle-21" type="carla-passenger" depart="10.50" departSpeed="max">
+    <vehicle id="vehicle-21" type="passenger" depart="10.50" departSpeed="max">
         <route edges="-289 -273 -274 -275 -276 -293 -294 -295" />
     </vehicle>
-    <vehicle id="vehicle-22" type="carla-passenger" depart="11.00" departSpeed="max">
+    <vehicle id="vehicle-22" type="passenger" depart="11.00" departSpeed="max">
         <route edges="-276 -293 -351 -342 -315 -290" />
     </vehicle>
-    <vehicle id="vehicle-23" type="carla-passenger" depart="11.50" departSpeed="max">
+    <vehicle id="vehicle-23" type="passenger" depart="11.50" departSpeed="max">
         <route edges="-278 -279 -280 -281 -305 -294" />
     </vehicle>
-    <vehicle id="vehicle-24" type="carla-passenger" depart="12.00" departSpeed="max">
+    <vehicle id="vehicle-24" type="passenger" depart="12.00" departSpeed="max">
         <route edges="-325 -324 -327 -276 -293 -294 -295 -296 -298 -299 -301" />
     </vehicle>
-    <vehicle id="vehicle-25" type="carla-passenger" depart="12.50" departSpeed="max">
+    <vehicle id="vehicle-25" type="passenger" depart="12.50" departSpeed="max">
         <route edges="-302 -303 -309 -310 -311 -272 -290 -288" />
     </vehicle>
-    <vehicle id="vehicle-26" type="carla-passenger" depart="13.00" departSpeed="max">
+    <vehicle id="vehicle-26" type="passenger" depart="13.00" departSpeed="max">
         <route edges="-293 -351" />
     </vehicle>
-    <vehicle id="vehicle-27" type="carla-passenger" depart="13.50" departSpeed="max">
+    <vehicle id="vehicle-27" type="passenger" depart="13.50" departSpeed="max">
         <route edges="-326 -323 -322" />
     </vehicle>
-    <vehicle id="vehicle-28" type="carla-passenger" depart="14.00" departSpeed="max">
+    <vehicle id="vehicle-28" type="passenger" depart="14.00" departSpeed="max">
         <route edges="-284 -339 -338 -337 -344 -350 -349 -348 -345 -341 -334 -302 -303 -309 -352 -270 -333" />
     </vehicle>
-    <vehicle id="vehicle-29" type="carla-passenger" depart="14.50" departSpeed="max">
+    <vehicle id="vehicle-29" type="passenger" depart="14.50" departSpeed="max">
         <route edges="-284 -339 -338 -337 -344 -350 -349 -348 -345 -341 -334 -302 -303" />
     </vehicle>
-    <vehicle id="vehicle-30" type="carla-passenger" depart="15.00" departSpeed="max">
+    <vehicle id="vehicle-30" type="passenger" depart="15.00" departSpeed="max">
         <route edges="-356 -353 -329 -328 -327 -317 -325" />
     </vehicle>
-    <vehicle id="vehicle-31" type="carla-passenger" depart="15.50" departSpeed="max">
+    <vehicle id="vehicle-31" type="passenger" depart="15.50" departSpeed="max">
         <route edges="-318 -317 -316 -315 -314 -321 -329" />
     </vehicle>
-    <vehicle id="vehicle-32" type="carla-passenger" depart="16.00" departSpeed="max">
+    <vehicle id="vehicle-32" type="passenger" depart="16.00" departSpeed="max">
         <route edges="-343 -341 -340 -339 -338 -337" />
     </vehicle>
-    <vehicle id="vehicle-33" type="carla-passenger" depart="16.50" departSpeed="max">
+    <vehicle id="vehicle-33" type="passenger" depart="16.50" departSpeed="max">
         <route edges="-289 -273 -297 -323 -322 -272" />
     </vehicle>
-    <vehicle id="vehicle-34" type="carla-passenger" depart="17.00" departSpeed="max">
+    <vehicle id="vehicle-34" type="passenger" depart="17.00" departSpeed="max">
         <route edges="-297 -283 -276 -293" />
     </vehicle>
-    <vehicle id="vehicle-35" type="carla-passenger" depart="17.50" departSpeed="max">
+    <vehicle id="vehicle-35" type="passenger" depart="17.50" departSpeed="max">
         <route edges="-288 -308 -355 -352" />
     </vehicle>
-    <vehicle id="vehicle-36" type="carla-passenger" depart="18.00" departSpeed="max">
+    <vehicle id="vehicle-36" type="passenger" depart="18.00" departSpeed="max">
         <route edges="-346 -343 -341 -334 -302 -303 -309 -310 -311 -272 -273 -297" />
     </vehicle>
-    <vehicle id="vehicle-37" type="carla-passenger" depart="18.50" departSpeed="max">
+    <vehicle id="vehicle-37" type="passenger" depart="18.50" departSpeed="max">
         <route edges="-327 -317 -316 -315 -314 -356 -355 -354 -304" />
     </vehicle>
-    <vehicle id="vehicle-38" type="carla-passenger" depart="19.00" departSpeed="max">
+    <vehicle id="vehicle-38" type="passenger" depart="19.00" departSpeed="max">
         <route edges="-349 -348 -345 -341 -334 -302 -303 -309" />
     </vehicle>
-    <vehicle id="vehicle-39" type="carla-passenger" depart="19.50" departSpeed="max">
+    <vehicle id="vehicle-39" type="passenger" depart="19.50" departSpeed="max">
         <route edges="-293 -351 -283 -286 -282 -291" />
     </vehicle>
-    <vehicle id="vehicle-40" type="carla-passenger" depart="20.00" departSpeed="max">
+    <vehicle id="vehicle-40" type="passenger" depart="20.00" departSpeed="max">
         <route edges="-318 -317 -316 -315 -290 -292" />
     </vehicle>
-    <vehicle id="vehicle-41" type="carla-passenger" depart="20.50" departSpeed="max">
+    <vehicle id="vehicle-41" type="passenger" depart="20.50" departSpeed="max">
         <route edges="-320 -270 -271 -282 -291 -297 -305 -294 -295 -296 -335 -348" />
     </vehicle>
-    <vehicle id="vehicle-42" type="carla-passenger" depart="21.00" departSpeed="max">
+    <vehicle id="vehicle-42" type="passenger" depart="21.00" departSpeed="max">
         <route edges="-304 -306 -277 -278 -279 -280 -289" />
     </vehicle>
-    <vehicle id="vehicle-43" type="carla-passenger" depart="21.50" departSpeed="max">
+    <vehicle id="vehicle-43" type="passenger" depart="21.50" departSpeed="max">
         <route edges="-356 -353 -329 -331 -314" />
     </vehicle>
-    <vehicle id="vehicle-44" type="carla-passenger" depart="22.00" departSpeed="max">
+    <vehicle id="vehicle-44" type="passenger" depart="22.00" departSpeed="max">
         <route edges="-277 -278 -279 -272 -273 -274" />
     </vehicle>
-    <vehicle id="vehicle-45" type="carla-passenger" depart="22.50" departSpeed="max">
+    <vehicle id="vehicle-45" type="passenger" depart="22.50" departSpeed="max">
         <route edges="-279 -272 -273 -332 -324" />
     </vehicle>
-    <vehicle id="vehicle-46" type="carla-passenger" depart="23.00" departSpeed="max">
+    <vehicle id="vehicle-46" type="passenger" depart="23.00" departSpeed="max">
         <route edges="-338 -337 -344 -350 -349 -348 -345 -341 -334 -302 -303 -304 -306" />
     </vehicle>
-    <vehicle id="vehicle-47" type="carla-passenger" depart="23.50" departSpeed="max">
+    <vehicle id="vehicle-47" type="passenger" depart="23.50" departSpeed="max">
         <route edges="-275 -276 -293 -294 -295 -296 -335 -348 -345 -341 -334 -302 -303" />
     </vehicle>
-    <vehicle id="vehicle-48" type="carla-passenger" depart="24.00" departSpeed="max">
+    <vehicle id="vehicle-48" type="passenger" depart="24.00" departSpeed="max">
         <route edges="-356 -353 -329 -328 -327 -317 -316" />
     </vehicle>
-    <vehicle id="vehicle-49" type="carla-passenger" depart="24.50" departSpeed="max">
+    <vehicle id="vehicle-49" type="passenger" depart="24.50" departSpeed="max">
         <route edges="-354 -304 -306 -300 -293 -294 -295 -296 -335 -348 -345 -341 -340 -339 -338 -337 -344" />
     </vehicle>
 </routes>

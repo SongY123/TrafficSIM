@@ -57,7 +57,7 @@ class SceneConfigurationPage(QWidget):
         widget = QWidget()
         row = QHBoxLayout(widget)
         row.setContentsMargins(0, 0, 0, 0)
-        self.import_button = QPushButton("导入 .xodr")
+        self.import_button = QPushButton("导入 OpenDRIVE .xodr")
         self.create_button = QPushButton("创建实验")
         self.create_button.setObjectName("primaryButton")
         self.import_button.clicked.connect(self.import_requested)
@@ -115,7 +115,11 @@ class SceneConfigurationPage(QWidget):
         self.map_combo.currentIndexChanged.connect(self._select_map)
         layout.addWidget(QLabel("已验证地图"))
         layout.addWidget(self.map_combo)
-        preview = empty_state("等待地图", "从列表选择已编译、已校验的 OpenDRIVE 地图。", "⌁")
+        preview = empty_state(
+            "等待地图",
+            "从列表选择由 OpenDRIVE 编译、已校验的 SUMO 地图。",
+            "⌁",
+        )
         preview.setMinimumHeight(180)
         layout.addWidget(preview, 1)
         return panel("地图与道路", content, kicker="步骤 02")
@@ -126,7 +130,7 @@ class SceneConfigurationPage(QWidget):
         layout = QGridLayout(frame)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.addWidget(QLabel("核心运行基线"), 0, 0)
-        detail = QLabel("50 ms 固定步长  ·  SUMO 全局真值  ·  CARLA ROI 镜像  ·  缓冲区滞回")
+        detail = QLabel("50 ms 固定步长  ·  SUMO 全局交通真值  ·  MapLibre/deck.gl 实时监控")
         detail.setObjectName("caption")
         layout.addWidget(detail, 1, 0)
         return frame
@@ -135,7 +139,10 @@ class SceneConfigurationPage(QWidget):
         self.map_combo.blockSignals(True)
         self.map_combo.clear()
         for item in maps:
-            self.map_combo.addItem(f"{item.carla_map}  ·  {item.map_id}", item.map_id)
+            self.map_combo.addItem(
+                f"{item.map_id}  ·  SUMO {item.sumo_version}",
+                item.map_id,
+            )
         self.map_combo.blockSignals(False)
         if self.map_combo.count():
             self.map_combo.setCurrentIndex(0)

@@ -41,15 +41,6 @@ wheels = [
 ]
 
 [[package]]
-name = "carla"
-version = "0.9.16"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/be/cea470d588566ce532addc8c414c0ed53fe4d54af75b8eb7b092591279a5/carla-0.9.16-cp310-cp310-manylinux_2_31_x86_64.whl", hash = "sha256:52b1f2fafb0655e25954f9f6d1e97c211a4da404217fd1d0094b4b7350737c95", size = 34199760, upload-time = "2025-09-14T07:54:35.054Z" },
-    { url = "https://files.pythonhosted.org/packages/ef/57/48b5df460e4b53b445c3c4d9c1167f5d12c51c4f35167e476288121ae71e/carla-0.9.16-cp310-cp310-win_amd64.whl", hash = "sha256:5e7d46f13216f0c65ec5ccc6a4b922d0d939be4ef97e07167a4b5f4595865ca6", size = 5035050, upload-time = "2025-09-14T07:54:38.302Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2026.6.17"
 source = { registry = "https://pypi.org/simple" }
@@ -651,9 +642,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-carla = [
-    { name = "carla", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-]
 sumo = [
     { name = "sumolib" },
     { name = "traci" },
@@ -675,7 +663,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.14,<2" },
-    { name = "carla", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'carla') or (platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'carla')", specifier = "==0.9.16" },
     { name = "fastapi", specifier = ">=0.115,<0.116" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pydantic", specifier = ">=2.10,<3" },
@@ -687,7 +674,7 @@ requires-dist = [
     { name = "traci", marker = "extra == 'sumo'", specifier = "==1.27.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1" },
 ]
-provides-extras = ["carla", "sumo", "ui"]
+provides-extras = ["sumo", "ui"]
 
 [package.metadata.requires-dev]
 dev = [

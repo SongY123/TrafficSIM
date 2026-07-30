@@ -42,13 +42,35 @@ def test_traci_sdk_boundary_is_confined_to_sumo_adapter() -> None:
     assert violations == {}
 
 
-def test_carla_sdk_boundary_is_confined_to_carla_adapter() -> None:
+def test_removed_carla_sdk_is_not_imported_anywhere() -> None:
     source_root = REPOSITORY_ROOT / "src" / "trafficverse"
     violations: dict[str, list[str]] = {}
     for path in source_root.rglob("*.py"):
-        if "adapters/carla" in path.as_posix():
-            continue
         forbidden = sorted(_top_level_imports(path) & {"carla"})
+        if forbidden:
+            violations[str(path.relative_to(REPOSITORY_ROOT))] = forbidden
+    assert violations == {}
+
+
+def test_removed_carla_adapter_is_not_referenced_anywhere() -> None:
+    source_root = REPOSITORY_ROOT / "src" / "trafficverse"
+    violations: dict[str, list[str]] = {}
+    for path in source_root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        modules = [
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        ]
+        modules.extend(
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module is not None
+        )
+        forbidden = sorted(
+            module for module in modules if module.startswith("trafficverse.adapters.carla")
+        )
         if forbidden:
             violations[str(path.relative_to(REPOSITORY_ROOT))] = forbidden
     assert violations == {}

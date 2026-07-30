@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -22,9 +23,48 @@ def _validate_manifest(path: Path) -> MapManifest:
     manifest = load_map_manifest(path)
     return validate_map_manifest(
         path,
-        expected_carla_version=manifest.carla_version,
         expected_network_schema_version=manifest.network_schema_version,
+        expected_sumo_version=manifest.sumo_version,
     )
+
+
+def _validate_runnable_sumo_bundle(directory: Path, manifest: MapManifest) -> None:
+    """Reject display-only compiler output before it enters the runnable map catalog."""
+    config_name = "map.sumocfg"
+    if config_name not in manifest.files:
+        raise MapCompileError(
+            "OpenDRIVE import did not produce a runnable SUMO bundle: map.sumocfg is missing. "
+            "Generate a complete SUMO package with netconvert plus route/vType files, add every "
+            "runtime file to manifest.yaml, then register the package as a built-in map."
+        )
+    config_path = directory / config_name
+    try:
+        root = ElementTree.parse(config_path).getroot()
+    except (OSError, ElementTree.ParseError) as error:
+        raise MapCompileError(f"invalid imported SUMO configuration: {error}") from error
+    net_node = root.find("./input/net-file")
+    route_node = root.find("./input/route-files")
+    net_name = net_node.get("value") if net_node is not None else None
+    route_names = (
+        tuple(name.strip() for name in route_node.get("value", "").split(",") if name.strip())
+        if route_node is not None
+        else ()
+    )
+    referenced = tuple(name for name in (net_name, *route_names) if name)
+    if net_name is None or not route_names:
+        raise MapCompileError(
+            "imported map.sumocfg must reference one SUMO network and at least one route file"
+        )
+    missing = [
+        name
+        for name in referenced
+        if name not in manifest.files or not (directory / name).is_file()
+    ]
+    if missing:
+        raise MapCompileError(
+            "imported SUMO bundle is missing manifest-tracked runtime files: "
+            + ", ".join(sorted(missing))
+        )
 
 
 class MapCatalog:
@@ -57,8 +97,7 @@ class MapCatalog:
             summaries.append(
                 MapSummary(
                     map_id=map_id,
-                    carla_map=manifest.carla_map,
-                    carla_version=manifest.carla_version,
+                    sumo_version=manifest.sumo_version,
                     validated=manifest.validated,
                     network_schema_version=manifest.network_schema_version,
                 )
@@ -129,12 +168,13 @@ class MapCatalog:
                 output,
                 map_id=map_id,
             )
-            _validate_manifest(output / "manifest.yaml")
+            manifest = _validate_manifest(output / "manifest.yaml")
+            _validate_runnable_sumo_bundle(output, manifest)
             self._directories[map_id] = output
             self._jobs[job_id] = self._jobs[job_id].model_copy(
                 update={"status": "SUCCEEDED", "map_id": map_id}
             )
-        except (MapCompileError, OSError, ValueError, yaml.YAMLError) as error:
+        except (OSError, TrafficVerseError, ValueError, yaml.YAMLError) as error:
             self._jobs[job_id] = self._jobs[job_id].model_copy(
                 update={
                     "status": "FAILED",

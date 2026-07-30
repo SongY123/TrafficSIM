@@ -49007,7 +49007,7 @@
       "to_lane_id": "road:321:section:0:lane:-1"
     }
   ],
-  "map_id": "town04-carla-0.9.16-native-1.0",
+  "map_id": "town04-sumo-1.27.1-v2",
   "schema_version": "traffic-network/1.0",
   "signals": [
     {

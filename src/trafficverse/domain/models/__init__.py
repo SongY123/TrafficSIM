@@ -15,7 +15,6 @@ from trafficverse.domain.models.persistence import (
     ScenarioWrite,
 )
 from trafficverse.domain.models.simulation import (
-    CarlaFrame,
     ComponentHealth,
     DomainEvent,
     MetricSample,
@@ -24,21 +23,14 @@ from trafficverse.domain.models.simulation import (
     WebSocketEnvelope,
 )
 from trafficverse.domain.models.vehicle import (
-    ActorSpawnResult,
-    CarlaTrafficLight,
     ControlCommand,
-    SignalBinding,
     TrafficLightState,
-    TrafficLightUpdate,
     VehicleState,
 )
 
 __all__ = [
-    "ActorSpawnResult",
     "ArtifactCreate",
     "ArtifactRecord",
-    "CarlaTrafficLight",
-    "CarlaFrame",
     "ComponentHealth",
     "ControlCommand",
     "DomainEvent",
@@ -47,7 +39,6 @@ __all__ = [
     "ExperimentStateChangeRecord",
     "MapAssetRegistration",
     "MetricSample",
-    "SignalBinding",
     "ScenarioListQuery",
     "ScenarioPage",
     "ScenarioRecord",
@@ -57,7 +48,6 @@ __all__ = [
     "StrictModel",
     "TrafficSnapshot",
     "TrafficLightState",
-    "TrafficLightUpdate",
     "Vector3",
     "VehicleState",
     "WebSocketEnvelope",

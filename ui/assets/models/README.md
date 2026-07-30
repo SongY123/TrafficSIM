@@ -1,7 +1,7 @@
-# Web 3D model samples
+# Web 3D model assets
 
 This directory contains small, reviewable model inputs for the TrafficVerse Web map prototype.
-They are not CARLA runtime assets.
+They are loaded by the MapLibre/deck.gl vehicle visualization.
 
 ## `box.glb`
 

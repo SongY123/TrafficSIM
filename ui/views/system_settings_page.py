@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
@@ -88,13 +87,9 @@ class SystemSettingsPage(QWidget):
         step.setRange(50, 50)
         step.setValue(50)
         step.setSuffix(" ms")
-        native = QCheckBox("使用 CARLA 本机原生窗口")
-        native.setChecked(True)
-        native.setEnabled(False)
         form.addRow("API 地址", api)
         form.addRow("固定步长", step)
-        form.addRow("三维视图", native)
-        return panel("仿真引擎", content, kicker="运行环境")
+        return panel("SUMO 仿真引擎", content, kicker="运行环境")
 
     @staticmethod
     def _storage() -> QWidget:

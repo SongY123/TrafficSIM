@@ -19,7 +19,9 @@ SCENARIO_PATH = REPOSITORY_ROOT / "configs" / "scenarios" / "core-run-town04.yam
 
 def test_core_run_scenario_loads_structurally() -> None:
     scenario = load_scenario(SCENARIO_PATH, apply_environment=False)
+    assert scenario.schema_version == "2.0"
     assert scenario.scenario.name == "core-run-town04"
+    assert scenario.scenario.map_id == "town04-sumo-1.27.1-v2"
     assert scenario.traffic.vehicles == 50
     assert scenario.sumo.host == "127.0.0.1"
     assert scenario.sumo.port == 8813
@@ -59,7 +61,6 @@ def test_invalid_automation_proportions_report_field(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("section", "field", "value", "expected_location"),
     [
-        ("roi", "radius_m", -1.0, "roi.radius_m"),
         ("simulation", "step_ms", 0, "simulation.step_ms"),
         ("simulation", "duration_ms", 101, "simulation"),
     ],
@@ -82,10 +83,10 @@ def test_invalid_runtime_values_report_field(
     assert expected_location in captured.value.details["reason"]
 
 
-def test_invalid_carla_port_environment_override_is_rejected(
+def test_invalid_sumo_port_environment_override_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("TRAFFICVERSE_CARLA_PORT", "70000")
+    monkeypatch.setenv("TRAFFICVERSE_SUMO_PORT", "70000")
 
     with pytest.raises(ConfigurationError) as captured:
         load_scenario(SCENARIO_PATH)
@@ -94,34 +95,28 @@ def test_invalid_carla_port_environment_override_is_rejected(
     assert "port" in captured.value.details["reason"]
 
 
-def test_local_simulator_environment_overrides_are_applied(
+def test_sumo_environment_overrides_are_applied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("TRAFFICVERSE_CARLA_HOST", "10.0.0.8")
-    monkeypatch.setenv("TRAFFICVERSE_CARLA_PORT", "2200")
-    monkeypatch.setenv("TRAFFICVERSE_CARLA_TIMEOUT_S", "45.5")
     monkeypatch.setenv("TRAFFICVERSE_SUMO_HOST", "10.0.0.9")
     monkeypatch.setenv("TRAFFICVERSE_SUMO_PORT", "9913")
 
     scenario = load_scenario(SCENARIO_PATH)
 
-    assert scenario.carla.host == "10.0.0.8"
-    assert scenario.carla.port == 2200
-    assert scenario.carla.timeout_s == 45.5
     assert scenario.sumo.host == "10.0.0.9"
     assert scenario.sumo.port == 9913
 
 
-def test_invalid_carla_timeout_environment_override_is_rejected(
+def test_invalid_sumo_port_environment_override_reports_variable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("TRAFFICVERSE_CARLA_TIMEOUT_S", "slow")
+    monkeypatch.setenv("TRAFFICVERSE_SUMO_PORT", "slow")
 
     with pytest.raises(ConfigurationError) as captured:
         load_scenario(SCENARIO_PATH)
 
     assert captured.value.code is ErrorCode.SCENARIO_VALIDATION_FAILED
-    assert captured.value.details["variable"] == "TRAFFICVERSE_CARLA_TIMEOUT_S"
+    assert captured.value.details["variable"] == "TRAFFICVERSE_SUMO_PORT"
 
 
 def test_environment_validation_reports_missing_assets(tmp_path: Path) -> None:
@@ -134,9 +129,15 @@ def test_environment_validation_reports_missing_assets(tmp_path: Path) -> None:
         "traffic.network",
         "traffic.routes",
         "traffic.signals",
-        "map_registration.manifest",
         "sumo.config_file",
+        "map.manifest",
     }
+
+
+def test_core_run_environment_validates_manifest_and_checksums() -> None:
+    scenario = load_scenario(SCENARIO_PATH, apply_environment=False)
+
+    validate_scenario_environment(scenario, repository_root=REPOSITORY_ROOT)
 
 
 def _write_manifest(
@@ -144,25 +145,22 @@ def _write_manifest(
     *,
     validated: bool = True,
     checksum: str | None = None,
-    carla_version: str = "0.9.16",
+    map_id: str = "town04-sumo-1.27.1-v2",
+    sumo_version: str = "1.27.1",
 ) -> Path:
     asset = directory / "Town04.xodr"
     asset.write_text("town04", encoding="utf-8")
     digest = checksum or f"sha256:{hashlib.sha256(asset.read_bytes()).hexdigest()}"
     manifest = {
-        "schema_version": "1.1",
-        "map_id": "town04-carla-0.9.16-sumo-1.27.1-v1",
-        "carla_map": "Town04",
-        "carla_version": carla_version,
-        "sumo_version": "1.27.1",
+        "schema_version": "2.0",
+        "map_id": map_id,
+        "sumo_version": sumo_version,
         "network_schema_version": "traffic-network/1.0",
         "compiler_version": "1.0.0",
-        "source_repository": "https://github.com/carla-simulator/carla",
+        "source_repository": "local-opendrive",
         "source_ref": "test-ref",
         "sumo_generation_command": "python scripts/maps/generate_town04_sumo.py",
         "validated": validated,
-        "max_registration_error_m": 0.5,
-        "strict_signal_mapping": True,
         "files": {"Town04.xodr": digest},
     }
     path = directory / "manifest.yaml"
@@ -170,41 +168,81 @@ def _write_manifest(
     return path
 
 
+def test_environment_validation_locates_and_validates_map_manifest(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIO_PATH, apply_environment=False)
+    for name in ("network.json", "routes.yaml", "signals.yaml", "map.sumocfg"):
+        (tmp_path / name).write_text("fixture", encoding="utf-8")
+    _write_manifest(tmp_path, checksum=f"sha256:{'0' * 64}")
+    resolved = scenario.model_copy(
+        update={
+            "traffic": scenario.traffic.model_copy(
+                update={
+                    "network": str(tmp_path / "network.json"),
+                    "routes": str(tmp_path / "routes.yaml"),
+                    "signals": str(tmp_path / "signals.yaml"),
+                }
+            ),
+            "sumo": scenario.sumo.model_copy(
+                update={"config_file": str(tmp_path / "map.sumocfg")}
+            ),
+        }
+    )
+
+    with pytest.raises(ConfigurationError) as captured:
+        validate_scenario_environment(resolved, repository_root=tmp_path)
+
+    assert captured.value.code is ErrorCode.MAP_ASSET_INVALID
+    assert "Town04.xodr" in captured.value.details
+
+
 def test_valid_map_manifest_passes_checksum_and_version_checks(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
     manifest = validate_map_manifest(
         manifest_path,
-        expected_carla_version="0.9.16",
         expected_network_schema_version="traffic-network/1.0",
+        expected_sumo_version="1.27.1",
     )
     assert manifest.validated
 
 
+def test_map_manifest_rejects_mismatched_map_id(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path, map_id="wrong-map")
+
+    with pytest.raises(ConfigurationError) as captured:
+        validate_map_manifest(
+            manifest_path,
+            expected_map_id="town04-sumo-1.27.1-v2",
+        )
+
+    assert captured.value.code is ErrorCode.VERSION_MISMATCH
+    assert "map" in captured.value.details
+
+
 @pytest.mark.parametrize(
-    ("validated", "checksum", "carla_version", "expected_code"),
+    ("validated", "checksum", "sumo_version", "expected_code"),
     [
-        (False, None, "0.9.16", ErrorCode.MAP_ASSET_INVALID),
-        (True, f"sha256:{'0' * 64}", "0.9.16", ErrorCode.MAP_ASSET_INVALID),
-        (True, None, "0.9.15", ErrorCode.VERSION_MISMATCH),
+        (False, None, "1.27.1", ErrorCode.MAP_ASSET_INVALID),
+        (True, f"sha256:{'0' * 64}", "1.27.1", ErrorCode.MAP_ASSET_INVALID),
+        (True, None, "1.27.0", ErrorCode.VERSION_MISMATCH),
     ],
 )
 def test_invalid_map_manifest_fails_readiness(
     tmp_path: Path,
     validated: bool,
     checksum: str | None,
-    carla_version: str,
+    sumo_version: str,
     expected_code: ErrorCode,
 ) -> None:
     manifest_path = _write_manifest(
         tmp_path,
         validated=validated,
         checksum=checksum,
-        carla_version=carla_version,
+        sumo_version=sumo_version,
     )
     with pytest.raises(ConfigurationError) as captured:
         validate_map_manifest(
             manifest_path,
-            expected_carla_version="0.9.16",
             expected_network_schema_version="traffic-network/1.0",
+            expected_sumo_version="1.27.1",
         )
     assert captured.value.code is expected_code

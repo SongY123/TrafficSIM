@@ -18,7 +18,7 @@ def test_auto_selects_macos_profile_for_apple_silicon() -> None:
         architecture="arm64",
     )
     assert name == "macos-dev"
-    assert profile.carla.mode.value == "disabled"
+    assert profile.sumo.mode.value == "required"
 
 
 def test_auto_selects_linux_core_run_profile() -> None:
@@ -30,7 +30,7 @@ def test_auto_selects_linux_core_run_profile() -> None:
         architecture="x86_64",
     )
     assert name == "core-run"
-    assert profile.carla.mode.value == "required"
+    assert profile.sumo.version == "1.27.1"
 
 
 def test_unknown_explicit_profile_is_rejected() -> None:
@@ -49,9 +49,7 @@ def test_forcing_linux_profile_on_macos_is_not_ready(
         "trafficverse.config.compatibility.sys.version_info",
         type("VersionInfo", (), {"major": 3, "minor": 10})(),
     )
-    monkeypatch.setattr(
-        "trafficverse.config.compatibility._detect_package_version", lambda _: "0.9.16"
-    )
+    monkeypatch.setattr("trafficverse.config.compatibility._detect_sumo_version", lambda: "1.27.1")
     report = inspect_runtime(baseline, requested_profile="core-run")
 
     assert report.ready is False

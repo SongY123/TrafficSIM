@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from typing import Protocol
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from trafficverse.application.clock import SimulationClock
 from trafficverse.application.experiment_registry import ExperimentRegistry
@@ -13,53 +13,26 @@ from trafficverse.config.models import ScenarioConfig
 from trafficverse.domain.enums import (
     ComponentStatus,
     ErrorCode,
-    EventSeverity,
     ExperimentStatus,
-    RequirementMode,
 )
 from trafficverse.domain.errors import TrafficVerseError
 from trafficverse.domain.models import (
-    ActorSpawnResult,
-    CarlaTrafficLight,
     ControlCommand,
-    DomainEvent,
     SimulationFrame,
-    TrafficLightState,
-    TrafficLightUpdate,
     TrafficSnapshot,
 )
 from trafficverse.domain.state_machine import require_transition
 from trafficverse.ports import (
-    CarlaPort,
     DataLoggerPort,
     ExperimentRepositoryPort,
     TrafficEnginePort,
 )
-from trafficverse.roi.models import RoiApplyPlan, RoiApplyResult
 
 
 class ControllerStepPort(Protocol):
     def step(
         self, previous: TrafficSnapshot | None, dt_s: float
     ) -> Mapping[str, ControlCommand]: ...
-
-
-class RoiPlannerPort(Protocol):
-    def actor_ids(self) -> frozenset[int]: ...
-
-    def report_missing_actor_ids(self, actor_ids: frozenset[int]) -> None: ...
-
-    def plan(self, snapshot: TrafficSnapshot) -> RoiApplyPlan: ...
-
-    def commit(self, result: RoiApplyResult) -> None: ...
-
-
-class SignalPlannerPort(Protocol):
-    def initialize(self, traffic_lights: tuple[CarlaTrafficLight, ...]) -> None: ...
-
-    def plan(
-        self, traffic_lights: tuple[TrafficLightState, ...]
-    ) -> tuple[TrafficLightUpdate, ...]: ...
 
 
 class SimulationFramePublisherPort(Protocol):
@@ -72,63 +45,31 @@ class NoOpController:
         return {}
 
 
-class NoOpRoiPlanner:
-    def actor_ids(self) -> frozenset[int]:
-        return frozenset()
-
-    def report_missing_actor_ids(self, actor_ids: frozenset[int]) -> None:
-        del actor_ids
-
-    def plan(self, snapshot: TrafficSnapshot) -> RoiApplyPlan:
-        del snapshot
-        return RoiApplyPlan()
-
-    def commit(self, result: RoiApplyResult) -> None:
-        del result
-
-
-class NoOpSignalPlanner:
-    def initialize(self, traffic_lights: tuple[CarlaTrafficLight, ...]) -> None:
-        del traffic_lights
-
-    def plan(self, traffic_lights: tuple[TrafficLightState, ...]) -> tuple[TrafficLightUpdate, ...]:
-        del traffic_lights
-        return ()
-
-
 class NoOpFramePublisher:
     async def publish_frame(self, frame: SimulationFrame) -> None:
         del frame
 
 
 class SimulationManager:
-    """Owns all Traffic Engine steps and CARLA world ticks for one experiment."""
+    """Owns all SUMO steps for one experiment."""
 
     def __init__(
         self,
         *,
         scenario: ScenarioConfig,
-        carla_map_name: str,
         traffic: TrafficEnginePort,
-        carla: CarlaPort,
         experiments: ExperimentRepositoryPort,
         data_logger: DataLoggerPort,
         controller: ControllerStepPort | None = None,
-        roi_planner: RoiPlannerPort | None = None,
-        signal_planner: SignalPlannerPort | None = None,
         frame_publisher: SimulationFramePublisherPort | None = None,
         registry: ExperimentRegistry | None = None,
         clock: SimulationClock | None = None,
     ) -> None:
         self._scenario = scenario
-        self._carla_map_name = carla_map_name
         self._traffic = traffic
-        self._carla = carla
         self._experiments = experiments
         self._data_logger = data_logger
         self._controller = controller or NoOpController()
-        self._roi_planner = roi_planner or NoOpRoiPlanner()
-        self._signal_planner = signal_planner or NoOpSignalPlanner()
         self._frame_publisher = frame_publisher or NoOpFramePublisher()
         self._registry = registry
         self._clock = clock or SimulationClock(
@@ -141,11 +82,8 @@ class SimulationManager:
         self._previous_snapshot: TrafficSnapshot | None = None
         self._last_frame: SimulationFrame | None = None
         self._traffic_opened = False
-        self._carla_opened = False
-        self._carla_degraded = scenario.carla.mode is RequirementMode.DISABLED
         self._cleanup_done = False
         self._logger_flushed = False
-        self._deferred_roi_vehicle_ids: frozenset[str] = frozenset()
         self._pending_api_controls: dict[str, ControlCommand] = {}
         self._command_lock = asyncio.Lock()
 
@@ -164,10 +102,6 @@ class SimulationManager:
     @property
     def speed_multiplier(self) -> float:
         return self._clock.speed_multiplier
-
-    @property
-    def carla_degraded(self) -> bool:
-        return self._carla_degraded
 
     @property
     def last_frame(self) -> SimulationFrame | None:
@@ -201,28 +135,10 @@ class SimulationManager:
                         ErrorCode.COMPONENT_UNAVAILABLE,
                         "SUMO is not healthy after initialization",
                     )
-                if self._scenario.carla.mode is not RequirementMode.DISABLED:
-                    await self._prepare_carla()
                 await self._transition(ExperimentStatus.READY)
             except Exception as error:
                 await self._fail(error)
                 raise
-
-    async def _prepare_carla(self) -> None:
-        self._carla_opened = True
-        try:
-            self._carla.connect(self._scenario.carla)
-            self._carla.load_world(self._carla_map_name, self._scenario.weather)
-            self._signal_planner.initialize(self._carla.traffic_lights())
-            if self._carla.health().status is not ComponentStatus.HEALTHY:
-                raise TrafficVerseError(
-                    ErrorCode.COMPONENT_UNAVAILABLE,
-                    "CARLA is not healthy after initialization",
-                )
-        except Exception as error:
-            if self._scenario.carla.mode is RequirementMode.REQUIRED:
-                raise
-            await self._degrade_carla(error)
 
     async def start(self) -> None:
         async with self._command_lock:
@@ -349,36 +265,7 @@ class SimulationManager:
                 self._previous_snapshot = traffic_snapshot
                 self._clock.commit(target_time_ms)
 
-                carla_frame = None
-                roi_events: tuple[DomainEvent, ...] = ()
-                if not self._carla_degraded:
-                    try:
-                        known_actor_ids = self._roi_planner.actor_ids()
-                        if known_actor_ids:
-                            existing_actor_ids = self._carla.existing_actor_ids(
-                                tuple(sorted(known_actor_ids))
-                            )
-                            self._roi_planner.report_missing_actor_ids(
-                                known_actor_ids - existing_actor_ids
-                            )
-                        roi_plan = self._roi_planner.plan(traffic_snapshot)
-                        roi_events = await self._record_roi_degradation(roi_plan)
-                        signal_updates = self._signal_planner.plan(traffic_snapshot.traffic_lights)
-                        spawn_results = self._apply_carla_plan(roi_plan, signal_updates)
-                        self._roi_planner.commit(
-                            RoiApplyResult(plan=roi_plan, spawn_results=spawn_results)
-                        )
-                        carla_frame = self._carla.tick(target_time_ms)
-                    except Exception as error:
-                        if self._scenario.carla.mode is RequirementMode.REQUIRED:
-                            raise
-                        await self._degrade_carla(error)
-
-                frame = SimulationFrame(
-                    traffic=traffic_snapshot,
-                    carla=carla_frame,
-                    events=roi_events,
-                )
+                frame = SimulationFrame(traffic=traffic_snapshot)
                 await self._data_logger.record_frame(frame)
                 await self._frame_publisher.publish_frame(frame)
                 self._last_frame = frame
@@ -388,38 +275,6 @@ class SimulationManager:
             except Exception as error:
                 await self._fail(error)
                 raise
-
-    def _apply_carla_plan(
-        self,
-        roi_plan: RoiApplyPlan,
-        signal_updates: tuple[TrafficLightUpdate, ...],
-    ) -> tuple[ActorSpawnResult, ...]:
-        spawn_results: tuple[ActorSpawnResult, ...] = ()
-        if roi_plan.destroy_actor_ids:
-            self._carla.destroy_actors(roi_plan.destroy_actor_ids)
-        if roi_plan.spawns:
-            spawn_results = self._carla.spawn_vehicles(roi_plan.spawns)
-        self._carla.update_actors(roi_plan.actor_updates)
-        self._carla.update_traffic_lights(signal_updates)
-        return spawn_results
-
-    async def _record_roi_degradation(self, roi_plan: RoiApplyPlan) -> tuple[DomainEvent, ...]:
-        current = frozenset(roi_plan.degraded_vehicle_ids)
-        newly_deferred = sorted(current - self._deferred_roi_vehicle_ids)
-        self._deferred_roi_vehicle_ids = current
-        if not newly_deferred:
-            return ()
-        event = DomainEvent(
-            event_id=uuid4(),
-            experiment_id=self._require_experiment_id(),
-            event_type="roi.actor_limit_reached",
-            severity=EventSeverity.WARNING,
-            simulation_time_ms=roi_plan.simulation_time_ms,
-            payload={"deferred_vehicle_ids": newly_deferred},
-        )
-        await self._experiments.append_event(event)
-        await self._data_logger.record_event(event)
-        return (event,)
 
     async def _stop_from_tick(self, reason: str) -> None:
         await self._transition(ExperimentStatus.STOPPING, reason=reason)
@@ -431,24 +286,6 @@ class SimulationManager:
             )
             return
         await self._transition(ExperimentStatus.COMPLETED, reason=reason)
-
-    async def _degrade_carla(self, error: Exception) -> None:
-        self._carla_degraded = True
-        if self._carla_opened:
-            try:
-                self._carla.close()
-            finally:
-                self._carla_opened = False
-        event = DomainEvent(
-            event_id=uuid4(),
-            experiment_id=self._require_experiment_id(),
-            event_type="carla.degraded",
-            severity=EventSeverity.WARNING,
-            simulation_time_ms=self._clock.current_time_ms,
-            payload={"reason": str(error)},
-        )
-        await self._experiments.append_event(event)
-        await self._data_logger.record_event(event)
 
     async def _fail(self, error: Exception) -> None:
         experiment_id = self._require_experiment_id()
@@ -469,12 +306,6 @@ class SimulationManager:
             try:
                 await self._data_logger.flush()
                 self._logger_flushed = True
-            except Exception as error:
-                errors.append(error)
-        if self._carla_opened:
-            try:
-                self._carla.close()
-                self._carla_opened = False
             except Exception as error:
                 errors.append(error)
         if self._traffic_opened:

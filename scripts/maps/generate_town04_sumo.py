@@ -117,7 +117,7 @@ def _write_routes(source_path: Path, output_path: Path) -> None:
         },
     )
     for vehicle in source.findall("vehicle"):
-        vehicle.attrib["type"] = "carla-passenger"
+        vehicle.attrib["type"] = "passenger"
         root.append(vehicle)
     ElementTree.indent(root, space="    ")
     payload = ElementTree.tostring(root, encoding="unicode", short_empty_elements=True)
@@ -129,7 +129,7 @@ def _write_vtypes(output_path: Path) -> None:
         """<?xml version="1.0" encoding="UTF-8"?>
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
-    <vType id="carla-passenger" vClass="passenger" length="4.5" minGap="2.5"
+    <vType id="passenger" vClass="passenger" length="4.5" minGap="2.5"
            accel="2.5" decel="4.0" emergencyDecel="8.0" sigma="0.5"
            carFollowModel="Krauss" laneChangeModel="LC2013"/>
 </routes>
@@ -174,7 +174,6 @@ def _update_manifest(map_directory: Path) -> None:
         "map.sumocfg",
         "network.geojson",
         "network.json",
-        "registration.yaml",
         "routes.yaml",
         "signals.yaml",
     )
@@ -183,19 +182,15 @@ def _update_manifest(map_directory: Path) -> None:
     }
     files = "\n".join(f"  {name}: sha256:{checksums[name]}" for name in tracked)
     manifest_path.write_text(
-        f"""schema_version: '1.1'
-map_id: town04-carla-0.9.16-sumo-1.27.1-v1
-carla_map: Town04
-carla_version: 0.9.16
+        f"""schema_version: '2.0'
+map_id: town04-sumo-1.27.1-v2
 sumo_version: 1.27.1
 network_schema_version: traffic-network/1.0
 compiler_version: 1.1.0
-source_repository: https://github.com/carla-simulator/carla
+source_repository: local-opendrive
 source_ref: 294096eb1c38eabf246e4f3a9cdab704e33a7f4c
 sumo_generation_command: python scripts/maps/generate_town04_sumo.py --map-dir configs/maps/town04
 validated: true
-max_registration_error_m: 0.001
-strict_signal_mapping: true
 files:
 {files}
 """,

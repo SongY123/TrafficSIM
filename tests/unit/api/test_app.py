@@ -101,11 +101,6 @@ def _dependencies(
                 status=ComponentStatus.HEALTHY if ready else ComponentStatus.UNAVAILABLE,
                 required=True,
             ),
-            ReadinessComponent(
-                component="carla",
-                status=ComponentStatus.DISABLED,
-                required=False,
-            ),
         )
 
     return ApiDependencies(runtimes, maps, commands, broker, readiness)
@@ -161,7 +156,7 @@ def test_not_ready_returns_503(tmp_path: Path) -> None:
         assert response.json()["ready"] is False
 
 
-def test_map_import_endpoint_publishes_compiled_geojson(tmp_path: Path) -> None:
+def test_map_import_endpoint_rejects_non_runnable_compiler_output(tmp_path: Path) -> None:
     dependencies = _dependencies(tmp_path, FakeManager(uuid4()))
     source = MAP_DIRECTORY / "Town04.xodr"
 
@@ -181,14 +176,12 @@ def test_map_import_endpoint_publishes_compiled_geojson(tmp_path: Path) -> None:
         job_id = UUID(accepted.json()["job_id"])
         assert client.portal is not None
         completed = client.portal.call(dependencies.maps.wait_for_job, job_id)
-        assert completed.status == "SUCCEEDED"
-        assert completed.map_id is not None
+        assert completed.status == "FAILED"
+        assert completed.map_id is None
+        assert "map.sumocfg is missing" in completed.errors[0]
 
         status_response = client.get(f"/api/v1/maps/import/{job_id}")
-        assert status_response.json()["status"] == "SUCCEEDED"
-        network = client.get(f"/api/v1/maps/{completed.map_id}/network")
-        assert network.headers["content-type"].startswith("application/geo+json")
-        assert network.json()["type"] == "FeatureCollection"
+        assert status_response.json()["status"] == "FAILED"
 
 
 def test_rest_commands_use_serial_bus_and_return_stable_conflicts(tmp_path: Path) -> None:

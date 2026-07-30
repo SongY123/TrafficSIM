@@ -1,7 +1,7 @@
-schema_version: "1.2"
+schema_version: "2.0"
 scenario:
   name: core-run-town04
-  map_id: town04-carla-0.9.16-sumo-1.27.1-v1
+  map_id: town04-sumo-1.27.1-v2
   seed: 42
 simulation:
   step_ms: 50
@@ -29,32 +29,6 @@ automation:
     L2: 0.0
     L3: 0.0
     L4: 0.0
-roi:
-  radius_m: 1000.0
-  buffer_m: 200.0
-  max_actors: 200
-  focus:
-    mode: fixed
-    x: 0.0
-    y: 0.0
-carla:
-  mode: required
-  endpoint_mode: local_server
-  host: 127.0.0.1
-  port: 2000
-  timeout_s: 30.0
-  expected_version: "0.9.16"
-  step_ms: 50
-  worker_threads: 0
-  blueprint_filter: vehicle.*
-  fallback_blueprints:
-    - vehicle.tesla.model3
-    - vehicle.audi.tt
-  spawn_retries: 2
-weather:
-  preset: ClearNoon
-map_registration:
-  manifest: configs/maps/town04/manifest.yaml
 logging:
   trajectory_hz: 10
   parquet_batch_rows: 10000
@@ -62,6 +36,3 @@ replay:
   snapshot_interval_ms: 5000
 ui:
   api_url: http://127.0.0.1:8000
-  carla_view:
-    mode: native_window
-    native_window_id_env: TRAFFICVERSE_CARLA_WINDOW_ID

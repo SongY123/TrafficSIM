@@ -6,7 +6,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from trafficverse.bootstrap import build_core_api
-from trafficverse.domain.enums import RequirementMode
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_PATH = REPOSITORY_ROOT / "configs/scenarios/core-run-town04.yaml"
@@ -35,7 +34,6 @@ def test_native_core_runtime_reaches_ui_over_rest_and_websocket(tmp_path: Path) 
     app = build_core_api(
         SCENARIO_PATH,
         repository_root=REPOSITORY_ROOT,
-        carla_mode=RequirementMode.DISABLED,
         artifact_root=tmp_path / "maps",
     )
     with TestClient(app) as client:
@@ -43,7 +41,7 @@ def test_native_core_runtime_reaches_ui_over_rest_and_websocket(tmp_path: Path) 
             "/api/v1/experiments",
             json={
                 "scenario_id": str(UUID(int=42)),
-                "map_id": "town04-carla-0.9.16-native-1.0",
+                "map_id": "town04-sumo-1.27.1-v2",
             },
         )
         assert created.status_code == 202

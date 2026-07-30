@@ -11,7 +11,6 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from trafficverse.config.models import (
-    CarlaConfig,
     MapManifest,
     RuntimeBaseline,
     ScenarioConfig,
@@ -78,46 +77,19 @@ def load_scenario(path: Path, *, apply_environment: bool = True) -> ScenarioConf
                 details={"variable": "TRAFFICVERSE_SUMO_PORT"},
             ) from error
 
-    host = os.getenv("TRAFFICVERSE_CARLA_HOST")
-    port_value = os.getenv("TRAFFICVERSE_CARLA_PORT")
-    timeout_value = os.getenv("TRAFFICVERSE_CARLA_TIMEOUT_S")
-    carla_updates: dict[str, object] = {}
-    if host:
-        carla_updates["host"] = host
-    if port_value:
-        try:
-            carla_updates["port"] = int(port_value)
-        except ValueError as error:
-            raise ConfigurationError(
-                ErrorCode.SCENARIO_VALIDATION_FAILED,
-                "TRAFFICVERSE_CARLA_PORT must be an integer",
-                details={"variable": "TRAFFICVERSE_CARLA_PORT"},
-            ) from error
-    if timeout_value:
-        try:
-            carla_updates["timeout_s"] = float(timeout_value)
-        except ValueError as error:
-            raise ConfigurationError(
-                ErrorCode.SCENARIO_VALIDATION_FAILED,
-                "TRAFFICVERSE_CARLA_TIMEOUT_S must be a number",
-                details={"variable": "TRAFFICVERSE_CARLA_TIMEOUT_S"},
-            ) from error
-    if not carla_updates and not sumo_updates:
+    if not sumo_updates:
         return scenario
     try:
-        carla = CarlaConfig.model_validate(
-            {**scenario.carla.model_dump(mode="python"), **carla_updates}
-        )
         sumo = SumoConfig.model_validate(
             {**scenario.sumo.model_dump(mode="python"), **sumo_updates}
         )
     except ValidationError as error:
         raise ConfigurationError(
             ErrorCode.SCENARIO_VALIDATION_FAILED,
-            "CARLA environment overrides are invalid",
+            "SUMO environment overrides are invalid",
             details={"reason": str(error)},
         ) from error
-    return scenario.model_copy(update={"carla": carla, "sumo": sumo})
+    return scenario.model_copy(update={"sumo": sumo})
 
 
 def load_map_manifest(path: Path) -> MapManifest:
@@ -136,28 +108,45 @@ def configuration_hash(model: BaseModel) -> str:
 
 def validate_scenario_environment(scenario: ScenarioConfig, *, repository_root: Path) -> None:
     missing: dict[str, str] = {}
-    manifest = repository_root / scenario.map_registration.manifest
-    sumo_config = repository_root / scenario.sumo.config_file
+    sumo_config = _repository_path(repository_root, scenario.sumo.config_file)
     if not sumo_config.is_file():
         missing["sumo.config_file"] = str(sumo_config)
+    traffic_assets: dict[str, Path] = {}
     for field in ("network", "routes", "signals"):
-        asset = repository_root / str(getattr(scenario.traffic, field))
+        asset = _repository_path(repository_root, str(getattr(scenario.traffic, field)))
+        traffic_assets[field] = asset
         if not asset.is_file():
             missing[f"traffic.{field}"] = str(asset)
-    if not manifest.is_file():
-        missing["map_registration.manifest"] = str(manifest)
+    manifest_candidates = (
+        traffic_assets["network"].parent / "manifest.yaml",
+        sumo_config.parent / "manifest.yaml",
+    )
+    manifest_path = next((path for path in manifest_candidates if path.is_file()), None)
+    if manifest_path is None:
+        missing["map.manifest"] = str(manifest_candidates[0])
     if missing:
         raise ConfigurationError(
             ErrorCode.CONFIGURATION_NOT_FOUND,
             "scenario references missing runtime assets",
             details=missing,
         )
+    assert manifest_path is not None
+    validate_map_manifest(
+        manifest_path,
+        expected_map_id=scenario.scenario.map_id,
+        expected_sumo_version=scenario.sumo.expected_version,
+    )
+
+
+def _repository_path(repository_root: Path, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else repository_root / path
 
 
 def validate_map_manifest(
     manifest_path: Path,
     *,
-    expected_carla_version: str,
+    expected_map_id: str | None = None,
     expected_network_schema_version: str = "traffic-network/1.0",
     expected_sumo_version: str | None = None,
 ) -> MapManifest:
@@ -169,10 +158,8 @@ def validate_map_manifest(
             details={"path": str(manifest_path)},
         )
     version_mismatches: dict[str, str] = {}
-    if manifest.carla_version != expected_carla_version:
-        version_mismatches["carla"] = (
-            f"expected {expected_carla_version}, found {manifest.carla_version}"
-        )
+    if expected_map_id is not None and manifest.map_id != expected_map_id:
+        version_mismatches["map"] = f"expected {expected_map_id}, found {manifest.map_id}"
     if manifest.network_schema_version != expected_network_schema_version:
         version_mismatches["traffic-network"] = (
             f"expected {expected_network_schema_version}, found {manifest.network_schema_version}"

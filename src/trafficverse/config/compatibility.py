@@ -1,7 +1,6 @@
 """Runtime profile selection and dependency compatibility reporting."""
 
 import importlib.metadata
-import os
 import platform
 import re
 import shutil
@@ -131,16 +130,7 @@ def inspect_runtime(
     architecture = platform.machine()
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     detected = {
-        "carla": _detect_package_version("carla")
-        if selected.carla.mode is not RequirementMode.DISABLED
-        else None,
         "sumo": _detect_sumo_version(),
-        "native_window": (
-            "qt-foreign-window/1.0"
-            if selected.native_window.mode is not RequirementMode.DISABLED
-            and bool(os.getenv("TRAFFICVERSE_CARLA_WINDOW_ID"))
-            else None
-        ),
         "postgres": None,
     }
     issues: list[CompatibilityIssue] = []
@@ -176,22 +166,11 @@ def inspect_runtime(
             )
         )
     issues.extend(
-        _requirement_issues("carla", selected.carla.version, selected.carla.mode, detected["carla"])
-    )
-    issues.extend(
         _requirement_issues(
             "sumo",
             selected.sumo.version,
             selected.sumo.mode,
             detected["sumo"],
-        )
-    )
-    issues.extend(
-        _requirement_issues(
-            "native_window",
-            selected.native_window.version,
-            selected.native_window.mode,
-            detected["native_window"],
         )
     )
     return CompatibilityReport(

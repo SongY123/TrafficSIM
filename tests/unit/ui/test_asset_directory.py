@@ -13,12 +13,12 @@ def _application() -> QApplication:
 
 def _town04_entry() -> AssetDirectoryEntry:
     return AssetDirectoryEntry(
-        asset_id="town04",
+        asset_id="town04-sumo-1.27.1-v2",
         name="Town04",
         validated=True,
-        compatibility=("SUMO", "CARLA", "deck.gl", "MapLibre"),
+        compatibility=("SUMO", "deck.gl", "MapLibre"),
         files=(
-            AssetFileEntry("Town04.xodr", ".xodr", ("CARLA",)),
+            AssetFileEntry("Town04.xodr", ".xodr", ("SUMO",)),
             AssetFileEntry("Town04.net.xml", ".net.xml", ("SUMO",)),
             AssetFileEntry("network.geojson", ".geojson", ("deck.gl", "MapLibre")),
         ),
@@ -49,7 +49,7 @@ def test_asset_directory_filters_files_and_emits_parent_asset() -> None:
     assert visible_files == ["network.geojson"]
 
     tree.setCurrentItem(tree.topLevelItem(0).child(2))
-    assert selected[-1] == "town04"
+    assert selected[-1] == "town04-sumo-1.27.1-v2"
     widget.close()
 
 

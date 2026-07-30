@@ -9,7 +9,6 @@ from pydantic import JsonValue
 from trafficverse.adapters.messaging import FrameBroker, make_envelope
 from trafficverse.domain.enums import AutomationLevel, VehicleAction
 from trafficverse.domain.models import (
-    CarlaFrame,
     SimulationFrame,
     TrafficSnapshot,
     Vector3,
@@ -41,11 +40,6 @@ def _frame(sequence: int, x: float) -> SimulationFrame:
             simulation_time_ms=sequence * 50,
             sequence=sequence,
             vehicles=(vehicle,),
-        ),
-        carla=CarlaFrame(
-            simulation_time_ms=sequence * 50,
-            carla_frame=sequence,
-            actor_count=1,
         ),
     )
 

@@ -148,19 +148,17 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _set_health(self, components: object) -> None:
         values = components if isinstance(components, tuple) else ()
-        carla = next((item for item in values if getattr(item, "component", "") == "carla"), None)
-        status = str(getattr(carla, "status", "UNKNOWN"))
-        normalized_status = status.removeprefix("ComponentStatus.")
-        health_labels = {
+        sumo = next((item for item in values if getattr(item, "component", "") == "sumo"), None)
+        status = str(getattr(sumo, "status", "UNKNOWN")).removeprefix("ComponentStatus.")
+        labels = {
             "HEALTHY": "正常",
             "DEGRADED": "降级",
             "UNAVAILABLE": "不可用",
+            "DISABLED": "已禁用",
             "UNKNOWN": "未知",
         }
-        self.live_page.set_carla_status(health_labels.get(normalized_status, normalized_status))
-        if carla is not None and normalized_status != "HEALTHY":
-            message = getattr(carla, "message", None) or "本机 CARLA 当前不可用"
-            self.live_page.carla_window.show_unavailable(str(message))
+        message = getattr(sumo, "message", None) if sumo is not None else None
+        self.live_page.set_sumo_status(labels.get(status, status), message)
 
     @Slot(str)
     def _set_status(self, status: str) -> None:

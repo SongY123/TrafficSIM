@@ -1,263 +1,151 @@
 # TrafficVerse 产品需求文档（PRD）
 
-> 版本：v1.4
+> 版本：v1.5
 >
-> 状态：Target Baseline（实现迁移中）
+> 状态：Current Product Baseline
 >
-> 日期：2026-07-17
+> 日期：2026-07-30
 >
-> 目标：指导开发 Agent 完成“SUMO 全局交通真值 + PySide6 二维可视化 + CARLA 局部三维镜像”的可演示 MVP
+> 决策基线：[ADR-027](./ADR.md#adr-027--移除-carla产品聚焦-sumo--trafficverse-2d)
 
 ## 1. 产品定义
 
-TrafficVerse 是面向科研展示与教学演示的混合交通仿真平台。SUMO 负责全路网交通仿真，
-是车辆、路线、车道、位置、速度、加速度、信号灯和仿真时间的唯一真值源；CARLA 负责
-关注区域（ROI）内的三维视觉镜像；PySide6 桌面端负责操作、二维可视化、指标展示和托管
-CARLA 原生渲染窗口。
+TrafficVerse 是面向科研展示与教学演示的二维交通仿真平台。SUMO 是车辆、路线、车道、位置、
+速度、加速度、信号灯和仿真时间的唯一真值源；TrafficVerse 提供 API、MapLibre/deck.gl 二维页面、
+控制、指标、记录和回放。
 
-系统必须遵循以下边界：
+系统必须遵循：
 
-1. 车辆的生成、移动、跟驰、换道、路线和信号灯行为均由 SUMO 驱动；
-2. PySide6 左侧二维地图只显示经 TraCI 标准化后的 SUMO 状态，不自行积分或预测车辆位置；
-3. CARLA Actor 是 SUMO 车辆在 ROI 内的三维镜像，关闭 autopilot，不反向决定全局状态；
-4. PySide6 右侧三维区域直接托管本机 CARLA 原生窗口，不通过 RGB 传感器、JPEG、base64、
-   WebSocket `camera.frame` 或截图轮询传输画面；
-5. `SimulationManager` 是唯一仿真编排者，每个固定 tick 只推进一次 SUMO 和一次 CARLA；
-6. 产品基线使用同一台本机的 `127.0.0.1:8813` 连接 SUMO TraCI，使用
-   `127.0.0.1:2000` 连接 CARLA RPC；CARLA 必须以可见窗口模式运行并处于与 PySide6 相同的
-   图形桌面会话。
+1. 车辆生成、移动、跟驰、换道、路线和信号灯均由 SUMO 驱动；
+2. UI 只显示 TraCI 标准化状态，不自行积分或预测权威位置；
+3. `SimulationManager` 是唯一仿真编排者，每个固定 tick 只调用一次 `simulationStep()`；
+4. 产品不包装、嵌入或自动化 SUMO GUI；
+5. 当前产品已移除 CARLA、ROI、RGB 图像和 native-window 能力，禁止以兼容模式恢复。
 
-当前仓库仍存在 Native Traffic Engine 实现和 RGB 相机链路。它们属于待迁移实现，不再代表
-目标产品架构；任何迁移不得形成 SUMO 与 Native Traffic Engine 双真值。
+## 2. 用户与核心路径
 
-## 2. 用户与核心场景
-
-### 2.1 目标用户
-
-- 需要演示交通流和局部自动驾驶行为的研究人员；
-- 需要通过统一控制接口验证车辆策略的算法开发者；
-- 需要同时观察二维全局交通和三维局部交通的教学用户。
-
-### 2.2 核心用户路径
+目标用户是研究人员、交通算法开发者和教学演示用户。
 
 1. 用户选择 Town04 场景；
-2. 系统校验同源 OpenDRIVE、SUMO `.net.xml`、`.sumocfg`、route、信号灯映射和 GeoJSON；
-3. 用户在本机启动 SUMO TraCI server、可见窗口模式的 CARLA 和 TrafficVerse；SUMO 可使用
-   headless `sumo`，其 GUI 只允许作为独立调试工具，不属于 TrafficVerse 产品界面；
-4. TrafficVerse 连接 SUMO TraCI `8813` 和 CARLA RPC `2000`，完成版本、地图和步长校验；
-5. 用户启动实验，SUMO 按 50 ms 固定步长产生权威交通状态；
-6. PySide6 左侧二维页面显示全部 SUMO 车辆、路网和信号灯；
-7. ROI 内车辆和信号灯被同步到 CARLA，右侧嵌入的 CARLA 原生窗口显示三维场景；
-8. 用户下发控制命令，命令在下一次 SUMO step 前通过 TraCI 应用；
-9. 用户可暂停、恢复和停止实验，并查看车辆数、平均速度、排队长度和组件健康。
+2. 系统校验 OpenDRIVE、SUMO 路网、配置、路线和 GeoJSON；
+3. 用户启动 SUMO TraCI、TrafficVerse API 和 UI；
+4. TrafficVerse 连接 `127.0.0.1:8813` 并校验版本、地图和步长；
+5. SUMO 按 50 ms 固定步长产生权威交通状态；
+6. MapLibre/deck.gl 显示道路、全部车辆和信号灯；
+7. 用户下发控制命令，命令在下一次 SUMO step 前通过 TraCI 应用；
+8. 用户可暂停、恢复、停止，并查看指标和组件健康。
 
-## 3. 产品范围
+## 3. MVP 范围
 
-### 3.1 MVP 必须实现
+### 3.1 地图资产
 
-#### Town04 地图资产
+- 首个验收地图为 Town04；
+- OpenDRIVE `.xodr` 上传会先编译并校验；只有同时生成 `.net.xml`、`.sumocfg`、route/vType
+  且全部进入 manifest 的可运行 SUMO 包才允许发布到地图目录；
+- 资产包含 `.xodr`、`.net.xml`、`.sumocfg`、route、vtype、`network.geojson`、
+  `network.json`、`routes.yaml`、`signals.yaml` 和 `manifest.yaml`；
+- `manifest.yaml` 记录来源、SUMO 版本、生成命令和 SHA-256；
+- 展示资产不得参与车辆推进或成为第二真值；
+- 路线或信号引用缺失、重复、歧义时拒绝 READY。
 
-- 首个验收地图固定为 CARLA 0.9.16 Town04；
-- SUMO 路网必须由同一 CARLA 发行版的 Town04 OpenDRIVE 生成；
-- 使用 CARLA 官方 SUMO 联仿工具链的 `netconvert_carla.py` 生成 SUMO 网络，并启用
-  `--guess-tls`；
-- 资产至少包含 `.xodr`、`.net.xml`、`.sumocfg`、route、vtype、`network.geojson`、
-  `registration.yaml`、`signals.yaml` 和 `manifest.yaml`；
-- `manifest.yaml` 记录来源、CARLA/SUMO 版本、生成命令和 SHA-256；
-- `traffic-network/1.0` 与 `network.geojson` 可以保留为展示和查找资产，但不参与车辆推进，
-  不得成为第二份交通真值；
-- 信号灯映射缺失、重复或歧义时拒绝 READY，不在运行时按距离猜测。
+### 3.2 SUMO 全局交通仿真
 
-#### SUMO 全局交通仿真
+- 通过 TraCI 连接外部 SUMO server，默认使用无界面 `sumo`；
+- 固定步长为 50 ms；
+- 每次 `simulationStep()` 后采集同一时刻的车辆、信号灯、departed 和 arrived 状态；
+- 状态转换为不可变 `TrafficSnapshot`；
+- 同一实例只允许 TrafficVerse 作为默认 TraCI client；
+- 连接丢失、时间回退或 step 失败使实验进入 FAILED。
 
-- 通过 TraCI 连接已启动的 SUMO server，产品默认使用无界面 `sumo`；
-- 使用 50 ms 固定仿真步长，SUMO `step-length`、CARLA `fixed_delta_seconds` 和
-  TrafficVerse `step_ms` 必须一致；
-- SUMO 负责车辆生成、路线、跟驰、换道、交通信号灯、到达和移除；
-- 每次 `traci.simulationStep()` 后采集同一仿真时刻的车辆、信号灯、departed 和 arrived 状态，
-  转换为不可变 `TrafficSnapshot`；
-- SUMO 是交通信号灯主控，联仿配置固定 `tls_manager: sumo`；
-- MVP 同一 SUMO 实例只允许 TrafficVerse 一个 TraCI client；如未来使用多 client，必须配置
-  `--num-clients` 和 client order 并新增验收；
-- SUMO 连接丢失、时间回退或 step 失败属于真值丢失，当前实验进入 FAILED。
+### 3.3 车辆控制
 
-#### 车辆控制
+- `ControlCommand` 支持期望速度、期望加速度、左右换道、停车和恢复；
+- 控制器只读取上一帧标准快照，不持有 TraCI connection；
+- SUMO 对命令执行、运动和安全行为拥有最终裁决权；
+- 单车命令失败返回稳定错误和 vehicle ID，不阻断同批其他合法命令。
 
-- `ControlCommand` 至少支持期望速度、期望加速度、左/右换道、停车和恢复；
-- 控制器只读取上一帧标准快照并输出意图，不直接持有 TraCI connection；
-- `SimulationManager` 在下一次 `simulationStep()` 前将批量命令交给 SUMO adapter；
-- SUMO 对命令执行、车辆运动和安全行为拥有最终裁决权；UI 不直接修改二维 marker 或 CARLA Actor；
-- 单车命令失败必须返回稳定错误和 vehicle ID，不得阻断其他合法命令或产生本地伪状态。
+### 3.4 MapLibre/deck.gl 二维可视化
 
-#### PySide6 MapLibre/deck.gl 可视化
+- MapLibre 管理相机和地图样式，deck.gl 绘制本地米制路网、车辆和信号灯；
+- 页面通过版本化 WebSocket snapshot/delta 更新；
+- 页面不得使用墙上时间生成权威位置；
+- 支持缩放、拖拽、车辆选择、筛选和控制命令；
+- sequence gap 时请求完整 snapshot；
+- 所有 bundle、模型和样式离线加载，不依赖 CDN、token 或公网瓦片。
 
-- 左侧使用 MapLibre GL JS 管理相机和地图样式，使用 deck.gl GPU layer 绘制本地米制路网；
-- 显示道路、车道、路口、信号灯和全部 SUMO 车辆；
-- 首个 Gate 实现二维模式；后续三维模式复用同一 `WorldState`，不建立第二份车辆状态；
-- 车辆和信号灯只消费后端发布的版本化 WebSocket snapshot/delta；
-- 页面不得使用墙上时间插值生成权威位置，不得在前端维护第二套车辆运动状态；
-- 支持缩放、拖拽、点击车辆、筛选及将控制命令提交到 TrafficVerse API；
-- sequence gap 时必须请求完整 snapshot，不能继续基于缺帧状态推演。
-- 不包装、嵌入或自动化 SUMO GUI 窗口；二维道路、车辆和信号灯全部由 TrafficVerse 自有页面绘制。
+### 3.5 地图资产目录
 
-#### 地图资产目录
+- 资产中心由 manifest 驱动，支持按名称、地图 ID、格式和文件名搜索；
+- 预览只消费 REST 返回的摘要、manifest 和标准 `network.geojson`；
+- 当前上传入口只接受 OpenDRIVE；通用 SUMO 生成链完成前，展示资产编译成功不得视为地图导入
+  成功，也不得发布到可运行地图目录；
+- OSM、Shapefile、Vissim 等多格式转换不进入 MVP。
 
-- 资产中心以 manifest 驱动的目录树展示地图包和完整文件后缀，并支持按名称、地图 ID、平台、格式
-  和文件名搜索；
-- 选择目录或文件后，右侧使用独立 MapLibre/deck.gl 实例展示该地图包的标准
-  `network.geojson`，支持二维/三维相机模式；
-- 资产目录是可复用 UI 组件，不访问后端文件系统，只消费 REST 返回的地图摘要、manifest 和标准路网；
-- 当前直接导入源仍为 OpenDRIVE `.xodr`；SUMO、CARLA、deck.gl、MapLibre 相关文件可由 manifest
-  收录，支持级别与转换边界见 [地图资产目录与支持格式](./MAP_ASSET_CATALOG.md)；
-- 目录收录不扩大权威地图编译范围，OSM、Shapefile、Vissim 等多格式转换仍不进入 MVP。
-
-#### SUMO 与 CARLA 联仿
-
-- `SimulationManager` 是唯一 step/tick 发起者；
-- CARLA 开启 synchronous mode，`fixed_delta_seconds=0.05`；
-- 车辆进入核心 ROI 时创建 CARLA Actor，离开扩展 ROI 后销毁，中间 Buffer 保持映射；
-- 维护 `sumo_vehicle_id ↔ carla_actor_id` 一一映射；
-- 在 CARLA `world.tick()` 前批量写入 ROI 车辆 transform、灯光和 SUMO 信号灯状态；
-- CARLA 车辆关闭 autopilot 和 Traffic Manager 控制，不将碰撞或物理运动反写 SUMO；
-- 每 tick 校验时间单调性、Actor binding 和有限的坐标同步误差；
-- 同步机制以 CARLA 官方 SUMO co-simulation 的地图转换、固定步长、车辆/信号同步方式为参考，
-  但由 TrafficVerse `SimulationManager` 统一编排，不同时运行第二个同步脚本争用 TraCI/CARLA tick。
-
-#### CARLA 原生窗口 Qt 集成
-
-- CARLA 必须以可见窗口模式启动；`-RenderOffScreen` 和 no-rendering mode 不满足右侧视图验收；
-- PySide6 通过受控的本机 native window ID 获取 CARLA 顶层窗口，使用
-  `QWindow.fromWinId()` 包装，再通过 `QWidget.createWindowContainer()` 放入右侧布局；
-- native window ID 必须通过显式配置或受测试的平台 locator 获得，正式运行不得依赖模糊窗口标题猜测；
-- 右侧容器只负责窗口承载、大小调整、焦点和生命周期，不通过窗口直接控制仿真；
-- 核心协议不发布 `camera.frame`，后端不创建用于 UI 的 RGB sensor，UI 不解码 JPEG/base64；
-- CARLA、PySide6 和窗口必须位于同一主机、同一用户图形会话；远程无头 CARLA 不能直接嵌入本机 Qt；
-- Qt 外部窗口嵌入具有平台相关性。macOS 当前环境必须先通过原型 Gate；若平台不支持，
-  readiness 返回 `CARLA_WINDOW_EMBED_UNSUPPORTED`，不得静默回退 RGB 传输；
-- 窗口销毁或句柄失效时，UI 显示可执行恢复建议并更新三维组件健康。
-
-#### 生命周期与展示
+### 3.6 生命周期、指标与记录
 
 - 支持 prepare、start、pause、resume、stop；
-- 支持固定 0.5×、1×、2×播放倍率，但倍率不改变 50 ms 仿真步长；
-- 展示车辆数、平均速度、排队车辆数、仿真时间、tick 耗时、SUMO/CARLA/窗口健康；
-- stop/close 必须幂等，断开 TraCI、恢复 CARLA world settings，并销毁本系统创建的 Actor；
+- 支持 0.5×、1×、2×播放倍率，倍率不改变固定步长；
+- 展示车辆数、平均速度、排队车辆数、仿真时间、tick 耗时和 SUMO 健康；
+- stop/close 幂等并断开 TraCI；
 - 支持结构化日志和最小轨迹记录。
 
-### 3.2 MVP 明确不实现
+### 3.7 明确不实现
 
-- 自研交通流引擎或 Native Traffic Engine 与 SUMO 双引擎运行；
-- OSM、Shapefile、Vissim 等多格式地图导入；
-- 动态交通分配、用户均衡、复杂 OD 标定和成熟交通模型二次实现；
-- 行人、自行车、公共交通及复杂无保护路口博弈；
-- CARLA 物理结果反向覆盖 SUMO；
-- RGB/JPEG/base64/WebRTC/MJPEG 相机流作为右侧三维视图；
-- 跨主机原生窗口嵌入、远程桌面窗口抓取或多 CARLA 窗口管理；
-- 2,500 辆优化、多机分布式仿真、生产级多租户和高级三维回放。
+- 第二交通真值源或自研交通流引擎与 SUMO 双引擎运行；
+- SUMO GUI 嵌入或自动化；
+- CARLA、ROI 同步、Actor、RGB/JPEG/base64/WebRTC/MJPEG 或 native-window；
+- OSM、Shapefile、Vissim 直接导入；
+- 行人、自行车、公共交通、复杂 OD 标定；
+- 多机分布式仿真、生产级多租户和高保真三维回放。
 
 ## 4. 总体架构
 
 ```mermaid
 flowchart LR
-    USER["用户"] --> UI["PySide6 UI"]
-    UI <-->|"REST + WebSocket 状态/命令"| API["TrafficVerse API"]
-    API --> SM["Simulation Manager / 唯一时钟"]
-    SM --> SUMO["SUMO + TraCI / 全局真值"]
+    USER["用户"] --> UI["PySide6 + MapLibre/deck.gl"]
+    UI <-->|"REST + WebSocket"| API["TrafficVerse API"]
+    API --> SM["SimulationManager / 唯一时钟"]
+    SM <-->|"TraCI"| SUMO["SUMO / 全局真值"]
     SUMO --> SNAP["TrafficSnapshot"]
-    SNAP --> MAP["左侧 MapLibre + deck.gl 可视化"]
-    SNAP --> ROI["ROI + Coordinate Synchronizer"]
-    ROI --> CARLA["CARLA / 三维镜像"]
-    CARLA --> NATIVE["CARLA 原生渲染窗口"]
-    NATIVE --> HOST["右侧 Qt Window Container"]
-    SM --> METRIC["Metrics / Logger"]
+    SNAP --> UI
+    SNAP --> METRIC["Metrics / Logger / Replay"]
     METRIC --> UI
 ```
 
 ### 4.1 真值权属
 
-| 数据/能力 | 权威来源 | 非权威消费者 |
+| 数据/能力 | 权威来源 | 消费者 |
 |---|---|---|
-| 车辆存在、路线、车道和运动 | SUMO | PySide6、CARLA、记录器 |
-| 信号灯相位和放行状态 | SUMO | PySide6、CARLA |
-| 仿真时间和 tick 顺序 | SimulationManager + SUMO step | CARLA、UI、记录器 |
-| ROI Actor 和三维视觉 | CARLA | Qt 原生窗口容器 |
-| 左侧显示状态 | 标准化 TrafficSnapshot | MapLibre/deck.gl，不自行推演 |
+| 车辆存在、路线、车道和运动 | SUMO | UI、指标、记录器 |
+| 信号灯相位 | SUMO | UI、指标 |
+| 仿真时间和 tick 顺序 | SimulationManager + SUMO step | UI、记录器 |
+| 显示状态 | 标准化 `TrafficSnapshot` | MapLibre/deck.gl |
 | 用户命令 | API 接收，SUMO 执行 | UI 不直接改状态 |
 
 ### 4.2 固定 tick 顺序
 
 ```text
-读取并序列化本 tick 控制命令
+读取并序列化控制命令
 → 通过 TraCI 向 SUMO 应用命令
-→ traci.simulationStep() 推进 50 ms
-→ 采集 departed / arrived / vehicle / traffic-light 状态
+→ simulationStep() 推进 50 ms
+→ 采集车辆与信号灯状态
 → 生成同一 simulation_time_ms 的 TrafficSnapshot
-→ 计算 ROI create / update / destroy 与坐标变换
-→ 批量更新 CARLA Actor 和信号灯
-→ CARLA world.tick()
-→ 发布二维状态、指标和健康事件（不发布 RGB 帧）
+→ 发布状态、指标和健康事件
 ```
 
-暂停状态不得调用 `simulationStep()` 或 `world.tick()`；UI、WebSocket callback、CARLA callback 和
-日志线程均无权推进仿真。
+暂停时不得调用 `simulationStep()`；UI、WebSocket callback 和日志线程无权推进仿真。
 
-## 5. 核心模块
+## 5. 运行基线
 
-### 5.1 SUMO Asset Pipeline
-
-输入：Town04 `.xodr`、route/vtype 和生成配置。
-
-输出：`.net.xml`、`.sumocfg`、route、vtype、`network.geojson`、信号灯映射、配准和 manifest。
-
-职责：调用受版本约束的 CARLA/SUMO 转换工具，执行 topology、route、TLS reference、坐标控制点
-和 checksum 校验。运行时加载已校验资产，不临时重写网络。
-
-### 5.2 SumoTrafficEngineAdapter
-
-职责：通过 TraCI 连接外部 SUMO，完成握手、订阅、批量控制、单步推进、状态标准化、健康和关闭。
-
-为降低现有框架迁移范围，保留技术中性的公共 Port：
-
-```python
-class TrafficEnginePort(Protocol):
-    def load(self, config: TrafficEngineConfig) -> None: ...
-    def apply_controls(self, commands: Mapping[str, ControlCommand]) -> None: ...
-    def step(self, target_time_ms: int) -> TrafficSnapshot: ...
-    def health(self) -> ComponentHealth: ...
-    def close(self) -> None: ...
-```
-
-`SumoTrafficEngineAdapter` 是目标生产实现；`TrafficSnapshot` 的数据来自 SUMO，不代表项目内置
-交通模型。Native Traffic Engine 在迁移期只允许用于离线回归，不能参与目标 Core Run。
-
-### 5.3 SimulationManager
-
-- 持有唯一仿真时钟和生命周期状态机；
-- 串行调用 SUMO step、状态采集、ROI reconcile、CARLA batch update 和 CARLA tick；
-- 管理控制命令边界、故障策略、播放倍率和组件健康；
-- 禁止 API handler、UI 或 adapter 自建推进循环。
-
-### 5.4 ROI and CARLA Synchronizer
-
-- 复用核心区 + Buffer 滞回；
-- 使用集中 `CoordinateTransformer` 完成 SUMO 到 CARLA 的位置和 heading 转换；
-- 同步车辆生命周期、transform、车辆灯光和 SUMO 主控的信号灯；
-- CARLA Actor 失败不改变 SUMO 真值；Core Run 配置为 CARLA required 时使 readiness/实验失败。
-
-### 5.5 Visualization and API
-
-- REST 提供地图、manifest、场景、实验生命周期和命令；
-- WebSocket 提供 `world.snapshot`、`vehicle.delta`、`traffic_light.delta`、指标和健康事件；
-- 不提供 `camera.frame` 作为 MVP 三维视图协议；
-- 左侧 MapLibre/deck.gl 消费 SUMO 派生状态，右侧 `CarlaNativeWindowHost` 承载原生窗口；
-- UI 仍是 API 客户端，不直接调用 TraCI 或 CARLA RPC。
-
-## 6. 固化的本地运行基线
-
-### 6.1 固定端点
+- Python 3.10；
+- SUMO/TraCI 1.27.1，`127.0.0.1:8813`；
+- TrafficVerse API，`127.0.0.1:8000`；
+- PySide6 6.11.1；
+- Node.js 16.20.2、npm 8.19.4 仅用于离线 Web bundle 构建；
+- 固定仿真步长 50 ms。
 
 ```yaml
-schema_version: "1.2"
+schema_version: "2.0"
 simulation:
   step_ms: 50
 traffic:
@@ -267,103 +155,37 @@ traffic:
   port: 8813
   step_ms: 50
   tls_manager: sumo
-  config_file: map.sumocfg
-carla:
-  mode: required
-  endpoint_mode: local_server
-  host: 127.0.0.1
-  port: 2000
-  timeout_s: 30.0
-  step_ms: 50
-  expected_version: "0.9.16"
-  rendering: windowed
 ui:
   api_url: http://127.0.0.1:8000
-  carla_view:
-    mode: native_window
-    native_window_id_env: TRAFFICVERSE_CARLA_WINDOW_ID
 ```
 
-场景文件可覆盖地图和需求，但不得覆盖真值提供者、step 顺序或 `tls_manager: sumo`。
+## 6. 验收标准
 
-### 6.2 SUMO 启动
+### 6.1 地图与环境
 
-产品推荐使用无界面的 SUMO TraCI server：
+- manifest、checksum、路线和信号引用校验通过；
+- doctor 检测到 SUMO/TraCI 与 `127.0.0.1:8813`；
+- 产品运行不要求 GPU 仿真器、第三方三维运行时或外部窗口句柄。
 
-```bash
-sumo -c map.sumocfg --remote-port 8813
-```
+### 6.2 交通与控制
 
-需要人工观察或调试 SUMO 时可以使用：
-
-```bash
-sumo-gui -c map.sumocfg --remote-port 8813
-```
-
-SUMO GUI 始终是独立调试窗口，不会嵌入 PySide6。避免等待 GUI 点击播放时使用：
-
-```bash
-sumo-gui -c map.sumocfg --remote-port 8813 --start
-```
-
-TrafficVerse 是该实例唯一 TraCI client。不得同时运行 CARLA 官方 `run_synchronization.py` 与
-TrafficVerse 争用相同 `8813` 连接或 CARLA tick；官方脚本仅作为同步语义参考。
-
-### 6.3 CARLA 启动约束
-
-- RPC endpoint 固定 `127.0.0.1:2000`；
-- CARLA 必须在与 PySide6 相同的本机图形会话中以可见窗口启动；
-- 不得使用 `-RenderOffScreen`；当前若以 RenderOffScreen 运行，必须重启为 windowed 模式后才能
-  验收右侧原生窗口；
-- UI 启动前必须能获得有效 native window ID；句柄获取方式由平台 PoC 冻结。
-
-## 7. MVP 验收标准
-
-### 7.1 地图与环境
-
-- Town04 同源资产 manifest、checksum、路线和严格信号映射全部通过；
-- doctor 检测到 SUMO/TraCI、`127.0.0.1:8813`、CARLA 0.9.16/`127.0.0.1:2000`；
-- SUMO、CARLA 和 TrafficVerse 的步长均为 50 ms；
-- CARLA 可见窗口句柄可由 PySide6 包装并嵌入右侧容器。
-
-### 7.2 交通与控制
-
-- 固定 50 辆车连续运行 2 分钟，所有权威车辆状态均来自 TraCI；
-- 二维车辆 ID、位置、速度和灯色与同 tick TraCI 快照一致；
-- UI 命令先改变 SUMO 行为，再由下一帧快照更新 2D/CARLA；
-- SUMO 红灯停车、绿灯放行、跟驰和至少一次安全换道可观察；
-- 暂停期间 SUMO/CARLA simulation time 均不推进；
+- 固定 50 辆车连续运行 2 分钟，权威车辆状态全部来自 TraCI；
+- UI 车辆 ID、位置、速度和灯色与同 tick 快照一致；
+- UI 命令先改变 SUMO，再由下一帧快照更新页面；
+- 暂停期间仿真时间不推进；
 - SUMO 断线后实验进入 FAILED，不继续本地推演。
 
-### 7.3 二维、联仿与原生窗口
+### 6.3 二维页面
 
-- 左侧显示路网、全部 SUMO 车辆和信号灯，前端不存在车辆运动定时器；
-- 至少 10 辆车进入 ROI 并在 CARLA 中创建、更新和销毁；
-- CARLA 与同 tick SUMO 转换坐标的平面误差不超过 0.5 m；
-- CARLA 信号灯与 SUMO 在同一 tick 一致；
-- CARLA 原生画面嵌入 PySide6 右侧并随布局调整尺寸；
-- 运行期间没有 `camera.frame` WebSocket 消息、UI RGB 解码或 UI 专用 CARLA RGB sensor；
-- 原生窗口失效时显示明确健康状态和恢复建议，不伪造或冻结为“正常画面”。
+- 显示路网、全部车辆和信号灯；
+- 前端不存在权威车辆运动定时器；
+- 2D/3D 相机切换只改变 TrafficVerse WebGL 展示，不改变状态来源；
+- 车辆 picking 返回稳定 `vehicle_id`；
+- sequence gap 请求完整 snapshot；
+- 页面关闭后 WebGL、worker 和 Qt 资源被释放。
 
-## 8. 迁移与交付约束
+## 7. 参考资料
 
-本 PRD 定义目标产品，不表示现有实现已满足。代码迁移前必须依次完成：
-
-1. 新 ADR 正式替代 Native Traffic Engine、远程 RGB 和旧运行环境决策；
-2. 更新 System Design、Agent Development Guide、AGENTS.md、README、配置和协议；
-3. 恢复 SUMO/TraCI adapter 与 Town04 SUMO 资产；
-4. 将 `SimulationManager` 切换到 SUMO 权威步进；
-5. 完成 SUMO↔CARLA 同步；
-6. 在目标桌面平台验证 Qt 外部窗口嵌入，再通过原生窗口 Gate；
-7. 通过本地真实 SUMO + CARLA Core Run 后，才移除 Native Traffic Engine 生产路径。
-
-详细步骤、依赖和验收见 [SUMO_MIGRATION_PLAN.md](./SUMO_MIGRATION_PLAN.md)。迁移完成前，任何 Agent
-不得宣称目标架构已经可运行。
-
-## 9. 参考资料
-
-- [CARLA 官方 SUMO 联仿](https://carla.readthedocs.io/en/latest/adv_sumo/)
 - [SUMO TraCI 文档](https://sumo.dlr.de/userdoc/TraCI/)
-- [Qt for Python QWindow.fromWinId](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QWindow.html)
-- [Qt for Python QWidget.createWindowContainer](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QWidget.html)
-- [CARLA rendering options](https://carla.readthedocs.io/en/0.9.12/adv_rendering_options/)
+- [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/)
+- [deck.gl](https://deck.gl/docs/)

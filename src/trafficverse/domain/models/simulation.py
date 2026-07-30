@@ -19,12 +19,6 @@ class TrafficSnapshot(StrictModel):
     traffic_lights: tuple[TrafficLightState, ...] = ()
 
 
-class CarlaFrame(StrictModel):
-    simulation_time_ms: int = Field(ge=0)
-    carla_frame: int = Field(ge=0)
-    actor_count: int = Field(ge=0)
-
-
 class DomainEvent(StrictModel):
     event_id: UUID
     experiment_id: UUID
@@ -52,7 +46,6 @@ class ComponentHealth(StrictModel):
 
 class SimulationFrame(StrictModel):
     traffic: TrafficSnapshot
-    carla: CarlaFrame | None = None
     events: tuple[DomainEvent, ...] = ()
     metrics: tuple[MetricSample, ...] = ()
 

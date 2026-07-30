@@ -39,12 +39,6 @@
           "title": "Architectures",
           "type": "array"
         },
-        "carla": {
-          "$ref": "#/$defs/ComponentRequirement"
-        },
-        "native_window": {
-          "$ref": "#/$defs/ComponentRequirement"
-        },
         "operating_system": {
           "enum": [
             "Darwin",
@@ -70,9 +64,7 @@
         "operating_system",
         "architectures",
         "python_version",
-        "carla",
         "sumo",
-        "native_window",
         "postgres"
       ],
       "title": "RuntimeProfile",
@@ -95,8 +87,8 @@
       "type": "object"
     },
     "schema_version": {
-      "const": "1.0",
-      "default": "1.0",
+      "const": "2.0",
+      "default": "2.0",
       "title": "Schema Version",
       "type": "string"
     }

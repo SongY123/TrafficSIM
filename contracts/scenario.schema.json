@@ -31,106 +31,6 @@
       "title": "AutomationLevel",
       "type": "string"
     },
-    "CarlaConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "blueprint_filter": {
-          "default": "vehicle.*",
-          "minLength": 1,
-          "title": "Blueprint Filter",
-          "type": "string"
-        },
-        "endpoint_mode": {
-          "const": "local_server",
-          "default": "local_server",
-          "title": "Endpoint Mode",
-          "type": "string"
-        },
-        "expected_version": {
-          "minLength": 1,
-          "title": "Expected Version",
-          "type": "string"
-        },
-        "fallback_blueprints": {
-          "default": [
-            "vehicle.tesla.model3",
-            "vehicle.audi.tt"
-          ],
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "title": "Fallback Blueprints",
-          "type": "array"
-        },
-        "host": {
-          "minLength": 1,
-          "title": "Host",
-          "type": "string"
-        },
-        "mode": {
-          "$ref": "#/$defs/RequirementMode"
-        },
-        "port": {
-          "maximum": 65535,
-          "minimum": 1,
-          "title": "Port",
-          "type": "integer"
-        },
-        "spawn_retries": {
-          "default": 2,
-          "maximum": 10,
-          "minimum": 0,
-          "title": "Spawn Retries",
-          "type": "integer"
-        },
-        "step_ms": {
-          "default": 50,
-          "exclusiveMinimum": 0,
-          "title": "Step Ms",
-          "type": "integer"
-        },
-        "timeout_s": {
-          "exclusiveMinimum": 0.0,
-          "title": "Timeout S",
-          "type": "number"
-        },
-        "worker_threads": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Worker Threads",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "mode",
-        "host",
-        "port",
-        "timeout_s",
-        "expected_version"
-      ],
-      "title": "CarlaConfig",
-      "type": "object"
-    },
-    "CarlaViewConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "mode": {
-          "const": "native_window",
-          "default": "native_window",
-          "title": "Mode",
-          "type": "string"
-        },
-        "native_window_id_env": {
-          "default": "TRAFFICVERSE_CARLA_WINDOW_ID",
-          "pattern": "^[A-Z][A-Z0-9_]+$",
-          "title": "Native Window Id Env",
-          "type": "string"
-        }
-      },
-      "title": "CarlaViewConfig",
-      "type": "object"
-    },
     "LoggingConfig": {
       "additionalProperties": false,
       "properties": {
@@ -152,21 +52,6 @@
       "title": "LoggingConfig",
       "type": "object"
     },
-    "MapRegistrationConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "manifest": {
-          "minLength": 1,
-          "title": "Manifest",
-          "type": "string"
-        }
-      },
-      "required": [
-        "manifest"
-      ],
-      "title": "MapRegistrationConfig",
-      "type": "object"
-    },
     "ReplayConfig": {
       "additionalProperties": false,
       "properties": {
@@ -180,100 +65,6 @@
         "snapshot_interval_ms"
       ],
       "title": "ReplayConfig",
-      "type": "object"
-    },
-    "RequirementMode": {
-      "enum": [
-        "required",
-        "optional",
-        "disabled"
-      ],
-      "title": "RequirementMode",
-      "type": "string"
-    },
-    "RoiConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "buffer_m": {
-          "exclusiveMinimum": 0.0,
-          "title": "Buffer M",
-          "type": "number"
-        },
-        "focus": {
-          "$ref": "#/$defs/RoiFocusConfig"
-        },
-        "max_actors": {
-          "default": 200,
-          "exclusiveMinimum": 0,
-          "title": "Max Actors",
-          "type": "integer"
-        },
-        "radius_m": {
-          "exclusiveMinimum": 0.0,
-          "title": "Radius M",
-          "type": "number"
-        }
-      },
-      "required": [
-        "radius_m",
-        "buffer_m",
-        "focus"
-      ],
-      "title": "RoiConfig",
-      "type": "object"
-    },
-    "RoiFocusConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "mode": {
-          "enum": [
-            "fixed",
-            "follow_vehicle"
-          ],
-          "title": "Mode",
-          "type": "string"
-        },
-        "vehicle_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Vehicle Id"
-        },
-        "x": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "X"
-        },
-        "y": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Y"
-        }
-      },
-      "required": [
-        "mode"
-      ],
-      "title": "RoiFocusConfig",
       "type": "object"
     },
     "ScenarioIdentityConfig": {
@@ -437,27 +228,9 @@
           "minLength": 1,
           "title": "Api Url",
           "type": "string"
-        },
-        "carla_view": {
-          "$ref": "#/$defs/CarlaViewConfig"
         }
       },
       "title": "UiConfig",
-      "type": "object"
-    },
-    "WeatherConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "preset": {
-          "minLength": 1,
-          "title": "Preset",
-          "type": "string"
-        }
-      },
-      "required": [
-        "preset"
-      ],
-      "title": "WeatherConfig",
       "type": "object"
     }
   },
@@ -466,27 +239,18 @@
     "automation": {
       "$ref": "#/$defs/AutomationConfig"
     },
-    "carla": {
-      "$ref": "#/$defs/CarlaConfig"
-    },
     "logging": {
       "$ref": "#/$defs/LoggingConfig"
     },
-    "map_registration": {
-      "$ref": "#/$defs/MapRegistrationConfig"
-    },
     "replay": {
       "$ref": "#/$defs/ReplayConfig"
-    },
-    "roi": {
-      "$ref": "#/$defs/RoiConfig"
     },
     "scenario": {
       "$ref": "#/$defs/ScenarioIdentityConfig"
     },
     "schema_version": {
-      "const": "1.2",
-      "default": "1.2",
+      "const": "2.0",
+      "default": "2.0",
       "title": "Schema Version",
       "type": "string"
     },
@@ -501,9 +265,6 @@
     },
     "ui": {
       "$ref": "#/$defs/UiConfig"
-    },
-    "weather": {
-      "$ref": "#/$defs/WeatherConfig"
     }
   },
   "required": [
@@ -512,10 +273,6 @@
     "traffic",
     "sumo",
     "automation",
-    "roi",
-    "carla",
-    "weather",
-    "map_registration",
     "logging",
     "replay"
   ],
