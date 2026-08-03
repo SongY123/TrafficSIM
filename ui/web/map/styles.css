@@ -128,6 +128,37 @@ button { font: inherit; }
 .legend-dot.automated { color: var(--automated); background: currentcolor; }
 .legend-dot.signal { color: var(--signal); background: currentcolor; }
 
+#replay-legend {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  left: 12px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 9px;
+  border: 1px solid var(--hud-border);
+  border-radius: 3px;
+  color: var(--legend-text);
+  background: rgb(29 30 31 / 92%);
+  box-shadow: 0 10px 25px var(--shadow);
+  font-size: 10px;
+}
+
+#replay-legend strong { color: var(--title); font-size: 10px; }
+#replay-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.replay-dot { width: 7px; height: 7px; border-radius: 50%; }
+.replay-dot.free { background: #2dd4bf; }
+.replay-dot.fast { background: #facc15; }
+.replay-dot.normal { background: #38bdf8; }
+.replay-dot.slow { background: #f97316; }
+.replay-dot.congested { background: #f87171; }
+
+body[data-mode="replay"] #map-hud,
+body[data-mode="replay"] #view-controls,
+body[data-mode="replay"] .maplibregl-ctrl { display: none; }
+body[data-mode="replay"] #replay-legend { display: flex; }
+
 #view-controls {
   position: absolute;
   z-index: 4;

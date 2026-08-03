@@ -124,7 +124,7 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
 
     expected_pages = {
         "scene": "sceneConfigurationPage",
-        "experiments": "experimentManagementPage",
+        "experiments": "dataReplayPage",
         "traffic_scenes": "trafficScenePage",
         "maps": "mapAssetPage",
         "agents": "agentAssetPage",
@@ -138,6 +138,15 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
         assert button.iconSize().height() == 18
         button.click()
         assert page_stack.currentWidget().objectName() == page_name
+        if navigation_key == "experiments":
+            rerun = next(
+                button
+                for button in window.replay_page.findChildren(QPushButton)
+                if button.text() == "重新仿真"
+            )
+            rerun.click()
+            assert page_stack.currentWidget().objectName() == "sceneConfigurationPage"
+            assert window.scene_page.scene_name.text() == "Town04 混合智驾障碍物场景"
 
     assets_button = window.findChild(QPushButton, "nav_maps")
     assert assets_button is not None

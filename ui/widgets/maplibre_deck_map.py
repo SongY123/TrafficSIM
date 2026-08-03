@@ -10,7 +10,7 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QWidget
 
-from ui.models import TrafficLight, Vehicle
+from ui.models import ReplayRoadResult, TrafficLight, Vehicle
 
 
 class _MapBridge(QObject):
@@ -31,8 +31,17 @@ class MapLibreDeckMapWidget(QWebEngineView):
 
     vehicle_selected = Signal(str)
 
-    def __init__(self, parent: QWidget | None = None, *, load_page: bool = True) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        load_page: bool = True,
+        page_mode: str = "live",
+    ) -> None:
         super().__init__(parent)
+        if page_mode not in {"live", "replay"}:
+            raise ValueError(f"Unsupported map page mode: {page_mode}")
+        self._page_mode = page_mode
         self._ready = False
         self._pending: dict[str, object] = {}
         self._bridge = _MapBridge(self)
@@ -45,7 +54,10 @@ class MapLibreDeckMapWidget(QWebEngineView):
         self.loadFinished.connect(self._loaded)
         if load_page:
             page = Path(__file__).resolve().parents[1] / "web/map/index.html"
-            self.load(QUrl.fromLocalFile(str(page)))
+            url = QUrl.fromLocalFile(str(page))
+            if page_mode != "live":
+                url.setQuery(f"mode={page_mode}")
+            self.load(url)
 
     @Slot(object)
     def set_network(self, geojson: object) -> None:
@@ -66,6 +78,22 @@ class MapLibreDeckMapWidget(QWebEngineView):
             light.model_dump(mode="json") for light in values if isinstance(light, TrafficLight)
         ]
         self._dispatch("setTrafficLights", payload)
+
+    @Slot(object)
+    def set_road_results(self, results: object) -> None:
+        values = results if isinstance(results, tuple) else ()
+        payload = [
+            {
+                "road_id": item.road_id,
+                "average_speed_mps": item.average_speed_mps,
+                "congestion_level": item.congestion_level,
+                "flow_veh_per_h": item.flow_veh_per_h,
+                "queue_length": item.queue_length,
+            }
+            for item in values
+            if isinstance(item, ReplayRoadResult)
+        ]
+        self._dispatch("setRoadResults", payload)
 
     @Slot(str)
     def set_theme(self, theme: str) -> None:

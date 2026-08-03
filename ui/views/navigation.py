@@ -14,11 +14,12 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from ui.models import WorkspaceSummary
+from ui.models import ReplayResult, WorkspaceSummary
 from ui.views.element_plus_icons import ICON_SIZE, render_element_plus_icon, render_svg_pixmap
 from ui.views.theme import ThemeMode, load_icon_colors
 
@@ -76,6 +77,7 @@ class _ExpandableNavigationRow(QWidget):
 
 class NavigationRail(QWidget):
     page_selected = Signal(str)
+    history_record_selected = Signal(int)
     workspace_exit_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -87,6 +89,8 @@ class NavigationRail(QWidget):
         self._expand_buttons: dict[str, QPushButton] = {}
         self._child_containers: dict[str, QWidget] = {}
         self._expandable_rows: dict[str, _ExpandableNavigationRow] = {}
+        self._history_records: tuple[ReplayResult, ...] = ()
+        self.history_record_list: QListWidget | None = None
         self._icon_paths: dict[str, Path] = {}
         self._theme = ThemeMode.DARK
 
@@ -96,43 +100,57 @@ class NavigationRail(QWidget):
         layout.addLayout(self._brand())
         layout.addSpacing(18)
 
+        navigation_content = QWidget()
+        navigation_content.setObjectName("navigationContent")
+        navigation_layout = QVBoxLayout(navigation_content)
+        navigation_layout.setContentsMargins(0, 0, 0, 0)
+        navigation_layout.setSpacing(6)
+
         self.workspace_back = QPushButton("←  返回工作区")
         self.workspace_back.setObjectName("workspaceBackButton")
         self.workspace_back.setCursor(Qt.CursorShape.PointingHandCursor)
         self.workspace_back.clicked.connect(self.workspace_exit_requested)
-        layout.addWidget(self.workspace_back)
+        navigation_layout.addWidget(self.workspace_back)
         self.workspace_name = QLabel("尚未选择工作区")
         self.workspace_name.setObjectName("activeWorkspaceName")
         self.workspace_name.setWordWrap(True)
-        layout.addWidget(self.workspace_name)
-        layout.addSpacing(18)
+        navigation_layout.addWidget(self.workspace_name)
+        navigation_layout.addSpacing(18)
 
         section = QLabel("控制中心")
         section.setObjectName("sectionLabel")
-        layout.addWidget(section)
-        layout.addSpacing(8)
+        navigation_layout.addWidget(section)
+        navigation_layout.addSpacing(8)
         for group_name, items in _NAVIGATION_GROUPS:
             group = QLabel(group_name)
             group.setObjectName("navigationGroupLabel")
-            layout.addWidget(group)
+            navigation_layout.addWidget(group)
             for key, icon, label, child_label in items:
                 if child_label is None:
-                    layout.addWidget(self._nav_button(key, icon, label))
+                    navigation_layout.addWidget(self._nav_button(key, icon, label))
                     continue
-                layout.addWidget(self._expandable_nav(key, icon, label, child_label))
-            layout.addSpacing(8)
+                navigation_layout.addWidget(self._expandable_nav(key, icon, label, child_label))
+            navigation_layout.addSpacing(8)
 
-        layout.addStretch(1)
-        layout.addWidget(self._nav_button(*_SETTINGS_NAVIGATION))
+        navigation_layout.addStretch(1)
+        navigation_layout.addWidget(self._nav_button(*_SETTINGS_NAVIGATION))
 
         divider = QFrame()
         divider.setObjectName("navigationDivider")
         divider.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(divider)
+        navigation_layout.addWidget(divider)
         version = QLabel("TrafficVerse  ·  v0.1\n核心运行控制台")
         version.setObjectName("brandCaption")
         version.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(version)
+        navigation_layout.addWidget(version)
+
+        navigation_scroll = QScrollArea()
+        navigation_scroll.setObjectName("navigationScroll")
+        navigation_scroll.setWidgetResizable(True)
+        navigation_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        navigation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        navigation_scroll.setWidget(navigation_content)
+        layout.addWidget(navigation_scroll, 1)
         self.set_active("live")
 
     def set_workspace(self, name: str) -> None:
@@ -219,6 +237,8 @@ class NavigationRail(QWidget):
         row_layout.setSpacing(0)
         main_button = self._nav_button(key, icon_file, label)
         main_button.setProperty("role", "navigationRowMain")
+        if key == "experiments":
+            main_button.clicked.connect(lambda checked=False, page=key: self._show_children(page))
         row_layout.addWidget(main_button, 1)
         expand_button = QPushButton("›")
         expand_button.setObjectName(f"nav_expand_{key}")
@@ -241,6 +261,17 @@ class NavigationRail(QWidget):
         child_button.setCursor(Qt.CursorShape.PointingHandCursor)
         child_button.clicked.connect(lambda checked=False, page=key: self.page_selected.emit(page))
         children_layout.addWidget(child_button)
+        if key == "experiments":
+            history_list = QListWidget()
+            history_list.setObjectName("historyReplayList")
+            history_list.setFixedHeight(166)
+            history_list.setSpacing(1)
+            history_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            history_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            history_list.setToolTip("按日期选择仿真回放记录")
+            history_list.currentRowChanged.connect(self._history_row_changed)
+            children_layout.addWidget(history_list)
+            self.history_record_list = history_list
         children.hide()
         column.addWidget(children)
 
@@ -250,6 +281,30 @@ class NavigationRail(QWidget):
         self._expandable_rows[key] = row
         return container
 
+    def set_history_results(self, results: tuple[ReplayResult, ...]) -> None:
+        """Refresh the date list shown below the expanded history navigation item."""
+
+        self._history_records = results
+        history_list = self.history_record_list
+        if history_list is None:
+            return
+        blocker = QSignalBlocker(history_list)
+        history_list.clear()
+        for result in results:
+            item = QListWidgetItem(result.started_at.strftime("%m-%d %H:%M:%S"))
+            item.setData(Qt.ItemDataRole.UserRole, history_list.count())
+            item.setSizeHint(QSize(0, 30))
+            item.setToolTip(result.scenario_name)
+            history_list.addItem(item)
+        if history_list.count() > 0:
+            history_list.setCurrentRow(0)
+        blocker.unblock()
+
+    @Slot(int)
+    def _history_row_changed(self, row: int) -> None:
+        if 0 <= row < len(self._history_records):
+            self.history_record_selected.emit(row)
+
     def _toggle_children(self, key: str) -> None:
         children = self._child_containers[key]
         expanded = children.isHidden()
@@ -258,6 +313,15 @@ class NavigationRail(QWidget):
         button.setText("⌄" if expanded else "›")
         label = self._buttons[key].text()
         button.setAccessibleName(f"{'折叠' if expanded else '展开'}{label}")
+
+    def _show_children(self, key: str) -> None:
+        """Keep the history records visible when its main navigation label is selected."""
+
+        children = self._child_containers[key]
+        if children.isHidden():
+            children.show()
+            self._expand_buttons[key].setText("⌄")
+            self._expand_buttons[key].setAccessibleName(f"折叠{self._buttons[key].text()}")
 
 
 class _WorkspaceListRow(QWidget):

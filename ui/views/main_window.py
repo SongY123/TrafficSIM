@@ -19,12 +19,13 @@ from PySide6.QtWidgets import (
 from ui.models import (
     ControlAvailability,
     MapSummary,
+    ReplayResult,
     WorkspaceOverview,
     WorkspaceSummary,
 )
 from ui.viewmodels import RunViewModel
 from ui.views.agent_asset_page import AgentAssetPage
-from ui.views.experiment_management_page import ExperimentManagementPage
+from ui.views.data_replay_page import DataReplayPage
 from ui.views.live_monitor_page import LiveMonitorPage
 from ui.views.map_asset_page import MapAssetPage
 from ui.views.navigation import NavigationRail, WorkspaceNavigationRail
@@ -69,7 +70,7 @@ class MainWindow(QMainWindow):
 
         self.live_page = LiveMonitorPage(load_web_map=load_web_map)
         self.scene_page = SceneConfigurationPage()
-        self.experiments_page = ExperimentManagementPage()
+        self.replay_page = DataReplayPage(load_web_map=load_web_map)
         self.traffic_scenes_page = TrafficScenePage()
         self.maps_page = MapAssetPage(load_web_map=load_web_map)
         self.agents_page = AgentAssetPage()
@@ -79,13 +80,14 @@ class MainWindow(QMainWindow):
             "workspace": self.workspace_page,
             "live": self.live_page,
             "scene": self.scene_page,
-            "experiments": self.experiments_page,
+            "experiments": self.replay_page,
+            "replay": self.replay_page,
             "traffic_scenes": self.traffic_scenes_page,
             "maps": self.maps_page,
             "agents": self.agents_page,
             "settings": self.settings_page,
         }
-        for page in self._pages.values():
+        for page in dict.fromkeys(self._pages.values()):
             self.page_stack.addWidget(page)
 
         content = QWidget()
@@ -105,6 +107,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(shell)
 
         self._connect_pages()
+        self.navigation.set_history_results(self.replay_page.history_results)
         self._connect_viewmodel()
         self._apply_theme(ThemeMode.DARK.value)
         self.navigation_stack.setCurrentWidget(self.workspace_navigation)
@@ -112,7 +115,10 @@ class MainWindow(QMainWindow):
 
     def _connect_pages(self) -> None:
         vm = self._viewmodel
-        self.navigation.page_selected.connect(self._show_page)
+        self.navigation.page_selected.connect(
+            lambda key: self._show_page("replay" if key == "experiments" else key)
+        )
+        self.navigation.history_record_selected.connect(self._show_history_record)
         self.navigation.workspace_exit_requested.connect(vm.leave_workspace)
         self.workspace_navigation.workspace_selected.connect(vm.select_workspace)
         self.workspace_navigation.workspace_enter_requested.connect(vm.enter_selected_workspace)
@@ -131,6 +137,9 @@ class MainWindow(QMainWindow):
         self.live_page.vehicle_speed_requested.connect(self._control_speed)
         self.live_page.lane_change_requested.connect(self._control_lane)
         self.live_page.vehicle_stop_requested.connect(self._control_stop)
+        self.replay_page.rerun_requested.connect(self._rerun_from_result)
+        self.replay_page.return_requested.connect(lambda: self._show_page("scene"))
+        self.replay_page.export_requested.connect(self._export_replay_result)
         self.scene_page.map_selected.connect(vm.select_map)
         self.scene_page.launch_requested.connect(vm.launch_experiment)
         self.traffic_scenes_page.scene_selected.connect(vm.select_map)
@@ -151,6 +160,7 @@ class MainWindow(QMainWindow):
         vm.map_manifest_changed.connect(self.maps_page.set_manifest)
         vm.asset_network_changed.connect(self.maps_page.set_preview_network)
         vm.network_changed.connect(self.live_page.map_widget.set_network)
+        vm.network_changed.connect(self.replay_page.set_network)
         vm.vehicles_changed.connect(self._set_vehicles)
         vm.traffic_lights_changed.connect(self.live_page.map_widget.set_traffic_lights)
         vm.component_health_changed.connect(self._set_health)
@@ -171,6 +181,49 @@ class MainWindow(QMainWindow):
             return
         self.page_stack.setCurrentWidget(page)
         self.navigation.set_active(key)
+
+    def _rerun_from_result(self, result: object) -> None:
+        if isinstance(result, ReplayResult):
+            self.scene_page.set_replay_configuration(result)
+        self._show_page("scene")
+
+    @Slot(str)
+    def _export_replay_result(self, file_type: str) -> None:
+        export_options = {
+            "json": ("导出 JSON 结果", "trafficverse-replay.json", "JSON 文件 (*.json)", ".json"),
+            "image": ("导出回放图片", "trafficverse-replay.png", "PNG 图片 (*.png)", ".png"),
+        }
+        option = export_options.get(file_type)
+        if option is None:
+            self._show_notice("error", "不支持的导出格式。")
+            return
+        title, default_name, file_filter, suffix = option
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            title,
+            str(Path.home() / default_name),
+            file_filter,
+        )
+        if not path:
+            return
+        target = Path(path)
+        if target.suffix.lower() != suffix:
+            target = target.with_suffix(suffix)
+        try:
+            exported = (
+                self.replay_page.export_json(target)
+                if file_type == "json"
+                else self.replay_page.export_image(target)
+            )
+        except OSError as error:
+            self._show_notice("error", f"导出失败：{error}")
+            return
+        self._show_notice("success", f"已导出：{exported.name}")
+
+    @Slot(int)
+    def _show_history_record(self, index: int) -> None:
+        self.replay_page.select_history(index)
+        self._show_page("replay")
 
     @Slot(object)
     def _set_workspaces(self, workspaces: object) -> None:
@@ -258,12 +311,12 @@ class MainWindow(QMainWindow):
         }
         display_status = labels.get(status, status)
         self.live_page.set_status(display_status)
-        self.experiments_page.set_status(display_status)
+        self.replay_page.set_status(display_status)
 
     @Slot(int)
     def _set_time(self, simulation_time_ms: int) -> None:
         self.live_page.set_time(simulation_time_ms)
-        self.experiments_page.set_time(simulation_time_ms)
+        self.replay_page.set_simulation_time(simulation_time_ms)
 
     @Slot(object)
     def _set_controls(self, availability: object) -> None:

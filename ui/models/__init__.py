@@ -16,6 +16,7 @@ from ui.models.protocol import (
     WorldState,
     WorldUpdate,
 )
+from ui.models.replay import ReplayMetric, ReplayResult, ReplayRoadResult, ReplayTrendSeries
 
 __all__ = [
     "AgentApiSummary",
@@ -34,4 +35,8 @@ __all__ = [
     "WorldUpdate",
     "WorkspaceOverview",
     "WorkspaceSummary",
+    "ReplayMetric",
+    "ReplayResult",
+    "ReplayRoadResult",
+    "ReplayTrendSeries",
 ]

@@ -10,6 +10,8 @@ QWidget#appShell, QWidget#pageStack { background: #141414; }
 QWidget#navigationRail { background: #1d1e1f; border-right: 1px solid #414243; }
 QWidget#workspaceNavigationRail { background: #0f121a; border-right: 1px solid #353947; }
 QWidget#navigationStack { background: #0f121a; }
+QScrollArea#navigationScroll { background: transparent; border: 0; }
+QWidget#navigationContent { background: transparent; }
 QLabel#brandLogo { background: transparent; }
 QLabel#brandName { color: #e5eaf3; font-size: 16px; font-weight: 600; }
 QLabel#brandCaption, QLabel#caption, QLabel#fieldLabel, QLabel#metricLabel { color: #a3a6ad; }
@@ -89,6 +91,13 @@ QPushButton[role="subnavigation"] {
 }
 QPushButton[role="subnavigation"]:hover { background: #262727; color: #e5eaf3; }
 QPushButton[role="subnavigation"][active="true"] { color: #409eff; }
+QListWidget#historyReplayList {
+  background: #17191b; border: 0; border-left: 3px solid #2c3138; color: #a3a6ad;
+  outline: 0; padding: 2px 0 2px 0; font-family: "__TRAFFICVERSE_MONO_FONT__";
+}
+QListWidget#historyReplayList::item { padding: 6px 8px 6px 43px; border: 0; min-height: 20px; }
+QListWidget#historyReplayList::item:hover { background: #262727; color: #e5eaf3; }
+QListWidget#historyReplayList::item:selected { background: #18222c; color: #409eff; }
 QFrame#navigationDivider { background: #414243; border: 0; max-height: 1px; }
 QFrame#topBar { background: #1d1e1f; border-bottom: 1px solid #414243; }
 QLabel#pageTitle { color: #e5eaf3; font-size: 20px; font-weight: 600; }
@@ -114,6 +123,31 @@ QLabel#notice[level="success"] { background: #1c2518; border-color: #2b4b23; col
 QLabel#notice[level="warning"] { background: #2b2518; border-color: #5c4824; color: #e6a23c; }
 QFrame#panel, QFrame#metricCard, QFrame#listCard, QFrame#assetDirectory {
   background: #1d1e1f; border: 1px solid #414243; border-radius: 4px;
+}
+QFrame#trendCard {
+  background: #181a1d; border: 1px solid #363b45; border-radius: 4px;
+}
+QLabel#replayRecordDate {
+  background: #192536; border: 1px solid #294d75; border-radius: 4px;
+  color: #22d3ee; font-family: "__TRAFFICVERSE_MONO_FONT__"; padding: 6px 10px;
+}
+QFrame#replayOverview {
+  background: #1a1d25; border: 1px solid #303644; border-radius: 5px;
+}
+QFrame#replayOverviewDivider { background: #303644; border: 0; max-width: 1px; }
+QLabel#replayFieldLabel { color: #7f889b; font-size: 10px; }
+QLabel#replayFieldValue { color: #dce3ef; font-family: "__TRAFFICVERSE_MONO_FONT__"; font-size: 11px; }
+QLabel#replayFieldValue[statusTone="success"] { color: #67c23a; }
+QLabel#replayFieldValue[statusTone="error"] { color: #f56c6c; }
+QFrame#trendCard { background: #1a1d25; border: 1px solid #303644; border-radius: 4px; }
+QLabel#trendRange { color: #7f889b; font-size: 10px; }
+QPushButton#replayMapModeButton {
+  background: transparent; border: 1px solid transparent; color: #8b95a8;
+  padding: 5px 8px; font-size: 10px;
+}
+QPushButton#replayMapModeButton:hover { color: #dce3ef; background: #222936; }
+QPushButton#replayMapModeButton:checked {
+  background: #202f57; border-color: #3f5fa8; color: #7fa2ff;
 }
 QFrame#workspacePreview {
   background: #10131c; border: 1px solid #353947; border-radius: 6px;
@@ -159,6 +193,9 @@ QPushButton#speedButton { padding: 6px 11px; }
 QPushButton#speedButton:checked { background: #18222c; border-color: #409eff; color: #409eff; }
 QComboBox::drop-down { border: 0; width: 24px; }
 QComboBox QAbstractItemView { background: #1d1e1f; border: 1px solid #4c4d4f; selection-background-color: #3375b9; }
+QMenu { background: #1d1e1f; border: 1px solid #4c4d4f; padding: 4px; }
+QMenu::item { color: #cfd3dc; padding: 7px 22px 7px 12px; }
+QMenu::item:selected { background: #18222c; color: #409eff; }
 QScrollArea { border: 0; background: transparent; }
 QScrollArea > QWidget > QWidget { background: transparent; }
 QSplitter::handle { background: #2b2b2c; width: 8px; }

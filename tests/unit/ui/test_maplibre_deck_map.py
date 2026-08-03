@@ -64,6 +64,12 @@ def test_map_source_uses_interleaved_meter_offset_layers_without_polling() -> No
     assert "setNetwork(network)" in source
     assert "setVehicles(vehicles)" in source
     assert "setTrafficLights(trafficLights)" in source
+    assert "String(rawRoadId)" in source
+    assert "normalizeRoadResultId(result.road_id)" in source
+    assert 'PAGE_MODE === "replay" ? 4 : 2' in source
+    assert "properties.sumo_edge_id" in source
+    assert '!roadId.startsWith(":")' in source
+    assert 'const roadFeatures = PAGE_MODE === "replay"' in source
     assert 'new Set(["sumo_lane", "sumo_internal_lane"])' in source
     assert 'const SUMO_JUNCTION_ROLE = "sumo_junction";' in source
     assert "state.roadCasings = state.roadGuides" in source

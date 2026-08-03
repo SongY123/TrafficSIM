@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import MapSummary
+from ui.models import MapSummary, ReplayResult
 from ui.views.components import PAGE_CONTENT_MARGIN, empty_state, page_header, panel
 
 
@@ -30,6 +30,7 @@ class SceneConfigurationPage(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("sceneConfigurationPage")
+        self._pending_replay_configuration: ReplayResult | None = None
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -141,7 +142,11 @@ class SceneConfigurationPage(QWidget):
         self.map_combo.blockSignals(True)
         self.map_combo.clear()
         for item in maps:
-            if item.kind != "sumo":
+            replay_map = (
+                self._pending_replay_configuration is not None
+                and item.map_id == self._pending_replay_configuration.map_id
+            )
+            if item.kind != "sumo" and not replay_map:
                 continue
             name = item.display_name or item.carla_map or item.map_id
             runtime = f"SUMO · {item.sumo_step_ms} ms" if item.sumo_step_ms is not None else "SUMO"
@@ -149,6 +154,29 @@ class SceneConfigurationPage(QWidget):
         self.map_combo.blockSignals(False)
         if self.map_combo.count():
             self.map_combo.setCurrentIndex(0)
+        if self._pending_replay_configuration is not None:
+            self._apply_replay_configuration(self._pending_replay_configuration)
+
+    def set_replay_configuration(self, result: ReplayResult) -> None:
+        """Fill the setup form from a selected historical run before rerunning it."""
+
+        self._pending_replay_configuration = result
+        self._apply_replay_configuration(result)
+
+    def _apply_replay_configuration(self, result: ReplayResult) -> None:
+        self.scene_name.setText(result.scenario_name)
+        self.seed.setValue(result.seed)
+        self.description.setPlainText(result.description)
+        index = self.map_combo.findData(result.map_id)
+        self.map_combo.blockSignals(True)
+        if index < 0:
+            self.map_combo.addItem(f"{result.map_name} · 历史配置", result.map_id)
+            index = self.map_combo.findData(result.map_id)
+        if index >= 0:
+            self.map_combo.setCurrentIndex(index)
+        self.map_combo.blockSignals(False)
+        if index >= 0:
+            self.map_selected.emit(result.map_id)
 
     def set_create_enabled(self, enabled: bool) -> None:
         self.create_button.setEnabled(enabled)

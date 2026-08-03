@@ -37,10 +37,11 @@ def page_header(title: str, subtitle: str, actions: QWidget | None = None) -> QF
     title_stack.setSpacing(2)
     title_label = QLabel(title)
     title_label.setObjectName("pageTitle")
-    subtitle_label = QLabel(subtitle)
-    subtitle_label.setObjectName("pageSubtitle")
     title_stack.addWidget(title_label)
-    title_stack.addWidget(subtitle_label)
+    if subtitle:
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("pageSubtitle")
+        title_stack.addWidget(subtitle_label)
     layout.addLayout(title_stack)
     layout.addStretch(1)
     if actions is not None:
@@ -55,6 +56,7 @@ def metric_card(label: str, value: str, detail: str = "") -> QFrame:
     layout = QVBoxLayout(frame)
     layout.setContentsMargins(PANEL_CONTENT_MARGIN, 12, PANEL_CONTENT_MARGIN, 12)
     layout.setSpacing(4)
+    layout.setAlignment(Qt.AlignmentFlag.AlignTop)
     name = QLabel(label)
     name.setObjectName("metricLabel")
     number = QLabel(value)

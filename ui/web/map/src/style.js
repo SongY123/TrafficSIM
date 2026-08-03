@@ -12,6 +12,13 @@ export const MAP_THEMES = {
       red: [245, 108, 108],
       unknown: [144, 147, 153]
     },
+    roadResult: {
+      free: [45, 212, 191],
+      fast: [250, 204, 21],
+      normal: [56, 189, 248],
+      slow: [249, 115, 22],
+      congested: [248, 113, 113]
+    },
     vehicle: {human: [230, 162, 60], automated: [64, 158, 255]},
     signalOutline: [29, 30, 31, 255],
     vehicleOutline: [229, 234, 243, 245],
@@ -30,6 +37,13 @@ export const MAP_THEMES = {
       yellow: [230, 162, 60],
       red: [245, 108, 108],
       unknown: [144, 147, 153]
+    },
+    roadResult: {
+      free: [13, 148, 136],
+      fast: [202, 138, 4],
+      normal: [14, 165, 233],
+      slow: [234, 88, 12],
+      congested: [220, 38, 38]
     },
     vehicle: {human: [230, 162, 60], automated: [64, 158, 255]},
     signalOutline: [255, 255, 255, 255],

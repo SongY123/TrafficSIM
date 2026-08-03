@@ -19,6 +19,7 @@ const TRUCK_MODEL_URL = new URL(
   "../../assets/models/truck/truck.gltf",
   window.location.href
 ).href;
+const PAGE_MODE = new URLSearchParams(window.location.search).get("mode") ?? "live";
 const VIEW_CONFIG = {
   "2d": {pitch: 0, bearing: 0},
   "3d": {pitch: 48, bearing: -18}
@@ -47,6 +48,7 @@ const state = {
   junctionSurfaces: EMPTY_NETWORK,
   signalPoints: [],
   trafficLights: new Map(),
+  roadResults: new Map(),
   vehicles: [],
   networkBounds: null,
   viewMode: "2d",
@@ -56,6 +58,7 @@ const state = {
 };
 
 document.documentElement.dataset.theme = state.theme;
+document.body.dataset.mode = PAGE_MODE;
 
 const statusElement = document.getElementById("map-status");
 const viewButtons = Array.from(document.querySelectorAll("[data-view-mode]"));
@@ -120,6 +123,36 @@ function vehicleColor(vehicle, alpha = 245) {
     ? activeTheme().vehicle.human
     : activeTheme().vehicle.automated;
   return [...color, alpha];
+}
+
+function normalizeRoadResultId(rawRoadId) {
+  if (rawRoadId === undefined || rawRoadId === null) {
+    return "";
+  }
+  const roadId = String(rawRoadId);
+  if (roadId.startsWith("road:")) {
+    return roadId.slice("road:".length);
+  }
+  return roadId.startsWith("-") ? roadId.slice(1) : roadId;
+}
+
+function roadResultColor(feature) {
+  const properties = feature.properties ?? {};
+  const rawRoadId = properties.road_id ?? properties.edge_id ?? properties.sumo_edge_id;
+  const roadId = normalizeRoadResultId(rawRoadId);
+  const result = roadId ? state.roadResults.get(roadId) : null;
+  if (!result) {
+    return null;
+  }
+  const colors = activeTheme().roadResult;
+  const colorByLevel = {
+    "畅通": colors.free,
+    "较快": colors.fast,
+    "一般": colors.normal,
+    "缓行": colors.slow,
+    "拥堵": colors.congested
+  };
+  return [...(colorByLevel[result.congestion_level] ?? colors.normal), 245];
 }
 
 function focusVehicle(vehicleId, duration = 600) {
@@ -190,17 +223,20 @@ function roadLayers() {
       id: "trafficverse-road-surface",
       lineWidthUnits: "meters",
       getLineWidth: (feature) =>
-        feature.properties?.width_m ?? LAYER_STYLE.roadSurfaceWidthM,
-      lineWidthMinPixels: 2,
+        (feature.properties?.width_m ?? LAYER_STYLE.roadSurfaceWidthM) +
+        (PAGE_MODE === "replay" ? 0.8 : 0),
+      lineWidthMinPixels: PAGE_MODE === "replay" ? 4 : 2,
       getLineColor: (feature) =>
-        feature.properties?.speed_limit_mps >= 20
-          ? theme.roadFast
-          : theme.roadRegular
+        roadResultColor(feature) ?? (
+          feature.properties?.speed_limit_mps >= 20
+            ? theme.roadFast
+            : theme.roadRegular
+        ),
     }),
     new GeoJsonLayer({
       ...common,
       id: "trafficverse-lane-guides",
-      data: state.roadGuides,
+      data: PAGE_MODE === "replay" ? EMPTY_NETWORK : state.roadGuides,
       lineWidthUnits: "pixels",
       getLineWidth: LAYER_STYLE.laneGuideWidthPx,
       getLineColor: theme.laneGuide
@@ -474,7 +510,21 @@ window.TrafficVerseMap = {
     const sumoLineFeatures = lineFeatures.filter((feature) =>
       SUMO_LANE_ROLES.has(feature.properties?.trafficverse_role)
     );
-    const roadFeatures = sumoLineFeatures.length > 0 ? sumoLineFeatures : lineFeatures;
+    const replayRoadFeatures = lineFeatures.filter((feature) => {
+      const properties = feature.properties ?? {};
+      const rawRoadId = properties.road_id ?? properties.edge_id ?? properties.sumo_edge_id;
+      const roadId = normalizeRoadResultId(rawRoadId);
+      return roadId !== "" && !roadId.startsWith(":") && (
+        properties.trafficverse_role === undefined ||
+        properties.trafficverse_role === null ||
+        properties.trafficverse_role === "sumo_lane"
+      );
+    });
+    const roadFeatures = PAGE_MODE === "replay"
+      ? replayRoadFeatures
+      : sumoLineFeatures.length > 0
+        ? sumoLineFeatures
+        : lineFeatures;
     state.roadNetwork = {
       type: "FeatureCollection",
       features: roadFeatures
@@ -507,6 +557,15 @@ window.TrafficVerseMap = {
       (Array.isArray(trafficLights) ? trafficLights : []).map((light) => [
         light.signal_id,
         light.phase
+      ])
+    );
+    renderLayers();
+  },
+  setRoadResults(results) {
+    state.roadResults = new Map(
+      (Array.isArray(results) ? results : []).map((result) => [
+        normalizeRoadResultId(result.road_id),
+        result
       ])
     );
     renderLayers();
