@@ -56,17 +56,18 @@ def test_map_source_uses_interleaved_meter_offset_layers_without_polling() -> No
     assert "COORDINATE_SYSTEM.METER_OFFSETS" in source
     assert "lineCapRounded: true" in source
     assert "lineJointRounded: true" in source
-    assert source.count("new GeoJsonLayer") == 4
+    assert source.count("new GeoJsonLayer") == 6
     assert source.count("new ScatterplotLayer") == 4
-    assert "new ScenegraphLayer" in source
+    assert source.count("new PolygonLayer") == 3
+    assert "new ScenegraphLayer" not in source
     assert "new LightingEffect" in source
-    assert "../../assets/models/truck/truck.gltf" in source
+    assert "../../assets/models/truck/truck.gltf" not in source
     assert "setNetwork(network)" in source
     assert "setVehicles(vehicles)" in source
     assert "setTrafficLights(trafficLights)" in source
     assert 'new Set(["sumo_lane", "sumo_internal_lane"])' in source
     assert 'const SUMO_JUNCTION_ROLE = "sumo_junction";' in source
-    assert "state.roadCasings = state.roadGuides" in source
+    assert "state.roadCasings = externalLanes" in source
     assert "focusVehicle(vehicleId)" in source
     assert "setInterval" not in source
     assert "requestAnimationFrame" not in source
@@ -80,18 +81,20 @@ def test_flat_map_layers_disable_depth_test_to_prevent_zoom_z_fighting() -> None
         'const FLAT_LAYER_PARAMETERS = {depthCompare: "always", depthWriteEnabled: false};'
         in source
     )
-    assert source.count("parameters: FLAT_LAYER_PARAMETERS") == 5
+    assert source.count("parameters: FLAT_LAYER_PARAMETERS") >= 8
     assert 'depthCompare:"always",depthWriteEnabled:!1' in bundle
 
 
-def test_map_supports_command_drag_camera_rotation() -> None:
+def test_map_supports_command_drag_bearing_rotation_without_leaving_2d() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
 
     assert "function enableCommandDragRotation()" in source
     assert "event.metaKey" in source
     assert 'addEventListener("mousedown", startRotation, true)' in source
-    assert "map.jumpTo({bearing, pitch})" in source
+    assert "map.jumpTo({bearing})" in source
+    assert "maxPitch: 0" in source
+    assert "pitchWithRotate: false" in source
     assert "enableCommandDragRotation();" in source
     assert "metaKey" in bundle
 
@@ -107,7 +110,8 @@ def test_map_is_fixed_to_2d_and_view_mode_is_not_exposed_to_the_qt_host() -> Non
     assert ">3D</button>" not in html
     assert 'id="reset-view"' in html
     assert 'viewMode: "2d"' in source
-    assert "function setViewMode(viewMode)" in source
+    assert '"3d":' not in source
+    assert "function setViewMode" not in source
     assert "setViewMode(viewMode) {\n    setViewMode(viewMode);\n  }" not in source
     assert "def set_view_mode(self, view_mode: str)" not in host
     assert 'self._dispatch("setViewMode", view_mode)' not in host
@@ -124,10 +128,55 @@ def test_map_visuals_are_externalized_and_support_light_theme() -> None:
     assert "dark: {" in style
     assert "light: {" in style
     assert 'background: "#141414"' in style
-    assert "automated: [64, 158, 255]" in style
+    assert "automated: [47, 137, 230]" in style
+    assert "roadSurface:" in style
+    assert "laneBoundary:" in style
+    assert "vehicleGlass:" in style
     assert ':root[data-theme="light"]' in css
     assert "setTheme" in bundle
     assert "#f2f3f5" in bundle
+
+
+def test_map_derives_clear_lane_boundaries_and_dashed_markings_from_lane_geometry() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    style = (MAP_WEB_ROOT / "src/style.js").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+
+    assert "function offsetLaneBoundary(feature, side)" in source
+    assert "function dashedLaneMarkings(feature)" in source
+    assert 'id: "trafficverse-road-shadow"' in source
+    assert 'id: "trafficverse-lane-boundaries"' in source
+    assert 'id: "trafficverse-lane-markings"' in source
+    assert "state.laneBoundaries" in source
+    assert "state.laneMarkings" in source
+    assert "laneBoundaryWidthM" in style
+    assert "laneMarkingDashM" in style
+    assert "trafficverse-lane-boundaries" in bundle
+    assert "trafficverse-lane-markings" in bundle
+
+
+def test_map_renders_oriented_top_down_cars_without_sideways_truck_overlay() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+
+    assert "function orientedVehiclePoint(vehicle, forwardM, lateralM" in source
+    assert "function vehicleBodyPolygon(vehicle" in source
+    assert "function vehicleCabinPolygon(vehicle" in source
+    assert "function vehicleDetailParts()" in source
+    assert "function vehiclePartColor(part)" in source
+    assert 'id: "trafficverse-vehicle-shadows"' in source
+    assert 'id: "trafficverse-vehicle-bodies"' in source
+    assert 'id: "trafficverse-vehicle-details"' in source
+    assert 'id: "trafficverse-vehicle-headlights"' in source
+    assert 'id: "trafficverse-vehicle-models"' not in source
+    assert "new ScenegraphLayer" not in source
+    assert "vehicle.heading_rad" in source
+    assert "LAYER_STYLE.vehicleLengthM * 0.5" in source
+    assert "LAYER_STYLE.vehicleWidthM * 0.5" in source
+    assert "trafficverse-vehicle-bodies" in bundle
+    assert "trafficverse-vehicle-details" in bundle
+    assert "trafficverse-vehicle-headlights" in bundle
+    assert "trafficverse-vehicle-models" not in bundle
 
 
 def test_map_hud_has_a_safe_inset_from_the_webview_edge() -> None:

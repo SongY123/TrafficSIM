@@ -4,9 +4,8 @@ import {
   DirectionalLight,
   LightingEffect
 } from "@deck.gl/core";
-import {GeoJsonLayer, ScatterplotLayer} from "@deck.gl/layers";
+import {GeoJsonLayer, PolygonLayer, ScatterplotLayer} from "@deck.gl/layers";
 import {MapboxOverlay} from "@deck.gl/mapbox";
-import {ScenegraphLayer} from "@deck.gl/mesh-layers";
 import maplibregl from "maplibre-gl";
 
 import blankStyle from "../styles/blank-style.json";
@@ -15,24 +14,16 @@ import {LAYER_STYLE, MAP_THEMES} from "./style.js";
 const EARTH_RADIUS_M = 6378137;
 const RAD_TO_DEG = 180 / Math.PI;
 const EMPTY_NETWORK = {type: "FeatureCollection", features: []};
-const TRUCK_MODEL_URL = new URL(
-  "../../assets/models/truck/truck.gltf",
-  window.location.href
-).href;
-const VIEW_CONFIG = {
-  "2d": {pitch: 0, bearing: 0},
-  "3d": {pitch: 48, bearing: -18}
-};
 const FLAT_LAYER_PARAMETERS = {depthCompare: "always", depthWriteEnabled: false};
 const SUMO_LANE_ROLES = new Set(["sumo_lane", "sumo_internal_lane"]);
 const SUMO_JUNCTION_ROLE = "sumo_junction";
 
 function createLightingEffect(theme) {
   return new LightingEffect({
-    ambientLight: new AmbientLight({color: theme.ambientLight, intensity: 1.4}),
+    ambientLight: new AmbientLight({color: theme.ambientLight, intensity: 1.55}),
     keyLight: new DirectionalLight({
       color: theme.keyLight,
-      intensity: 2.2,
+      intensity: 2.35,
       direction: [-3, -5, -8]
     })
   });
@@ -43,7 +34,8 @@ const state = {
   network: EMPTY_NETWORK,
   roadNetwork: EMPTY_NETWORK,
   roadCasings: EMPTY_NETWORK,
-  roadGuides: EMPTY_NETWORK,
+  laneBoundaries: EMPTY_NETWORK,
+  laneMarkings: EMPTY_NETWORK,
   junctionSurfaces: EMPTY_NETWORK,
   signalPoints: [],
   trafficLights: new Map(),
@@ -58,7 +50,6 @@ const state = {
 document.documentElement.dataset.theme = state.theme;
 
 const statusElement = document.getElementById("map-status");
-const viewButtons = Array.from(document.querySelectorAll("[data-view-mode]"));
 
 function setStatus(message, isError = false) {
   statusElement.textContent = message;
@@ -72,9 +63,10 @@ try {
     style: blankStyle,
     center: [0, 0],
     zoom: 15,
-    pitch: VIEW_CONFIG[state.viewMode].pitch,
-    bearing: VIEW_CONFIG[state.viewMode].bearing,
-    maxPitch: 85,
+    pitch: 0,
+    bearing: 0,
+    maxPitch: 0,
+    pitchWithRotate: false,
     attributionControl: false,
     antialias: true
   });
@@ -91,6 +83,10 @@ const overlay = new MapboxOverlay({
 
 function activeTheme() {
   return MAP_THEMES[state.theme];
+}
+
+function featureCollection(features) {
+  return {type: "FeatureCollection", features};
 }
 
 function toMapPosition(position) {
@@ -122,6 +118,295 @@ function vehicleColor(vehicle, alpha = 245) {
   return [...color, alpha];
 }
 
+function laneWidthM(feature) {
+  const widthM = feature?.properties?.width_m;
+  return Number.isFinite(widthM) && widthM > 0
+    ? widthM
+    : LAYER_STYLE.roadSurfaceWidthM;
+}
+
+function normalizedLaneCoordinates(feature) {
+  if (feature?.geometry?.type !== "LineString") {
+    return [];
+  }
+  return feature.geometry.coordinates.filter(
+    (coordinate) =>
+      Array.isArray(coordinate) &&
+      Number.isFinite(coordinate[0]) &&
+      Number.isFinite(coordinate[1])
+  );
+}
+
+function offsetLaneBoundary(feature, side) {
+  const coordinates = normalizedLaneCoordinates(feature);
+  if (coordinates.length < 2 || (side !== -1 && side !== 1)) {
+    return null;
+  }
+  const offsetM = laneWidthM(feature) * 0.5 * side;
+  const boundaryCoordinates = coordinates.map((coordinate, index) => {
+    const previous = coordinates[Math.max(index - 1, 0)];
+    const next = coordinates[Math.min(index + 1, coordinates.length - 1)];
+    const deltaX = next[0] - previous[0];
+    const deltaY = next[1] - previous[1];
+    const lengthM = Math.hypot(deltaX, deltaY);
+    if (lengthM <= Number.EPSILON) {
+      return [...coordinate];
+    }
+    const normalX = -deltaY / lengthM;
+    const normalY = deltaX / lengthM;
+    return [
+      coordinate[0] + normalX * offsetM,
+      coordinate[1] + normalY * offsetM,
+      coordinate[2] ?? 0
+    ];
+  });
+  return {
+    type: "Feature",
+    properties: {
+      ...feature.properties,
+      trafficverse_role: "derived_lane_boundary",
+      boundary_side: side
+    },
+    geometry: {type: "LineString", coordinates: boundaryCoordinates}
+  };
+}
+
+function coordinateAtDistance(coordinates, distanceM) {
+  let remainingM = Math.max(0, distanceM);
+  for (let index = 1; index < coordinates.length; index += 1) {
+    const start = coordinates[index - 1];
+    const end = coordinates[index];
+    const segmentLengthM = Math.hypot(end[0] - start[0], end[1] - start[1]);
+    if (segmentLengthM <= Number.EPSILON) {
+      continue;
+    }
+    if (remainingM <= segmentLengthM) {
+      const ratio = remainingM / segmentLengthM;
+      return [
+        start[0] + (end[0] - start[0]) * ratio,
+        start[1] + (end[1] - start[1]) * ratio,
+        (start[2] ?? 0) + ((end[2] ?? 0) - (start[2] ?? 0)) * ratio
+      ];
+    }
+    remainingM -= segmentLengthM;
+  }
+  return [...coordinates[coordinates.length - 1]];
+}
+
+function laneLengthM(coordinates) {
+  let lengthM = 0;
+  for (let index = 1; index < coordinates.length; index += 1) {
+    lengthM += Math.hypot(
+      coordinates[index][0] - coordinates[index - 1][0],
+      coordinates[index][1] - coordinates[index - 1][1]
+    );
+  }
+  return lengthM;
+}
+
+function dashedLaneMarkings(feature) {
+  const coordinates = normalizedLaneCoordinates(feature);
+  if (coordinates.length < 2) {
+    return [];
+  }
+  const totalLengthM = laneLengthM(coordinates);
+  const intervalM = LAYER_STYLE.laneMarkingDashM + LAYER_STYLE.laneMarkingGapM;
+  const markings = [];
+  for (
+    let startM = LAYER_STYLE.laneMarkingGapM * 0.5;
+    startM < totalLengthM;
+    startM += intervalM
+  ) {
+    const endM = Math.min(startM + LAYER_STYLE.laneMarkingDashM, totalLengthM);
+    if (endM - startM < 0.5) {
+      continue;
+    }
+    markings.push({
+      type: "Feature",
+      properties: {
+        ...feature.properties,
+        trafficverse_role: "derived_lane_marking"
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          coordinateAtDistance(coordinates, startM),
+          coordinateAtDistance(coordinates, endM)
+        ]
+      }
+    });
+  }
+  return markings;
+}
+
+function orientedVehiclePoint(vehicle, forwardM, lateralM, elevationM = 0) {
+  const [x, y, z] = toMapPosition(vehicle.position);
+  // TrafficVerse headings use mathematical radians: zero points along +x and CCW is positive.
+  const headingRad = Number.isFinite(vehicle.heading_rad) ? vehicle.heading_rad : 0;
+  const cosHeading = Math.cos(headingRad);
+  const sinHeading = Math.sin(headingRad);
+  return [
+    x + cosHeading * forwardM - sinHeading * lateralM,
+    y + sinHeading * forwardM + cosHeading * lateralM,
+    z + elevationM
+  ];
+}
+
+function vehicleBodyPolygon(vehicle, forwardOffsetM = 0, lateralOffsetM = 0) {
+  const halfLengthM = LAYER_STYLE.vehicleLengthM * 0.5;
+  const halfWidthM = LAYER_STYLE.vehicleWidthM * 0.5;
+  return [
+    orientedVehiclePoint(
+      vehicle,
+      halfLengthM + forwardOffsetM,
+      -halfWidthM * 0.58 + lateralOffsetM
+    ),
+    orientedVehiclePoint(vehicle, halfLengthM + forwardOffsetM, halfWidthM * 0.58 + lateralOffsetM),
+    orientedVehiclePoint(vehicle, halfLengthM - 0.34 + forwardOffsetM, halfWidthM + lateralOffsetM),
+    orientedVehiclePoint(
+      vehicle,
+      -halfLengthM + 0.28 + forwardOffsetM,
+      halfWidthM + lateralOffsetM
+    ),
+    orientedVehiclePoint(vehicle, -halfLengthM + forwardOffsetM, halfWidthM * 0.7 + lateralOffsetM),
+    orientedVehiclePoint(
+      vehicle,
+      -halfLengthM + forwardOffsetM,
+      -halfWidthM * 0.7 + lateralOffsetM
+    ),
+    orientedVehiclePoint(
+      vehicle,
+      -halfLengthM + 0.28 + forwardOffsetM,
+      -halfWidthM + lateralOffsetM
+    ),
+    orientedVehiclePoint(vehicle, halfLengthM - 0.34 + forwardOffsetM, -halfWidthM + lateralOffsetM)
+  ];
+}
+
+function orientedVehiclePolygon(vehicle, points, elevationM = 0.04) {
+  return points.map(([forwardM, lateralM]) =>
+    orientedVehiclePoint(vehicle, forwardM, lateralM, elevationM)
+  );
+}
+
+function vehicleCabinPolygon(vehicle) {
+  const cabinHalfWidthM = LAYER_STYLE.vehicleWidthM * 0.36;
+  return orientedVehiclePolygon(vehicle, [
+    [1.0, -cabinHalfWidthM * 0.82],
+    [1.0, cabinHalfWidthM * 0.82],
+    [0.68, cabinHalfWidthM],
+    [-0.92, cabinHalfWidthM],
+    [-1.16, cabinHalfWidthM * 0.76],
+    [-1.16, -cabinHalfWidthM * 0.76],
+    [-0.92, -cabinHalfWidthM],
+    [0.68, -cabinHalfWidthM]
+  ]);
+}
+
+function vehicleDetailParts() {
+  const halfWidthM = LAYER_STYLE.vehicleWidthM * 0.5;
+  const wheelLateralM = halfWidthM * 0.96;
+  return state.vehicles.flatMap((vehicle) => {
+    const parts = [
+      {vehicle, kind: "roof", polygon: vehicleCabinPolygon(vehicle)},
+      {
+        vehicle,
+        kind: "front-glass",
+        polygon: orientedVehiclePolygon(vehicle, [
+          [0.96, -0.51], [0.96, 0.51], [0.58, 0.62], [0.58, -0.62]
+        ], 0.07)
+      },
+      {
+        vehicle,
+        kind: "rear-glass",
+        polygon: orientedVehiclePolygon(vehicle, [
+          [-0.69, -0.62], [-0.69, 0.62], [-1.1, 0.47], [-1.1, -0.47]
+        ], 0.07)
+      },
+      {
+        vehicle,
+        kind: "side-glass",
+        polygon: orientedVehiclePolygon(vehicle, [
+          [0.48, 0.57], [-0.58, 0.57], [-0.74, 0.63], [0.5, 0.63]
+        ], 0.08)
+      },
+      {
+        vehicle,
+        kind: "side-glass",
+        polygon: orientedVehiclePolygon(vehicle, [
+          [0.48, -0.57], [0.5, -0.63], [-0.74, -0.63], [-0.58, -0.57]
+        ], 0.08)
+      },
+      {
+        vehicle,
+        kind: "hood-highlight",
+        polygon: orientedVehiclePolygon(vehicle, [
+          [2.03, -0.3], [2.03, 0.3], [1.28, 0.42], [1.28, -0.42]
+        ], 0.06)
+      },
+      ...[1.08, -1.24].flatMap((forwardM) =>
+        [-wheelLateralM, wheelLateralM].map((lateralM) => ({
+          vehicle,
+          kind: "wheel",
+          polygon: orientedVehiclePolygon(vehicle, [
+            [forwardM + 0.31, lateralM - 0.11],
+            [forwardM + 0.31, lateralM + 0.11],
+            [forwardM - 0.31, lateralM + 0.11],
+            [forwardM - 0.31, lateralM - 0.11]
+          ], 0.09)
+        }))
+      )
+    ];
+    if (vehicle.automation_level !== "HUMAN") {
+      parts.push({
+        vehicle,
+        kind: "sensor",
+        polygon: orientedVehiclePolygon(vehicle, [
+          [0.14, -0.13], [0.14, 0.13], [-0.14, 0.13], [-0.14, -0.13]
+        ], 0.1)
+      });
+    }
+    return parts;
+  });
+}
+
+function vehiclePartColor(part) {
+  const theme = activeTheme();
+  if (part.kind === "wheel") {
+    return theme.vehicleWheel;
+  }
+  if (part.kind === "front-glass") {
+    return theme.vehicleGlassFront;
+  }
+  if (part.kind === "rear-glass" || part.kind === "side-glass") {
+    return theme.vehicleGlass;
+  }
+  if (part.kind === "sensor") {
+    return theme.vehicleSensor;
+  }
+  if (part.kind === "hood-highlight") {
+    const accent = theme.vehicleAccent[
+      part.vehicle.automation_level === "HUMAN" ? "human" : "automated"
+    ];
+    return [...accent, 190];
+  }
+  const accent = theme.vehicleAccent[
+    part.vehicle.automation_level === "HUMAN" ? "human" : "automated"
+  ];
+  return [...accent, 245];
+}
+
+function vehicleLightPoints() {
+  const halfLengthM = LAYER_STYLE.vehicleLengthM * 0.5;
+  const lateralM = LAYER_STYLE.vehicleWidthM * 0.34;
+  return state.vehicles.flatMap((vehicle) => [
+    {vehicle, forwardM: halfLengthM - 0.12, lateralM: -lateralM, kind: "headlight"},
+    {vehicle, forwardM: halfLengthM - 0.12, lateralM, kind: "headlight"},
+    {vehicle, forwardM: -halfLengthM + 0.1, lateralM: -lateralM, kind: "tail-light"},
+    {vehicle, forwardM: -halfLengthM + 0.1, lateralM, kind: "tail-light"}
+  ]);
+}
+
 function focusVehicle(vehicleId, duration = 600) {
   const vehicle = state.vehicles.find((candidate) => candidate.vehicle_id === vehicleId);
   if (!vehicle) {
@@ -129,12 +414,11 @@ function focusVehicle(vehicleId, duration = 600) {
   }
   state.selectedVehicleId = vehicleId;
   const [x, y] = toMapPosition(vehicle.position);
-  const view = VIEW_CONFIG[state.viewMode];
   map.easeTo({
     center: localMetersToLngLat(x, y),
     zoom: 18.5,
-    pitch: view.pitch,
-    bearing: view.bearing,
+    pitch: 0,
+    bearing: map.getBearing(),
     duration
   });
   renderLayers();
@@ -176,34 +460,57 @@ function roadLayers() {
     }),
     new GeoJsonLayer({
       ...common,
+      id: "trafficverse-road-shadow",
+      data: state.roadCasings,
+      lineWidthUnits: "meters",
+      getLineWidth: (feature) => laneWidthM(feature) + LAYER_STYLE.roadShadowExtraWidthM,
+      lineWidthMinPixels: 4,
+      getLineColor: theme.roadShadow,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
+    new GeoJsonLayer({
+      ...common,
       id: "trafficverse-road-casing",
       data: state.roadCasings,
       lineWidthUnits: "meters",
-      getLineWidth: (feature) =>
-        (feature.properties?.width_m ?? LAYER_STYLE.roadSurfaceWidthM) +
-        LAYER_STYLE.roadCasingExtraWidthM,
+      getLineWidth: (feature) => laneWidthM(feature) + LAYER_STYLE.roadCasingExtraWidthM,
       lineWidthMinPixels: 3,
-      getLineColor: theme.roadCasing
+      getLineColor: theme.roadCasing,
+      parameters: FLAT_LAYER_PARAMETERS
     }),
     new GeoJsonLayer({
       ...common,
       id: "trafficverse-road-surface",
       lineWidthUnits: "meters",
-      getLineWidth: (feature) =>
-        feature.properties?.width_m ?? LAYER_STYLE.roadSurfaceWidthM,
+      getLineWidth: laneWidthM,
       lineWidthMinPixels: 2,
       getLineColor: (feature) =>
         feature.properties?.speed_limit_mps >= 20
-          ? theme.roadFast
-          : theme.roadRegular
+          ? theme.roadSurfaceFast
+          : theme.roadSurface,
+      parameters: FLAT_LAYER_PARAMETERS
     }),
     new GeoJsonLayer({
       ...common,
-      id: "trafficverse-lane-guides",
-      data: state.roadGuides,
-      lineWidthUnits: "pixels",
-      getLineWidth: LAYER_STYLE.laneGuideWidthPx,
-      getLineColor: theme.laneGuide
+      id: "trafficverse-lane-boundaries",
+      data: state.laneBoundaries,
+      lineWidthUnits: "meters",
+      getLineWidth: LAYER_STYLE.laneBoundaryWidthM,
+      lineWidthMinPixels: 0.65,
+      lineWidthMaxPixels: 2,
+      getLineColor: theme.laneBoundary,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
+    new GeoJsonLayer({
+      ...common,
+      id: "trafficverse-lane-markings",
+      data: state.laneMarkings,
+      lineWidthUnits: "meters",
+      getLineWidth: LAYER_STYLE.laneMarkingWidthM,
+      lineWidthMinPixels: 0.8,
+      lineWidthMaxPixels: 2.4,
+      getLineColor: theme.laneMarking,
+      parameters: FLAT_LAYER_PARAMETERS
     })
   ];
 }
@@ -249,66 +556,84 @@ function vehicleLayers() {
     data: state.vehicles,
     coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
     coordinateOrigin: [0, 0, 0],
-    getPosition: (vehicle) => toMapPosition(vehicle.position),
     pickable: true,
     onClick: selectVehicle
   };
-  const layers = [
+  return [
+    new PolygonLayer({
+      ...common,
+      id: "trafficverse-vehicle-shadows",
+      getPolygon: (vehicle) => vehicleBodyPolygon(vehicle, -0.1, -0.12),
+      getFillColor: theme.vehicleShadow,
+      stroked: false,
+      pickable: false,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
     new ScatterplotLayer({
       ...common,
       id: "trafficverse-vehicle-halo",
-      getFillColor: (vehicle) => vehicleColor(vehicle, 55),
+      getPosition: (vehicle) => toMapPosition(vehicle.position),
+      getFillColor: (vehicle) =>
+        vehicle.vehicle_id === state.selectedVehicleId
+          ? vehicleColor(vehicle, 52)
+          : [0, 0, 0, 0],
       getRadius: (vehicle) =>
         vehicle.vehicle_id === state.selectedVehicleId
-          ? 7
-          : state.viewMode === "3d"
-            ? 4.6
-            : 3.6,
+          ? LAYER_STYLE.vehicleHaloRadiusM
+          : 0,
       radiusUnits: "meters",
       radiusMinPixels: 5,
       parameters: FLAT_LAYER_PARAMETERS,
       updateTriggers: {getFillColor: state.theme}
+    }),
+    new PolygonLayer({
+      ...common,
+      id: "trafficverse-vehicle-bodies",
+      getPolygon: vehicleBodyPolygon,
+      getFillColor: vehicleColor,
+      getLineColor: theme.vehicleOutline,
+      getLineWidth: (vehicle) =>
+        vehicle.vehicle_id === state.selectedVehicleId ? 2.2 : 1.05,
+      lineWidthUnits: "pixels",
+      stroked: true,
+      parameters: FLAT_LAYER_PARAMETERS,
+      updateTriggers: {
+        getFillColor: state.theme,
+        getLineColor: state.theme,
+        getLineWidth: state.selectedVehicleId
+      }
+    }),
+    new PolygonLayer({
+      ...common,
+      id: "trafficverse-vehicle-details",
+      data: vehicleDetailParts(),
+      getPolygon: (part) => part.polygon,
+      getFillColor: vehiclePartColor,
+      stroked: false,
+      pickable: false,
+      parameters: FLAT_LAYER_PARAMETERS,
+      updateTriggers: {getFillColor: state.theme}
+    }),
+    new ScatterplotLayer({
+      ...common,
+      id: "trafficverse-vehicle-headlights",
+      data: vehicleLightPoints(),
+      getPosition: (light) =>
+        orientedVehiclePoint(light.vehicle, light.forwardM, light.lateralM, 0.12),
+      getFillColor: (light) =>
+        light.kind === "headlight" ? theme.vehicleHeadlight : theme.vehicleTailLight,
+      getRadius: (light) =>
+        light.kind === "headlight"
+          ? LAYER_STYLE.vehicleHeadlightRadiusM
+          : LAYER_STYLE.vehicleHeadlightRadiusM * 0.78,
+      radiusUnits: "meters",
+      radiusMinPixels: 1.2,
+      radiusMaxPixels: 3,
+      pickable: false,
+      parameters: FLAT_LAYER_PARAMETERS,
+      updateTriggers: {getFillColor: state.theme}
     })
   ];
-  if (state.viewMode === "3d") {
-    layers.push(
-      new ScenegraphLayer({
-        ...common,
-        id: "trafficverse-vehicle-models",
-        scenegraph: TRUCK_MODEL_URL,
-        sizeScale: LAYER_STYLE.vehicleModelScale,
-        sizeMinPixels: 18,
-        sizeMaxPixels: 80,
-        getTranslation: [0, 0, 0.45],
-        getColor: (vehicle) => vehicleColor(vehicle),
-        getOrientation: (vehicle) => [
-          0,
-          180 - (Number.isFinite(vehicle.heading_rad) ? vehicle.heading_rad * RAD_TO_DEG : 0),
-          90
-        ],
-        _lighting: "pbr",
-        updateTriggers: {getColor: state.theme},
-        onError: (error) => setStatus(`三维车辆模型加载失败：${error.message}`, true)
-      })
-    );
-  } else {
-    layers.push(
-      new ScatterplotLayer({
-        ...common,
-        id: "trafficverse-vehicle-markers",
-        getFillColor: vehicleColor,
-        getRadius: LAYER_STYLE.vehicleMarkerRadiusM,
-        radiusUnits: "meters",
-        radiusMinPixels: 4,
-        stroked: true,
-        getLineColor: theme.vehicleOutline,
-        lineWidthMinPixels: 1,
-        parameters: FLAT_LAYER_PARAMETERS,
-        updateTriggers: {getFillColor: state.theme, getLineColor: state.theme}
-      })
-    );
-  }
-  return layers;
 }
 
 function renderLayers() {
@@ -317,9 +642,9 @@ function renderLayers() {
     effects: [state.lightingEffect],
     layers: [...roadLayers(), ...signalLayers(phaseTrigger), ...vehicleLayers()]
   });
-  setStatus(
-    `车道 ${state.roadNetwork.features.length} · 信号 ${state.signalPoints.length} · 车辆 ${state.vehicles.length}`
-  );
+  const roadCount = state.roadNetwork.features.length;
+  const signalCount = state.signalPoints.length;
+  setStatus(`车道 ${roadCount} · 信号 ${signalCount} · 车辆 ${state.vehicles.length}`);
 }
 
 function signalPointFromFeature(feature) {
@@ -366,8 +691,7 @@ function resetView(duration = 500) {
     duration,
     maxZoom: 18
   });
-  const view = VIEW_CONFIG[state.viewMode];
-  map.easeTo({pitch: view.pitch, bearing: view.bearing, duration});
+  map.easeTo({pitch: 0, bearing: 0, duration});
 }
 
 function enableCommandDragRotation() {
@@ -382,9 +706,7 @@ function enableCommandDragRotation() {
     event.stopImmediatePropagation();
     dragStart = {
       x: event.clientX,
-      y: event.clientY,
-      bearing: map.getBearing(),
-      pitch: map.getPitch()
+      bearing: map.getBearing()
     };
     container.style.cursor = "grabbing";
   }
@@ -395,11 +717,7 @@ function enableCommandDragRotation() {
     }
     event.preventDefault();
     const bearing = dragStart.bearing + (event.clientX - dragStart.x) * 0.35;
-    const pitch = Math.max(
-      0,
-      Math.min(85, dragStart.pitch - (event.clientY - dragStart.y) * 0.3)
-    );
-    map.jumpTo({bearing, pitch});
+    map.jumpTo({bearing});
   }
 
   function stopRotation() {
@@ -447,22 +765,6 @@ function fitNetwork(network) {
   resetView(0);
 }
 
-function setViewMode(viewMode) {
-  if (!(viewMode in VIEW_CONFIG)) {
-    return;
-  }
-  state.viewMode = viewMode;
-  for (const button of viewButtons) {
-    button.classList.toggle("active", button.dataset.viewMode === viewMode);
-  }
-  const view = VIEW_CONFIG[viewMode];
-  map.easeTo({pitch: view.pitch, bearing: view.bearing, duration: 500});
-  renderLayers();
-}
-
-for (const button of viewButtons) {
-  button.addEventListener("click", () => setViewMode(button.dataset.viewMode));
-}
 document.getElementById("reset-view").addEventListener("click", () => resetView());
 
 window.TrafficVerseMap = {
@@ -475,23 +777,27 @@ window.TrafficVerseMap = {
       SUMO_LANE_ROLES.has(feature.properties?.trafficverse_role)
     );
     const roadFeatures = sumoLineFeatures.length > 0 ? sumoLineFeatures : lineFeatures;
-    state.roadNetwork = {
-      type: "FeatureCollection",
-      features: roadFeatures
-    };
-    state.roadGuides = {
-      type: "FeatureCollection",
-      features: roadFeatures.filter(
+    const externalLanes = featureCollection(
+      roadFeatures.filter(
         (feature) => feature.properties?.trafficverse_role !== "sumo_internal_lane"
       )
-    };
-    state.roadCasings = state.roadGuides;
-    state.junctionSurfaces = {
-      type: "FeatureCollection",
-      features: state.network.features.filter(
+    );
+    state.roadNetwork = featureCollection(roadFeatures);
+    state.roadCasings = externalLanes;
+    state.laneBoundaries = featureCollection(
+      externalLanes.features.flatMap((feature) => [
+        offsetLaneBoundary(feature, -1),
+        offsetLaneBoundary(feature, 1)
+      ]).filter((feature) => feature !== null)
+    );
+    state.laneMarkings = featureCollection(
+      externalLanes.features.flatMap((feature) => dashedLaneMarkings(feature))
+    );
+    state.junctionSurfaces = featureCollection(
+      state.network.features.filter(
         (feature) => feature.properties?.trafficverse_role === SUMO_JUNCTION_ROLE
       )
-    };
+    );
     state.signalPoints = state.network.features
       .map(signalPointFromFeature)
       .filter((point) => point !== null);
@@ -533,10 +839,9 @@ function connectQtBridge() {
 
 map.once("load", () => {
   map.addControl(overlay);
-  map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), "top-right");
+  map.addControl(new maplibregl.NavigationControl({visualizePitch: false}), "top-right");
   enableCommandDragRotation();
   applyTheme(state.theme);
-  setViewMode(state.viewMode);
   connectQtBridge();
 });
 map.on("error", (event) => {

@@ -2,7 +2,7 @@
   color-scheme: dark;
   font-family: system-ui, -apple-system, "PingFang SC", sans-serif;
   --map-background: #141414;
-  --grid-line: rgb(64 158 255 / 30%);
+  --ground-shade: rgb(0 0 0 / 38%);
   --hud-border: #414243;
   --hud-text: #cfd3dc;
   --hud-background-start: rgb(29 30 31 / 96%);
@@ -31,7 +31,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --map-background: #f2f3f5;
-  --grid-line: rgb(64 158 255 / 22%);
+  --ground-shade: rgb(48 49 51 / 14%);
   --hud-border: #dcdfe6;
   --hud-text: #606266;
   --hud-background-start: rgb(255 255 255 / 96%);
@@ -74,12 +74,10 @@ button { font: inherit; }
   z-index: 2;
   inset: 0;
   pointer-events: none;
-  opacity: 0.055;
+  opacity: 0.52;
   background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(circle at center, black, transparent 88%);
+    radial-gradient(circle at 50% 45%, transparent 46%, var(--ground-shade) 100%),
+    radial-gradient(circle at 24% 18%, rgb(255 255 255 / 3%), transparent 28%);
 }
 
 #map-hud {
