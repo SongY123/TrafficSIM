@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.models import (
+    MOCK_REPLAY_RECORDS,
     ControlAvailability,
     MapSummary,
     WorkspaceOverview,
@@ -24,6 +25,7 @@ from ui.models import (
 )
 from ui.viewmodels import RunViewModel
 from ui.views.agent_asset_page import AgentAssetPage
+from ui.views.data_replay_page import DataReplayPage
 from ui.views.experiment_management_page import ExperimentManagementPage
 from ui.views.live_monitor_page import LiveMonitorPage
 from ui.views.map_asset_page import MapAssetPage
@@ -71,6 +73,7 @@ class MainWindow(QMainWindow):
         self.live_page = LiveMonitorPage(load_web_map=load_web_map)
         self.scene_page = SceneConfigurationPage(load_web_map=load_web_map)
         self.experiments_page = ExperimentManagementPage()
+        self.replay_page = DataReplayPage(MOCK_REPLAY_RECORDS[0])
         self.traffic_scenes_page = TrafficScenePage()
         self.maps_page = MapAssetPage(load_web_map=load_web_map)
         self.agents_page = AgentAssetPage()
@@ -83,6 +86,7 @@ class MainWindow(QMainWindow):
             "live": self.live_page,
             "scene": self.scene_page,
             "experiments": self.experiments_page,
+            "replay": self.replay_page,
             "traffic_scenes": self.traffic_scenes_page,
             "maps": self.maps_page,
             "agents": self.agents_page,
@@ -116,6 +120,7 @@ class MainWindow(QMainWindow):
     def _connect_pages(self) -> None:
         vm = self._viewmodel
         self.navigation.page_selected.connect(self._show_page)
+        self.navigation.replay_requested.connect(self._show_replay)
         self.navigation.project_detail_requested.connect(lambda: self._show_page("project"))
         self.navigation.workspace_exit_requested.connect(vm.leave_workspace)
         self.workspace_navigation.workspace_selected.connect(vm.select_workspace)
@@ -134,6 +139,7 @@ class MainWindow(QMainWindow):
         self.project_detail_page.simulation_action_requested.connect(
             self._handle_project_simulation_action
         )
+        self.replay_page.back_requested.connect(lambda: self._show_page("project"))
         self.live_page.start_requested.connect(vm.start)
         self.live_page.pause_requested.connect(vm.pause)
         self.live_page.resume_requested.connect(vm.resume)
@@ -181,6 +187,21 @@ class MainWindow(QMainWindow):
             return
         self.page_stack.setCurrentWidget(page)
         self.navigation.set_active(key)
+        if key != "replay":
+            self.navigation.set_history_selection(None)
+
+    @Slot(str)
+    def _show_replay(self, record_id: str) -> None:
+        record = next(
+            (item for item in MOCK_REPLAY_RECORDS if item.record_id == record_id),
+            None,
+        )
+        if record is None:
+            return
+        self.replay_page.set_record(record)
+        self.page_stack.setCurrentWidget(self.replay_page)
+        self.navigation.set_active("replay")
+        self.navigation.set_history_selection(record_id)
 
     @Slot(object)
     def _set_workspaces(self, workspaces: object) -> None:

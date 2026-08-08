@@ -264,7 +264,8 @@ Core Run 不定义 `camera.frame` topic 或 payload。CARLA 画面不经过 API/
   凭证环境变量名称，不接收或返回 secret；
 - 创建实验必须携带已存在的 `workspace_id`，返回的 `ExperimentView` 同时携带该 ID；
 - 桌面端启动只加载工作区。进入工作区后展示“交通仿真/资产中心”分组导航；历史仿真、交通场景、
-  地图和智能体的子级默认折叠；
+  地图和智能体的子级默认折叠；历史仿真展开后显示记录列表，选择记录进入基于结构化记录的只读
+  数据回放页；
 - 实时监控不在导航中常驻。仿真配置创建实验成功后，ViewModel 发出监控跳转信号并发送
   `experiment.prepare`，收到 READY 后继续发送 `experiment.start`。
 

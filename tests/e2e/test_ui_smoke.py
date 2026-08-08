@@ -58,7 +58,7 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
 
     page_stack = window.findChild(QStackedWidget, "pageStack")
     assert page_stack is not None
-    assert page_stack.count() == 9
+    assert page_stack.count() == 10
     assert page_stack.currentWidget().objectName() == "workspaceOverviewPage"
     assert window.findChild(MapLibreDeckMapWidget) is not None
     assert not hasattr(window.live_page, "carla_window")
@@ -139,7 +139,6 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
 
     expected_pages = {
         "scene": "sceneConfigurationPage",
-        "experiments": "experimentManagementPage",
         "traffic_scenes": "trafficScenePage",
         "maps": "mapAssetPage",
         "agents": "agentAssetPage",
@@ -153,6 +152,26 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
         assert button.iconSize().height() == 18
         button.click()
         assert page_stack.currentWidget().objectName() == page_name
+
+    history_button = window.findChild(QPushButton, "nav_experiments")
+    history_children = window.findChild(QPushButton, "nav_history_0")
+    assert history_button is not None
+    assert history_children is not None
+    previous_page = page_stack.currentWidget()
+    history_button.click()
+    assert page_stack.currentWidget() is previous_page
+    history_children.click()
+    assert page_stack.currentWidget().objectName() == "dataReplayPage"
+    assert window.replay_page.record_id == history_children.property("recordId")
+
+    restart = window.findChild(QPushButton, "replayRestartButton")
+    back = window.findChild(QPushButton, "replayBackButton")
+    assert restart is not None
+    assert back is not None
+    restart.click()
+    assert page_stack.currentWidget().objectName() == "dataReplayPage"
+    back.click()
+    assert page_stack.currentWidget().objectName() == "projectDetailPage"
 
     assets_button = window.findChild(QPushButton, "nav_maps")
     assert assets_button is not None
