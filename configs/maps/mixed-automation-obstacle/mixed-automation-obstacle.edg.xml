@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edges>
+    <edge id="road_fwd" from="start" to="end" type="highway" />
+    <edge id="road_rev" from="end" to="start" type="highway" />
+</edges>

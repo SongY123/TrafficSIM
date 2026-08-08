@@ -1,0 +1,139 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes>
+    <!--Generated with seed 20260807; per-vehicle Krauss samples.-->
+    <vType id="L0" vClass="passenger" length="5.0" minGap="2.5" accel="2.6" decel="4.5" sigma="0.5" tau="1" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1" vClass="passenger" length="5.0" minGap="2" accel="3.05" decel="4.5" sigma="0.4" tau="0.95" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2" vClass="passenger" length="5.0" minGap="1.5" accel="3.5" decel="4.5" sigma="0.3" tau="0.9" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3" vClass="passenger" length="5.0" minGap="1.25" accel="3.6" decel="4.5" sigma="0.2" tau="0.8" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4" vClass="passenger" length="5.0" minGap="0.75" accel="3.7" decel="4.5" sigma="0" tau="0.7" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5" vClass="passenger" length="5.0" minGap="0.5" accel="3.8" decel="4.5" sigma="0" tau="0.6" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_000" vClass="passenger" length="5.0" minGap="2.634" accel="3.013" decel="4.629" sigma="0.542" tau="0.992" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_001" vClass="passenger" length="5.0" minGap="2.447" accel="2.489" decel="3.925" sigma="0.41" tau="0.97" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_002" vClass="passenger" length="5.0" minGap="2.604" accel="2.67" decel="4.568" sigma="0.592" tau="0.914" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_003" vClass="passenger" length="5.0" minGap="2.634" accel="2.669" decel="4.232" sigma="0.529" tau="0.944" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_004" vClass="passenger" length="5.0" minGap="1.917" accel="3.156" decel="4.649" sigma="0.427" tau="1.038" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_005" vClass="passenger" length="5.0" minGap="2.082" accel="3.315" decel="5.107" sigma="0.41" tau="0.93" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_006" vClass="passenger" length="5.0" minGap="1.978" accel="3.254" decel="3.518" sigma="0.389" tau="0.971" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_007" vClass="passenger" length="5.0" minGap="1.272" accel="3.374" decel="3.533" sigma="0.278" tau="0.873" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_008" vClass="passenger" length="5.0" minGap="1.45" accel="3.166" decel="4.995" sigma="0.401" tau="0.901" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_009" vClass="passenger" length="5.0" minGap="0.971" accel="3.655" decel="4.476" sigma="0.211" tau="0.871" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_010" vClass="passenger" length="5.0" minGap="1.533" accel="3.456" decel="4.448" sigma="0.246" tau="0.912" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_011" vClass="passenger" length="5.0" minGap="0.929" accel="3.246" decel="3.94" sigma="0" tau="0.774" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_012" vClass="passenger" length="5.0" minGap="1.005" accel="3.365" decel="4.974" sigma="0.259" tau="0.732" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_013" vClass="passenger" length="5.0" minGap="0.729" accel="4.027" decel="4.578" sigma="0.029" tau="0.668" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_014" vClass="passenger" length="5.0" minGap="1.317" accel="3.431" decel="4.39" sigma="0.232" tau="1" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_015" vClass="passenger" length="5.0" minGap="0.307" accel="3.554" decel="5.036" sigma="0" tau="0.62" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_016" vClass="passenger" length="5.0" minGap="0.761" accel="3.513" decel="4.005" sigma="0" tau="0.668" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_017" vClass="passenger" length="5.0" minGap="0.781" accel="3.985" decel="4.226" sigma="0.048" tau="0.598" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_018" vClass="passenger" length="5.0" minGap="1.514" accel="3.6" decel="4.875" sigma="0.212" tau="0.768" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_019" vClass="passenger" length="5.0" minGap="0.25" accel="3.872" decel="4.42" sigma="0" tau="0.7" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_020" vClass="passenger" length="5.0" minGap="2.128" accel="3.134" decel="4.836" sigma="0.387" tau="0.835" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_021" vClass="passenger" length="5.0" minGap="1.434" accel="3.667" decel="5.031" sigma="0.23" tau="0.829" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_022" vClass="passenger" length="5.0" minGap="0.667" accel="3.551" decel="4.998" sigma="0.11" tau="0.73" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_023" vClass="passenger" length="5.0" minGap="0.657" accel="3.888" decel="4.5" sigma="0" tau="0.743" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_024" vClass="passenger" length="5.0" minGap="2.652" accel="2.562" decel="4.985" sigma="0.527" tau="1.028" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_025" vClass="passenger" length="5.0" minGap="2.166" accel="2.943" decel="4.135" sigma="0.391" tau="0.946" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_026" vClass="passenger" length="5.0" minGap="1.322" accel="3.486" decel="4.682" sigma="0.349" tau="0.846" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_027" vClass="passenger" length="5.0" minGap="1.153" accel="3.58" decel="4.358" sigma="0.248" tau="0.911" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_028" vClass="passenger" length="5.0" minGap="0.823" accel="3.777" decel="4.17" sigma="0.059" tau="0.571" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_029" vClass="passenger" length="5.0" minGap="0.595" accel="3.812" decel="4.518" sigma="0.032" tau="0.558" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_030" vClass="passenger" length="5.0" minGap="2.819" accel="2.758" decel="4.951" sigma="0.553" tau="0.974" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_031" vClass="passenger" length="5.0" minGap="1.885" accel="3.156" decel="4.452" sigma="0.351" tau="0.905" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_032" vClass="passenger" length="5.0" minGap="1.379" accel="3.483" decel="4.509" sigma="0.305" tau="0.932" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_033" vClass="passenger" length="5.0" minGap="1.239" accel="3.623" decel="4.719" sigma="0.126" tau="0.818" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_034" vClass="passenger" length="5.0" minGap="0.884" accel="3.562" decel="4.392" sigma="0" tau="0.666" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_035" vClass="passenger" length="5.0" minGap="0.609" accel="3.721" decel="4.897" sigma="0.057" tau="0.621" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_036" vClass="passenger" length="5.0" minGap="2.638" accel="2.855" decel="4.582" sigma="0.493" tau="0.956" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_037" vClass="passenger" length="5.0" minGap="1.927" accel="3.072" decel="4.8" sigma="0.414" tau="1.02" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_038" vClass="passenger" length="5.0" minGap="1.315" accel="3.656" decel="4.033" sigma="0.19" tau="0.865" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_039" vClass="passenger" length="5.0" minGap="1.37" accel="3.527" decel="4.086" sigma="0.173" tau="0.749" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_040" vClass="passenger" length="5.0" minGap="0.911" accel="3.434" decel="4.44" sigma="0" tau="0.75" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_041" vClass="passenger" length="5.0" minGap="0.586" accel="3.738" decel="4.396" sigma="0" tau="0.788" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_042" vClass="passenger" length="5.0" minGap="2.389" accel="2.724" decel="4.697" sigma="0.521" tau="0.95" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_043" vClass="passenger" length="5.0" minGap="2.061" accel="3.094" decel="4.564" sigma="0.431" tau="0.969" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_044" vClass="passenger" length="5.0" minGap="1.318" accel="3.593" decel="4.226" sigma="0.286" tau="0.893" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_045" vClass="passenger" length="5.0" minGap="0.949" accel="3.376" decel="4.423" sigma="0.169" tau="0.766" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_046" vClass="passenger" length="5.0" minGap="0.619" accel="3.595" decel="4.424" sigma="0.041" tau="0.785" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_047" vClass="passenger" length="5.0" minGap="0.671" accel="3.7" decel="4.302" sigma="0" tau="0.672" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_048" vClass="passenger" length="5.0" minGap="2.438" accel="2.425" decel="5.283" sigma="0.454" tau="0.924" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_049" vClass="passenger" length="5.0" minGap="2.053" accel="2.808" decel="4.441" sigma="0.359" tau="0.94" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_050" vClass="passenger" length="5.0" minGap="1.674" accel="3.364" decel="4.614" sigma="0.347" tau="0.896" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_051" vClass="passenger" length="5.0" minGap="1.268" accel="3.728" decel="4.636" sigma="0.225" tau="0.744" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_052" vClass="passenger" length="5.0" minGap="0.804" accel="3.527" decel="4.163" sigma="0" tau="0.73" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_053" vClass="passenger" length="5.0" minGap="0.757" accel="3.584" decel="4.624" sigma="0.06" tau="0.476" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L0_sample_054" vClass="passenger" length="5.0" minGap="2.219" accel="2.809" decel="4.594" sigma="0.491" tau="1.012" maxSpeed="27.78" color="0,114,189" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1_sample_055" vClass="passenger" length="5.0" minGap="2.085" accel="3.356" decel="4.205" sigma="0.428" tau="1.059" maxSpeed="27.78" color="217,83,25" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2_sample_056" vClass="passenger" length="5.0" minGap="1.481" accel="3.233" decel="4.832" sigma="0.21" tau="0.924" maxSpeed="27.78" color="237,177,32" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3_sample_057" vClass="passenger" length="5.0" minGap="1.106" accel="3.517" decel="4.938" sigma="0.122" tau="0.806" maxSpeed="27.78" color="46,139,87" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4_sample_058" vClass="passenger" length="5.0" minGap="0.595" accel="4.116" decel="4.208" sigma="0" tau="0.649" maxSpeed="27.78" color="126,87,194" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5_sample_059" vClass="passenger" length="5.0" minGap="0.404" accel="3.98" decel="4.131" sigma="0.002" tau="0.513" maxSpeed="27.78" color="190,63,63" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="static_obstacle" vClass="custom1" length="6.0" minGap="0.1" accel="2.0" decel="9.0" maxSpeed="27.78" color="255,190,40" guiShape="truck" />
+    <route id="route_fwd" edges="road_fwd" />
+    <route id="route_rev" edges="road_rev" />
+    <vehicle id="target_L2_002" type="L2_sample_010" route="route_fwd" depart="0" departLane="2" departPos="134.578" departSpeed="0" />
+    <vehicle id="target_L4_000" type="L4_sample_011" route="route_fwd" depart="0" departLane="2" departPos="165.284" departSpeed="0" />
+    <vehicle id="target_L3_001" type="L3_sample_012" route="route_fwd" depart="0" departLane="2" departPos="199.762" departSpeed="0" />
+    <vehicle id="target_L4_001" type="L4_sample_013" route="route_fwd" depart="0" departLane="2" departPos="230.695" departSpeed="0" />
+    <vehicle id="target_L2_003" type="L2_sample_014" route="route_fwd" depart="0" departLane="2" departPos="269.581" departSpeed="0" />
+    <vehicle id="target_L5_000" type="L5_sample_015" route="route_fwd" depart="0" departLane="2" departPos="304.675" departSpeed="0" />
+    <vehicle id="target_L4_002" type="L4_sample_016" route="route_fwd" depart="0" departLane="2" departPos="336.59" departSpeed="0" />
+    <vehicle id="target_L5_001" type="L5_sample_017" route="route_fwd" depart="0" departLane="2" departPos="370.066" departSpeed="0" />
+    <vehicle id="target_L3_002" type="L3_sample_018" route="route_fwd" depart="0" departLane="2" departPos="405.265" departSpeed="0" />
+    <vehicle id="target_L5_002" type="L5_sample_019" route="route_fwd" depart="0" departLane="2" departPos="442.38" departSpeed="0" />
+    <vehicle id="target_L1_003" type="L1_sample_020" route="route_fwd" depart="0" departLane="2" departPos="478.976" departSpeed="0" />
+    <vehicle id="target_L3_003" type="L3_sample_021" route="route_fwd" depart="0" departLane="2" departPos="512.342" departSpeed="0" />
+    <vehicle id="target_L5_003" type="L5_sample_022" route="route_fwd" depart="0" departLane="2" departPos="552.503" departSpeed="0" />
+    <vehicle id="target_L4_003" type="L4_sample_023" route="route_fwd" depart="0" departLane="2" departPos="581.432" departSpeed="0" />
+    <vehicle id="target_L0_003" type="L0_sample_003" route="route_fwd" depart="0" departLane="1" departPos="188" departSpeed="0" />
+    <vehicle id="target_L0_001" type="L0_sample_001" route="route_fwd" depart="0" departLane="1" departPos="228" departSpeed="0" />
+    <vehicle id="target_L1_001" type="L1_sample_005" route="route_fwd" depart="0" departLane="1" departPos="288" departSpeed="0" />
+    <vehicle id="target_L2_001" type="L2_sample_008" route="route_fwd" depart="0" departLane="1" departPos="348" departSpeed="0" />
+    <vehicle id="static_obstacle_1" type="static_obstacle" route="route_fwd" depart="0" departLane="1" departPos="650" departSpeed="0">
+        <stop lane="road_fwd_1" endPos="650" duration="90" actType="road_obstacle" />
+    </vehicle>
+    <vehicle id="target_L0_002" type="L0_sample_002" route="route_fwd" depart="0" departLane="0" departPos="218" departSpeed="0" />
+    <vehicle id="target_L0_000" type="L0_sample_000" route="route_fwd" depart="0" departLane="0" departPos="258" departSpeed="0" />
+    <vehicle id="target_L1_002" type="L1_sample_006" route="route_fwd" depart="0" departLane="0" departPos="288" departSpeed="0" />
+    <vehicle id="target_L1_000" type="L1_sample_004" route="route_fwd" depart="0" departLane="0" departPos="318" departSpeed="0" />
+    <vehicle id="target_L2_000" type="L2_sample_007" route="route_fwd" depart="0" departLane="0" departPos="378" departSpeed="0" />
+    <vehicle id="target_L3_000" type="L3_sample_009" route="route_fwd" depart="0" departLane="0" departPos="438" departSpeed="0" />
+    <vehicle id="static_obstacle_0" type="static_obstacle" route="route_fwd" depart="0" departLane="0" departPos="650" departSpeed="0">
+        <stop lane="road_fwd_0" endPos="650" duration="90" actType="road_obstacle" />
+    </vehicle>
+    <vehicle id="target_L0_008" type="L0_sample_048" route="route_rev" depart="0" departLane="2" departPos="160.177" departSpeed="0" />
+    <vehicle id="target_L1_008" type="L1_sample_049" route="route_rev" depart="0" departLane="2" departPos="181.228" departSpeed="0" />
+    <vehicle id="target_L2_008" type="L2_sample_050" route="route_rev" depart="0" departLane="2" departPos="198.07" departSpeed="0" />
+    <vehicle id="target_L3_008" type="L3_sample_051" route="route_rev" depart="0" departLane="2" departPos="218.466" departSpeed="0" />
+    <vehicle id="target_L4_008" type="L4_sample_052" route="route_rev" depart="0" departLane="2" departPos="238.425" departSpeed="0" />
+    <vehicle id="target_L5_008" type="L5_sample_053" route="route_rev" depart="0" departLane="2" departPos="260.168" departSpeed="0" />
+    <vehicle id="target_L0_009" type="L0_sample_054" route="route_rev" depart="0" departLane="2" departPos="568.651" departSpeed="0" />
+    <vehicle id="target_L1_009" type="L1_sample_055" route="route_rev" depart="0" departLane="2" departPos="590.922" departSpeed="0" />
+    <vehicle id="target_L2_009" type="L2_sample_056" route="route_rev" depart="0" departLane="2" departPos="609.37" departSpeed="0" />
+    <vehicle id="target_L3_009" type="L3_sample_057" route="route_rev" depart="0" departLane="2" departPos="628.499" departSpeed="0" />
+    <vehicle id="target_L4_009" type="L4_sample_058" route="route_rev" depart="0" departLane="2" departPos="648.864" departSpeed="0" />
+    <vehicle id="target_L5_009" type="L5_sample_059" route="route_rev" depart="0" departLane="2" departPos="671.115" departSpeed="0" />
+    <vehicle id="target_L0_006" type="L0_sample_036" route="route_rev" depart="0" departLane="1" departPos="118.92" departSpeed="0" />
+    <vehicle id="target_L1_006" type="L1_sample_037" route="route_rev" depart="0" departLane="1" departPos="140.681" departSpeed="0" />
+    <vehicle id="target_L2_006" type="L2_sample_038" route="route_rev" depart="0" departLane="1" departPos="160.435" departSpeed="0" />
+    <vehicle id="target_L3_006" type="L3_sample_039" route="route_rev" depart="0" departLane="1" departPos="178.589" departSpeed="0" />
+    <vehicle id="target_L4_006" type="L4_sample_040" route="route_rev" depart="0" departLane="1" departPos="201.65" departSpeed="0" />
+    <vehicle id="target_L5_006" type="L5_sample_041" route="route_rev" depart="0" departLane="1" departPos="221.827" departSpeed="0" />
+    <vehicle id="target_L0_007" type="L0_sample_042" route="route_rev" depart="0" departLane="1" departPos="530.89" departSpeed="0" />
+    <vehicle id="target_L1_007" type="L1_sample_043" route="route_rev" depart="0" departLane="1" departPos="549.704" departSpeed="0" />
+    <vehicle id="target_L2_007" type="L2_sample_044" route="route_rev" depart="0" departLane="1" departPos="570.104" departSpeed="0" />
+    <vehicle id="target_L3_007" type="L3_sample_045" route="route_rev" depart="0" departLane="1" departPos="591.407" departSpeed="0" />
+    <vehicle id="target_L4_007" type="L4_sample_046" route="route_rev" depart="0" departLane="1" departPos="611.69" departSpeed="0" />
+    <vehicle id="target_L5_007" type="L5_sample_047" route="route_rev" depart="0" departLane="1" departPos="630.242" departSpeed="0" />
+    <vehicle id="target_L0_004" type="L0_sample_024" route="route_rev" depart="0" departLane="0" departPos="78.134" departSpeed="0" />
+    <vehicle id="target_L1_004" type="L1_sample_025" route="route_rev" depart="0" departLane="0" departPos="101.08" departSpeed="0" />
+    <vehicle id="target_L2_004" type="L2_sample_026" route="route_rev" depart="0" departLane="0" departPos="119.446" departSpeed="0" />
+    <vehicle id="target_L3_004" type="L3_sample_027" route="route_rev" depart="0" departLane="0" departPos="138.23" departSpeed="0" />
+    <vehicle id="target_L4_004" type="L4_sample_028" route="route_rev" depart="0" departLane="0" departPos="159.728" departSpeed="0" />
+    <vehicle id="target_L5_004" type="L5_sample_029" route="route_rev" depart="0" departLane="0" departPos="179.905" departSpeed="0" />
+    <vehicle id="target_L0_005" type="L0_sample_030" route="route_rev" depart="0" departLane="0" departPos="489.875" departSpeed="0" />
+    <vehicle id="target_L1_005" type="L1_sample_031" route="route_rev" depart="0" departLane="0" departPos="511.809" departSpeed="0" />
+    <vehicle id="target_L2_005" type="L2_sample_032" route="route_rev" depart="0" departLane="0" departPos="531.567" departSpeed="0" />
+    <vehicle id="target_L3_005" type="L3_sample_033" route="route_rev" depart="0" departLane="0" departPos="551.801" departSpeed="0" />
+    <vehicle id="target_L4_005" type="L4_sample_034" route="route_rev" depart="0" departLane="0" departPos="571.68" departSpeed="0" />
+    <vehicle id="target_L5_005" type="L5_sample_035" route="route_rev" depart="0" departLane="0" departPos="588.228" departSpeed="0" />
+</routes>

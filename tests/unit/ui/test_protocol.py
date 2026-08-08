@@ -75,6 +75,24 @@ def test_world_state_replaces_snapshot_and_detects_vehicle_sequence_gap() -> Non
     assert state.traffic_lights["signal-1"].phase == "RED"
 
 
+def test_world_state_keeps_cumulative_collision_vehicle_ids() -> None:
+    state = WorldState(EXPERIMENT_ID)
+
+    update = state.apply(
+        _envelope(
+            "vehicle.delta",
+            1,
+            {
+                "vehicles": [_vehicle("target_L2_001", 1.0)],
+                "collision_vehicle_ids": ["target_L2_001", "target_L0_003"],
+            },
+        )
+    )
+
+    assert update.collisions_changed
+    assert state.collision_vehicle_ids == {"target_L2_001", "target_L0_003"}
+
+
 def test_world_state_rejects_another_experiment() -> None:
     state = WorldState(UUID(int=1))
     with pytest.raises(ValueError, match="active experiment"):

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import MapSummary
+from ui.models import MapSummary, TrafficScenarioPreset
 from ui.views.components import PAGE_CONTENT_MARGIN, page_header
 from ui.widgets import MapLibreDeckMapWidget
 
@@ -284,7 +284,7 @@ class SceneConfigurationPage(QWidget):
 
     @staticmethod
     def _field_label(text: str, *, required: bool = False) -> QLabel:
-        label = QLabel(f"{text}<span style='color:#f56c6c'> *</span>" if required else text)
+        label = QLabel(f"{text} *" if required else text)
         label.setObjectName("simulationFieldLabel")
         return label
 
@@ -317,6 +317,26 @@ class SceneConfigurationPage(QWidget):
         self.description.setPlainText(
             f"复制自“{simulation_name}”。原仿真参数摘要：{parameter_summary}"
         )
+
+    def apply_traffic_scenario(self, preset: TrafficScenarioPreset) -> bool:
+        """Apply a catalog preset and select its validated SUMO package."""
+        map_index = self.map_combo.findData(preset.map_id)
+        if map_index < 0:
+            return False
+        self.scene_name.setText(preset.name)
+        self.description.setPlainText(preset.description)
+        self.weather_time_combo.setCurrentText(preset.weather)
+        hours, remainder = divmod(preset.duration_s, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        self.duration_time.setTime(QTime(hours, minutes, seconds))
+        for row in tuple(self.automation_rows):
+            self._remove_automation_row(row)
+        for level, count in preset.automation_counts:
+            self._append_automation_row(level, count)
+        self.map_combo.setCurrentIndex(map_index)
+        if self.map_combo.currentData() == preset.map_id:
+            self._select_map(map_index)
+        return True
 
     @Slot(int)
     def _select_map(self, index: int) -> None:

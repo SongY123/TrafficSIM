@@ -20,7 +20,12 @@ from trafficverse.domain.models import (
 EXPERIMENT_ID = UUID("00000000-0000-0000-0000-000000000009")
 
 
-def _frame(sequence: int, x: float) -> SimulationFrame:
+def _frame(
+    sequence: int,
+    x: float,
+    *,
+    collision_vehicle_ids: tuple[str, ...] = (),
+) -> SimulationFrame:
     vehicle = VehicleState(
         experiment_id=EXPERIMENT_ID,
         vehicle_id="vehicle-1",
@@ -49,6 +54,7 @@ def _frame(sequence: int, x: float) -> SimulationFrame:
                     phase="RED",
                 ),
             ),
+            collision_vehicle_ids=collision_vehicle_ids,
         ),
         carla=CarlaFrame(
             simulation_time_ms=sequence * 50,
@@ -65,7 +71,7 @@ def test_slow_client_coalesces_vehicle_by_id() -> None:
         subscription.set_topics(frozenset({"vehicles"}), max_hz=10.0)
 
         await broker.publish_frame(_frame(1, 1.0))
-        await broker.publish_frame(_frame(2, 2.0))
+        await broker.publish_frame(_frame(2, 2.0, collision_vehicle_ids=("target_L0_001",)))
 
         vehicle = await subscription.buffer.next()
         assert vehicle.type == "vehicle.delta"
@@ -75,6 +81,7 @@ def test_slow_client_coalesces_vehicle_by_id() -> None:
         first_vehicle = cast("dict[str, JsonValue]", vehicles[0])
         position = cast("dict[str, JsonValue]", first_vehicle["position"])
         assert position["x"] == 2.0
+        assert vehicle_payload["collision_vehicle_ids"] == ["target_L0_001"]
         assert subscription.buffer.coalesced_vehicle_deltas == 1
         assert subscription.buffer.depth == 0
 
@@ -102,7 +109,7 @@ def test_critical_overflow_disconnects_instead_of_growing_without_bound() -> Non
 def test_snapshot_request_returns_latest_complete_frame() -> None:
     async def exercise() -> None:
         broker = FrameBroker()
-        await broker.publish_frame(_frame(7, 7.0))
+        await broker.publish_frame(_frame(7, 7.0, collision_vehicle_ids=("target_L3_002",)))
 
         snapshot = broker.world_snapshot(EXPERIMENT_ID)
 
@@ -112,6 +119,7 @@ def test_snapshot_request_returns_latest_complete_frame() -> None:
         snapshot_payload = cast("dict[str, JsonValue]", snapshot.payload)
         traffic = cast("dict[str, JsonValue]", snapshot_payload["traffic"])
         assert traffic["sequence"] == 7
+        assert traffic["collision_vehicle_ids"] == ["target_L3_002"]
         lights = cast("list[JsonValue]", traffic["traffic_lights"])
         first_light = cast("dict[str, JsonValue]", lights[0])
         assert first_light["simulation_time_ms"] == 350

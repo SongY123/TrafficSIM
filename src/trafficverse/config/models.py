@@ -77,6 +77,7 @@ class SumoConfig(StrictModel):
     connect_retries: int = Field(default=3, ge=0, le=100)
     binary: str = Field(default="sumo", min_length=1)
     output_directory: str | None = Field(default=None, min_length=1)
+    freeze_collisions: bool = False
 
 
 class CarlaViewConfig(StrictModel):

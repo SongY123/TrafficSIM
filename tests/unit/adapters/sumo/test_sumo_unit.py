@@ -9,7 +9,7 @@ import pytest
 from trafficverse.adapters.sumo import SumoTrafficEngineAdapter
 from trafficverse.adapters.sumo.models import SumoTrafficLightSample, SumoVehicleSample
 from trafficverse.config.models import SumoConfig
-from trafficverse.domain.enums import ErrorCode, LaneChangeDirection
+from trafficverse.domain.enums import AutomationLevel, ErrorCode, LaneChangeDirection
 from trafficverse.domain.errors import TrafficVerseError
 from trafficverse.domain.models import ControlCommand
 
@@ -20,11 +20,14 @@ class FakeSumoRuntime:
         self.time_s = 0.0
         self.step_calls: list[float] = []
         self.speed_calls: list[tuple[str, float]] = []
+        self.speed_mode_calls: list[tuple[str, int]] = []
         self.acceleration_calls: list[tuple[str, float, float]] = []
         self.lane_calls: list[tuple[str, int, float]] = []
+        self.lane_mode_calls: list[tuple[str, int]] = []
         self.closed = False
         self.connect_error: Exception | None = None
         self.fail_controls_for: set[str] = set()
+        self.collision_ids: tuple[str, ...] = ()
 
     def connect(self, config: SumoConfig) -> str:
         del config
@@ -67,6 +70,10 @@ class FakeSumoRuntime:
         self._check_control(vehicle_id)
         self.speed_calls.append((vehicle_id, speed_mps))
 
+    def set_vehicle_speed_mode(self, vehicle_id: str, mode: int) -> None:
+        self._check_control(vehicle_id)
+        self.speed_mode_calls.append((vehicle_id, mode))
+
     def set_vehicle_acceleration(
         self, vehicle_id: str, acceleration_mps2: float, duration_s: float
     ) -> None:
@@ -76,6 +83,13 @@ class FakeSumoRuntime:
     def change_lane_relative(self, vehicle_id: str, direction: int, duration_s: float) -> None:
         self._check_control(vehicle_id)
         self.lane_calls.append((vehicle_id, direction, duration_s))
+
+    def set_vehicle_lane_change_mode(self, vehicle_id: str, mode: int) -> None:
+        self._check_control(vehicle_id)
+        self.lane_mode_calls.append((vehicle_id, mode))
+
+    def colliding_vehicle_ids(self) -> tuple[str, ...]:
+        return self.collision_ids
 
     def close(self) -> None:
         self.closed = True
@@ -111,6 +125,21 @@ def test_step_calls_traci_once_and_normalizes_snapshot() -> None:
     assert adapter.diagnostics().departed_vehicle_ids == ("vehicle-1",)
 
 
+def test_step_keeps_cumulative_collision_vehicle_ids_after_the_collision_tick() -> None:
+    runtime = FakeSumoRuntime()
+    runtime.collision_ids = ("target_L0_001", "target_L2_004")
+    adapter = SumoTrafficEngineAdapter(UUID(int=10), runtime)
+    adapter.load(_config())
+
+    collision_snapshot = adapter.step(50)
+    runtime.collision_ids = ()
+    later_snapshot = adapter.step(100)
+
+    expected = ("target_L0_001", "target_L2_004")
+    assert collision_snapshot.collision_vehicle_ids == expected
+    assert later_snapshot.collision_vehicle_ids == expected
+
+
 def test_apply_controls_attempts_each_vehicle_and_records_rejections() -> None:
     runtime = FakeSumoRuntime()
     runtime.fail_controls_for.add("missing")
@@ -122,6 +151,8 @@ def test_apply_controls_attempts_each_vehicle_and_records_rejections() -> None:
             desired_speed_mps=7.0,
             desired_acceleration_mps2=0.5,
             lane_change=LaneChangeDirection.LEFT,
+            lane_change_mode=512,
+            safety_checks_override=True,
         ),
     }
 
@@ -129,7 +160,9 @@ def test_apply_controls_attempts_each_vehicle_and_records_rejections() -> None:
 
     assert runtime.speed_calls == [("vehicle-1", 7.0)]
     assert runtime.acceleration_calls == [("vehicle-1", 0.5, 0.05)]
-    assert runtime.lane_calls == [("vehicle-1", 1, 0.05)]
+    assert runtime.speed_mode_calls == [("vehicle-1", 0)]
+    assert runtime.lane_calls == [("vehicle-1", 1, 5.0)]
+    assert runtime.lane_mode_calls == [("vehicle-1", 512)]
     assert adapter.diagnostics().rejected_control_vehicle_ids == ("missing",)
 
 
@@ -200,3 +233,27 @@ def test_close_is_idempotent() -> None:
     adapter.close()
 
     assert runtime.closed
+
+
+def test_vehicle_id_exposes_documented_automation_level() -> None:
+    runtime = FakeSumoRuntime()
+    adapter = SumoTrafficEngineAdapter(UUID(int=9), runtime)
+    adapter.load(_config())
+    sample = runtime.vehicle_samples()[0]
+    runtime.vehicle_samples = lambda: (  # type: ignore[method-assign]
+        SumoVehicleSample(
+            vehicle_id="target_L5_001",
+            x_m=sample.x_m,
+            y_m=sample.y_m,
+            z_m=sample.z_m,
+            speed_mps=sample.speed_mps,
+            acceleration_mps2=sample.acceleration_mps2,
+            angle_deg=sample.angle_deg,
+            lane_id=sample.lane_id,
+            route_id=sample.route_id,
+        ),
+    )
+
+    snapshot = adapter.step(50)
+
+    assert snapshot.vehicles[0].automation_level is AutomationLevel.L5

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<additional>
+    <!-- Static markers show where the two forward-direction blockers stop. -->
+    <poi id="obstacle_marker_right_0" type="obstacle" color="1,0,0"
+         x="650" y="-8.75" layer="10" />
+    <poi id="obstacle_marker_right_1" type="obstacle" color="1,0,0"
+         x="650" y="-5.25" layer="10" />
+</additional>

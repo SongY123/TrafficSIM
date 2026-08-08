@@ -17,6 +17,7 @@ from ui.models.protocol import (
     WorldState,
     WorldUpdate,
 )
+from ui.models.traffic_scenario import TRAFFIC_SCENARIO_PRESETS, TrafficScenarioPreset
 
 __all__ = [
     "AgentApiSummary",
@@ -31,6 +32,8 @@ __all__ = [
     "MapSummary",
     "ReadinessResponse",
     "TrafficLight",
+    "TrafficScenarioPreset",
+    "TRAFFIC_SCENARIO_PRESETS",
     "Vehicle",
     "WorldState",
     "WorldUpdate",

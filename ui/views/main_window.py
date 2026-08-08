@@ -18,7 +18,9 @@ from PySide6.QtWidgets import (
 
 from ui.models import (
     ControlAvailability,
+    ExperimentStatus,
     MapSummary,
+    TrafficScenarioPreset,
     WorkspaceOverview,
     WorkspaceSummary,
 )
@@ -142,7 +144,7 @@ class MainWindow(QMainWindow):
         self.live_page.speed_changed.connect(vm.set_speed)
         self.scene_page.map_selected.connect(vm.select_map)
         self.scene_page.launch_requested.connect(vm.launch_experiment)
-        self.traffic_scenes_page.scene_selected.connect(vm.select_map)
+        self.traffic_scenes_page.scene_selected.connect(self._launch_traffic_scenario)
         self.maps_page.import_requested.connect(self._choose_map)
         self.maps_page.preview_requested.connect(vm.preview_map_asset)
         self.agents_page.configure_requested.connect(vm.configure_agent_api)
@@ -241,6 +243,29 @@ class MainWindow(QMainWindow):
         self.maps_page.set_maps(values)
 
     @Slot(object)
+    def _launch_traffic_scenario(self, value: object) -> None:
+        if not isinstance(value, TrafficScenarioPreset):
+            return
+        if not self.scene_page.apply_traffic_scenario(value):
+            self._show_notice("error", "场景对应的 SUMO 资源不可用，请检查场景包。")
+            return
+        active_statuses = {
+            ExperimentStatus.CREATED,
+            ExperimentStatus.PREPARING,
+            ExperimentStatus.READY,
+            ExperimentStatus.RUNNING,
+            ExperimentStatus.PAUSED,
+            ExperimentStatus.STOPPING,
+        }
+        message = (
+            f"正在停止当前仿真，随后启动“{value.name}”……"
+            if self._viewmodel.status in active_statuses
+            else f"正在准备“{value.name}”并进入仿真运行……"
+        )
+        self._show_notice("info", message)
+        self._viewmodel.launch_experiment()
+
+    @Slot(object)
     def _set_vehicles(self, vehicles: object) -> None:
         self.live_page.map_widget.set_vehicles(vehicles)
 
@@ -260,6 +285,9 @@ class MainWindow(QMainWindow):
         display_status = labels.get(status, status)
         self.live_page.set_status(display_status)
         self.experiments_page.set_status(display_status)
+        if status == "RUNNING" and self.notice.property("level") == "info":
+            self.notice.clear()
+            self.notice.hide()
 
     @Slot(int)
     def _set_time(self, simulation_time_ms: int) -> None:

@@ -6,9 +6,12 @@ from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -20,7 +23,7 @@ from ui.views.components import (
     page_header,
     panel,
 )
-from ui.widgets import MapLibreDeckMapWidget
+from ui.widgets import AutomationLevelBarChart, MapLibreDeckMapWidget
 
 
 class LiveMonitorPage(QWidget):
@@ -45,26 +48,34 @@ class LiveMonitorPage(QWidget):
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
+        body_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         body_layout.setContentsMargins(PAGE_CONTENT_MARGIN, 14, PAGE_CONTENT_MARGIN, 16)
         body_layout.setSpacing(12)
         body_layout.addWidget(self._workspace(), 1)
+        body_layout.addWidget(self._level_metrics_panel())
         body_layout.addWidget(self._simulation_controls())
-        root.addWidget(body, 1)
+        scroll = QScrollArea()
+        scroll.setObjectName("liveMonitorScroll")
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(body)
+        root.addWidget(scroll, 1)
 
     def _workspace(self) -> QWidget:
-        map_panel = panel(
+        self.map_panel = panel(
             "二维仿真场景",
             self.map_widget,
             kicker="SUMO 实时路网",
         )
-        map_panel.setMinimumHeight(360)
+        self.map_widget.setMinimumHeight(300)
+        self.map_panel.setFixedHeight(400)
         stats_panel = self._statistics_panel()
 
         workspace = QWidget()
         layout = QHBoxLayout(workspace)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        layout.addWidget(map_panel, 1)
+        layout.addWidget(self.map_panel, 1)
         layout.addWidget(stats_panel)
         return workspace
 
@@ -72,8 +83,8 @@ class LiveMonitorPage(QWidget):
         frame = QFrame()
         frame.setObjectName("panel")
         frame.setProperty("role", "liveMetrics")
-        frame.setMinimumWidth(244)
-        frame.setMaximumWidth(284)
+        frame.setMinimumWidth(340)
+        frame.setMaximumWidth(390)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(9)
@@ -84,19 +95,24 @@ class LiveMonitorPage(QWidget):
         layout.addWidget(kicker)
         layout.addWidget(title)
 
-        self.current_vehicle_metric = metric_card("当前车辆数", "0 辆", "当前活跃车辆")
-        self.total_vehicle_metric = metric_card("车辆总数", "0 辆", "本次运行累计出现")
-        self.average_speed_metric = metric_card("平均速度", "0.0 km/h", "当前车辆平均速度")
-        self.average_travel_time_metric = metric_card(
-            "平均通过时间",
-            "—",
-            "已离场车辆平均用时",
-        )
-        layout.addWidget(self.current_vehicle_metric)
-        layout.addWidget(self.total_vehicle_metric)
-        layout.addWidget(self.average_speed_metric)
-        layout.addWidget(self.average_travel_time_metric)
-        layout.addStretch(1)
+        self.current_vehicle_metric = metric_card("当前车辆数", "0 辆")
+        self.total_vehicle_metric = metric_card("车辆总数", "0 辆")
+        self.average_speed_metric = metric_card("平均速度", "0.0 km/h")
+        self.average_travel_time_metric = metric_card("平均通过时间", "—")
+        metrics_grid = QGridLayout()
+        metrics_grid.setContentsMargins(0, 0, 0, 0)
+        metrics_grid.setHorizontalSpacing(8)
+        metrics_grid.setVerticalSpacing(8)
+        for index, card in enumerate(
+            (
+                self.current_vehicle_metric,
+                self.total_vehicle_metric,
+                self.average_speed_metric,
+                self.average_travel_time_metric,
+            )
+        ):
+            metrics_grid.addWidget(card, index // 2, index % 2)
+        layout.addLayout(metrics_grid, 1)
         return frame
 
     def _simulation_controls(self) -> QFrame:
@@ -131,6 +147,41 @@ class LiveMonitorPage(QWidget):
         row.addStretch(1)
         row.addWidget(self._speed_controls())
         return panel("运行控制", content, kicker="仿真生命周期")
+
+    def _level_metrics_panel(self) -> QFrame:
+        content = QWidget()
+        row = QHBoxLayout(content)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(18)
+
+        self.level_speed_chart = AutomationLevelBarChart(unit="km/h")
+        self.level_collision_chart = AutomationLevelBarChart(
+            unit="辆",
+            integer_values=True,
+        )
+        row.addWidget(
+            self._chart_group("各智驾等级车辆平均速度", self.level_speed_chart),
+            1,
+        )
+        row.addWidget(
+            self._chart_group("各智驾等级碰撞车辆数", self.level_collision_chart),
+            1,
+        )
+        frame = panel("分级实时指标", content, kicker="L0-L5")
+        frame.setMaximumHeight(210)
+        return frame
+
+    @staticmethod
+    def _chart_group(title: str, chart: AutomationLevelBarChart) -> QWidget:
+        group = QWidget()
+        layout = QVBoxLayout(group)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        label = QLabel(title)
+        label.setObjectName("metricLabel")
+        layout.addWidget(label)
+        layout.addWidget(chart)
+        return group
 
     def _speed_controls(self) -> QWidget:
         widget = QWidget()
@@ -183,6 +234,10 @@ class LiveMonitorPage(QWidget):
         self._metric_value(self.average_speed_metric).setText(
             f"{metrics.average_speed_mps * 3.6:.1f} km/h"
         )
+        self.level_speed_chart.set_values(
+            {level: speed_mps * 3.6 for level, speed_mps in metrics.level_average_speed_mps}
+        )
+        self.level_collision_chart.set_values(dict(metrics.level_collision_counts))
         travel_time = (
             "—"
             if metrics.average_travel_time_ms is None
