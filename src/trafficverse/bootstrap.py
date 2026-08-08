@@ -26,6 +26,7 @@ from trafficverse.application.simulation_runner import SimulationRunner
 from trafficverse.application.workspace_service import WorkspaceService
 from trafficverse.config.loader import load_scenario, validate_map_manifest
 from trafficverse.config.models import MapManifest, ScenarioConfig
+from trafficverse.controllers import controller_for_sumo_package
 from trafficverse.domain.enums import ComponentStatus, ExperimentStatus, RequirementMode
 from trafficverse.maps.sumo_package import SumoScenarioPackage, stage_sumo_package
 from trafficverse.ports import (
@@ -89,6 +90,7 @@ class CoreRuntimeFactory:
                 carla=CarlaAdapter(),
                 experiments=self._repository,
                 data_logger=DiscardDataLogger(),
+                controller=controller_for_sumo_package(package.package_id),
                 frame_publisher=self._broker,
                 registry=self._registry,
             )
@@ -177,6 +179,7 @@ class CoreRuntimeFactory:
                         "config_file": str(staged_config),
                         "expected_version": None,
                         "output_directory": str(output_directory),
+                        "freeze_collisions": package.package_id == "mixed-automation-obstacle",
                     }
                 ),
                 "carla": self._scenario.carla.model_copy(update={"mode": RequirementMode.DISABLED}),

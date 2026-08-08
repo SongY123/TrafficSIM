@@ -99,6 +99,10 @@ QLabel#mono, QLabel#metricValue, QLabel#statusValue {
   font-family: "__TRAFFICVERSE_MONO_FONT__";
 }
 QLabel#metricValue { color: #e5eaf3; font-size: 21px; font-weight: 600; }
+AutomationLevelBarChart {
+  qproperty-l0Color: #f56c6c; qproperty-l1Color: #e6a23c; qproperty-l2Color: #f5cd50;
+  qproperty-l3Color: #409eff; qproperty-l4Color: #67c23a; qproperty-l5Color: #a78bfa;
+}
 QLabel#statusBadge {
   background: #1c2518; border: 1px solid #2b4b23; border-radius: 4px;
   color: #67c23a; padding: 5px 9px; font-size: 12px; font-weight: 500;

@@ -1,0 +1,86 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes>
+    <!--Generated with seed 20260809; dense mixed traffic precedes the ambulance.-->
+    <vType id="L0" vClass="passenger" length="5" minGap="1.5" accel="2.4" decel="4" sigma="0.5" tau="1.2" maxSpeed="27.78" color="245,108,108" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1" vClass="passenger" length="5" minGap="1.5" accel="2.6" decel="4.5" sigma="0.35" tau="1" maxSpeed="27.78" color="230,162,60" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L2" vClass="passenger" length="5" minGap="1.4" accel="2.8" decel="5" sigma="0.2" tau="0.9" maxSpeed="27.78" color="245,205,80" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3" vClass="passenger" length="5" minGap="1.3" accel="3" decel="5" sigma="0.1" tau="0.8" maxSpeed="27.78" color="64,158,255" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4" vClass="passenger" length="5" minGap="1.2" accel="3.2" decel="5" sigma="0.05" tau="0.7" maxSpeed="27.78" color="103,194,58" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5" vClass="passenger" length="5" minGap="1" accel="3.4" decel="5" sigma="0" tau="0.6" maxSpeed="27.78" color="167,139,250" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="ambulance" vClass="emergency" guiShape="emergency" length="6" minGap="1" accel="4" decel="7" sigma="0" tau="0.5" maxSpeed="33.33" color="255,45,145" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <route id="route_fwd" edges="road_fwd" />
+    <route id="route_rev" edges="road_rev" />
+    <vehicle id="yield_L0_003" type="L0" route="route_fwd" depart="0" departLane="2" departPos="39.425" departSpeed="0" />
+    <vehicle id="yield_L1_003" type="L1" route="route_fwd" depart="0" departLane="2" departPos="59.486" departSpeed="0" />
+    <vehicle id="yield_L2_003" type="L2" route="route_fwd" depart="0" departLane="2" departPos="80.048" departSpeed="0" />
+    <vehicle id="yield_L3_003" type="L3" route="route_fwd" depart="0" departLane="2" departPos="100.738" departSpeed="0" />
+    <vehicle id="yield_L4_003" type="L4" route="route_fwd" depart="0" departLane="2" departPos="120.947" departSpeed="0" />
+    <vehicle id="yield_L5_003" type="L5" route="route_fwd" depart="0" departLane="2" departPos="140.66" departSpeed="0" />
+    <vehicle id="yield_L0_004" type="L0" route="route_fwd" depart="0" departLane="2" departPos="379.478" departSpeed="0" />
+    <vehicle id="yield_L1_004" type="L1" route="route_fwd" depart="0" departLane="2" departPos="400.784" departSpeed="0" />
+    <vehicle id="yield_L2_004" type="L2" route="route_fwd" depart="0" departLane="2" departPos="420.942" departSpeed="0" />
+    <vehicle id="yield_L3_004" type="L3" route="route_fwd" depart="0" departLane="2" departPos="440.733" departSpeed="0" />
+    <vehicle id="yield_L4_004" type="L4" route="route_fwd" depart="0" departLane="2" departPos="460.321" departSpeed="0" />
+    <vehicle id="yield_L5_004" type="L5" route="route_fwd" depart="0" departLane="2" departPos="480.656" departSpeed="0" />
+    <vehicle id="yield_L0_005" type="L0" route="route_fwd" depart="0" departLane="2" departPos="720.885" departSpeed="0" />
+    <vehicle id="yield_L1_005" type="L1" route="route_fwd" depart="0" departLane="2" departPos="740.791" departSpeed="0" />
+    <vehicle id="yield_L2_005" type="L2" route="route_fwd" depart="0" departLane="2" departPos="760.539" departSpeed="0" />
+    <vehicle id="yield_L3_005" type="L3" route="route_fwd" depart="0" departLane="2" departPos="780.997" departSpeed="0" />
+    <vehicle id="yield_L4_005" type="L4" route="route_fwd" depart="0" departLane="2" departPos="799.9" departSpeed="0" />
+    <vehicle id="yield_L5_005" type="L5" route="route_fwd" depart="0" departLane="2" departPos="820.829" departSpeed="0" />
+    <vehicle id="ambulance_L5_0" type="ambulance" route="route_fwd" depart="0" departLane="1" departPos="50" departSpeed="0" />
+    <vehicle id="yield_L0_000" type="L0" route="route_fwd" depart="0" departLane="1" departPos="189.18" departSpeed="0" />
+    <vehicle id="yield_L1_000" type="L1" route="route_fwd" depart="0" departLane="1" departPos="223.761" departSpeed="0" />
+    <vehicle id="yield_L2_000" type="L2" route="route_fwd" depart="0" departLane="1" departPos="257.196" departSpeed="0" />
+    <vehicle id="yield_L3_000" type="L3" route="route_fwd" depart="0" departLane="1" departPos="292.584" departSpeed="0" />
+    <vehicle id="yield_L4_000" type="L4" route="route_fwd" depart="0" departLane="1" departPos="326.041" departSpeed="0" />
+    <vehicle id="yield_L5_000" type="L5" route="route_fwd" depart="0" departLane="1" departPos="359.411" departSpeed="0" />
+    <vehicle id="yield_L0_001" type="L0" route="route_fwd" depart="0" departLane="1" departPos="589.712" departSpeed="0" />
+    <vehicle id="yield_L1_001" type="L1" route="route_fwd" depart="0" departLane="1" departPos="623.776" departSpeed="0" />
+    <vehicle id="yield_L2_001" type="L2" route="route_fwd" depart="0" departLane="1" departPos="657.208" departSpeed="0" />
+    <vehicle id="yield_L3_001" type="L3" route="route_fwd" depart="0" departLane="1" departPos="692.523" departSpeed="0" />
+    <vehicle id="yield_L4_001" type="L4" route="route_fwd" depart="0" departLane="1" departPos="725.629" departSpeed="0" />
+    <vehicle id="yield_L5_001" type="L5" route="route_fwd" depart="0" departLane="1" departPos="760.608" departSpeed="0" />
+    <vehicle id="yield_L0_002" type="L0" route="route_fwd" depart="0" departLane="1" departPos="989.351" departSpeed="0" />
+    <vehicle id="yield_L1_002" type="L1" route="route_fwd" depart="0" departLane="1" departPos="1024.742" departSpeed="0" />
+    <vehicle id="yield_L2_002" type="L2" route="route_fwd" depart="0" departLane="1" departPos="1057.527" departSpeed="0" />
+    <vehicle id="yield_L3_002" type="L3" route="route_fwd" depart="0" departLane="1" departPos="1091.838" departSpeed="0" />
+    <vehicle id="yield_L4_002" type="L4" route="route_fwd" depart="0" departLane="1" departPos="1126.213" departSpeed="0" />
+    <vehicle id="yield_L5_002" type="L5" route="route_fwd" depart="0" departLane="1" departPos="1160.622" departSpeed="0" />
+    <vehicle id="yield_L0_010" type="L0" route="route_rev" depart="0" departLane="2" departPos="129.629" departSpeed="0" />
+    <vehicle id="yield_L1_010" type="L1" route="route_rev" depart="0" departLane="2" departPos="150.988" departSpeed="0" />
+    <vehicle id="yield_L2_010" type="L2" route="route_rev" depart="0" departLane="2" departPos="169.437" departSpeed="0" />
+    <vehicle id="yield_L3_010" type="L3" route="route_rev" depart="0" departLane="2" departPos="190.868" departSpeed="0" />
+    <vehicle id="yield_L4_010" type="L4" route="route_rev" depart="0" departLane="2" departPos="209.647" departSpeed="0" />
+    <vehicle id="yield_L5_010" type="L5" route="route_rev" depart="0" departLane="2" departPos="229.995" departSpeed="0" />
+    <vehicle id="yield_L0_011" type="L0" route="route_rev" depart="0" departLane="2" departPos="580.384" departSpeed="0" />
+    <vehicle id="yield_L1_011" type="L1" route="route_rev" depart="0" departLane="2" departPos="599.082" departSpeed="0" />
+    <vehicle id="yield_L2_011" type="L2" route="route_rev" depart="0" departLane="2" departPos="619.347" departSpeed="0" />
+    <vehicle id="yield_L3_011" type="L3" route="route_rev" depart="0" departLane="2" departPos="639.614" departSpeed="0" />
+    <vehicle id="yield_L4_011" type="L4" route="route_rev" depart="0" departLane="2" departPos="660.88" departSpeed="0" />
+    <vehicle id="yield_L5_011" type="L5" route="route_rev" depart="0" departLane="2" departPos="680.664" departSpeed="0" />
+    <vehicle id="yield_L0_008" type="L0" route="route_rev" depart="0" departLane="1" departPos="89.499" departSpeed="0" />
+    <vehicle id="yield_L1_008" type="L1" route="route_rev" depart="0" departLane="1" departPos="109.124" departSpeed="0" />
+    <vehicle id="yield_L2_008" type="L2" route="route_rev" depart="0" departLane="1" departPos="130.355" departSpeed="0" />
+    <vehicle id="yield_L3_008" type="L3" route="route_rev" depart="0" departLane="1" departPos="150.117" departSpeed="0" />
+    <vehicle id="yield_L4_008" type="L4" route="route_rev" depart="0" departLane="1" departPos="169.501" departSpeed="0" />
+    <vehicle id="yield_L5_008" type="L5" route="route_rev" depart="0" departLane="1" departPos="189.409" departSpeed="0" />
+    <vehicle id="yield_L0_009" type="L0" route="route_rev" depart="0" departLane="1" departPos="539.451" departSpeed="0" />
+    <vehicle id="yield_L1_009" type="L1" route="route_rev" depart="0" departLane="1" departPos="559.291" departSpeed="0" />
+    <vehicle id="yield_L2_009" type="L2" route="route_rev" depart="0" departLane="1" departPos="580.433" departSpeed="0" />
+    <vehicle id="yield_L3_009" type="L3" route="route_rev" depart="0" departLane="1" departPos="600.83" departSpeed="0" />
+    <vehicle id="yield_L4_009" type="L4" route="route_rev" depart="0" departLane="1" departPos="619.027" departSpeed="0" />
+    <vehicle id="yield_L5_009" type="L5" route="route_rev" depart="0" departLane="1" departPos="639.403" departSpeed="0" />
+    <vehicle id="yield_L0_006" type="L0" route="route_rev" depart="0" departLane="0" departPos="50.719" departSpeed="0" />
+    <vehicle id="yield_L1_006" type="L1" route="route_rev" depart="0" departLane="0" departPos="70.695" departSpeed="0" />
+    <vehicle id="yield_L2_006" type="L2" route="route_rev" depart="0" departLane="0" departPos="89.332" departSpeed="0" />
+    <vehicle id="yield_L3_006" type="L3" route="route_rev" depart="0" departLane="0" departPos="110.064" departSpeed="0" />
+    <vehicle id="yield_L4_006" type="L4" route="route_rev" depart="0" departLane="0" departPos="130.559" departSpeed="0" />
+    <vehicle id="yield_L5_006" type="L5" route="route_rev" depart="0" departLane="0" departPos="149.244" departSpeed="0" />
+    <vehicle id="yield_L0_007" type="L0" route="route_rev" depart="0" departLane="0" departPos="500.74" departSpeed="0" />
+    <vehicle id="yield_L1_007" type="L1" route="route_rev" depart="0" departLane="0" departPos="520.313" departSpeed="0" />
+    <vehicle id="yield_L2_007" type="L2" route="route_rev" depart="0" departLane="0" departPos="539.366" departSpeed="0" />
+    <vehicle id="yield_L3_007" type="L3" route="route_rev" depart="0" departLane="0" departPos="560.453" departSpeed="0" />
+    <vehicle id="yield_L4_007" type="L4" route="route_rev" depart="0" departLane="0" departPos="579.08" departSpeed="0" />
+    <vehicle id="yield_L5_007" type="L5" route="route_rev" depart="0" departLane="0" departPos="599.381" departSpeed="0" />
+</routes>

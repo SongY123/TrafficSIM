@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+    <input>
+        <net-file value="mixed-automation-obstacle.net.xml" />
+        <route-files value="mixed-automation-obstacle.rou.xml" />
+        <additional-files value="mixed-automation-obstacle.add.xml" />
+        <gui-settings-file value="mixed-automation-obstacle.view.xml" />
+    </input>
+    <time>
+        <begin value="0" />
+        <end value="90" />
+        <step-length value="0.05" />
+    </time>
+    <processing>
+        <time-to-teleport value="-1" />
+        <collision.action value="warn" />
+    </processing>
+    <report>
+        <verbose value="false" />
+        <no-step-log value="true" />
+    </report>
+</configuration>

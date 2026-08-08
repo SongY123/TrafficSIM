@@ -235,6 +235,8 @@ class LiveMetrics:
     total_vehicle_count: int
     average_speed_mps: float
     average_travel_time_ms: float | None
+    level_average_speed_mps: tuple[tuple[str, float], ...] = ()
+    level_collision_counts: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +247,7 @@ class WorldUpdate:
     traffic_lights_changed: bool = False
     health_changed: bool = False
     status_changed: bool = False
+    collisions_changed: bool = False
 
 
 @dataclass(slots=True)
@@ -255,6 +258,7 @@ class WorldState:
     vehicle_sequence: int | None = None
     vehicles: dict[str, Vehicle] = field(default_factory=dict)
     traffic_lights: dict[str, TrafficLight] = field(default_factory=dict)
+    collision_vehicle_ids: set[str] = field(default_factory=set)
     components: dict[str, ComponentHealth] = field(default_factory=dict)
     status: ExperimentStatus | None = None
 
@@ -270,7 +274,13 @@ class WorldState:
             payload = _payload_dict(envelope.payload)
             vehicles = _model_list(payload, "vehicles", Vehicle)
             self.vehicles = {vehicle.vehicle_id: vehicle for vehicle in vehicles}
-            return WorldUpdate(envelope.type, sequence_gap=gap, vehicles_changed=True)
+            self.collision_vehicle_ids = set(_string_list(payload, "collision_vehicle_ids"))
+            return WorldUpdate(
+                envelope.type,
+                sequence_gap=gap,
+                vehicles_changed=True,
+                collisions_changed=True,
+            )
         if envelope.type == "traffic_light.delta":
             payload = _payload_dict(envelope.payload)
             lights = _model_list(payload, "traffic_lights", TrafficLight)
@@ -294,11 +304,13 @@ class WorldState:
         lights = _model_list(traffic, "traffic_lights", TrafficLight)
         self.vehicles = {vehicle.vehicle_id: vehicle for vehicle in vehicles}
         self.traffic_lights = {light.signal_id: light for light in lights}
+        self.collision_vehicle_ids = set(_string_list(traffic, "collision_vehicle_ids"))
         self.vehicle_sequence = envelope.sequence
         return WorldUpdate(
             envelope.type,
             vehicles_changed=True,
             traffic_lights_changed=True,
+            collisions_changed=True,
         )
 
     def _vehicle_gap(self, sequence: int) -> tuple[int, int] | None:
@@ -313,6 +325,13 @@ def _payload_dict(payload: JsonValue | None) -> dict[str, JsonValue]:
     if not isinstance(payload, dict):
         raise ValueError("message payload must be an object")
     return payload
+
+
+def _string_list(payload: dict[str, JsonValue], key: str) -> tuple[str, ...]:
+    values = payload.get(key, [])
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise ValueError(f"message payload field {key} must be a string array")
+    return tuple(value for value in values if isinstance(value, str))
 
 
 ModelT = TypeVar("ModelT", bound=BaseModel)

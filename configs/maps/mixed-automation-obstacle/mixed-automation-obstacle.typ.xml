@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<types>
+    <type
+        id="highway"
+        priority="3"
+        numLanes="3"
+        speed="27.78"
+        allow="passenger emergency custom1"
+        spreadType="center"
+        width="3.50" />
+</types>

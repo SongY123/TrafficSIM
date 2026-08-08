@@ -63,6 +63,7 @@ class ClientMessageBuffer:
         self._critical_capacity = critical_capacity
         self._latest: dict[str, WebSocketEnvelope] = {}
         self._vehicle_states: dict[str, JsonValue] = {}
+        self._collision_vehicle_ids: tuple[str, ...] = ()
         self._event = asyncio.Event()
         self._closed = False
         self._overflowed = False
@@ -99,12 +100,18 @@ class ClientMessageBuffer:
                             vehicle_id = vehicle.get("vehicle_id")
                             if isinstance(vehicle_id, str):
                                 self._vehicle_states[vehicle_id] = vehicle
+                collision_vehicle_ids = payload.get("collision_vehicle_ids", [])
+                if isinstance(collision_vehicle_ids, list):
+                    self._collision_vehicle_ids = tuple(
+                        value for value in collision_vehicle_ids if isinstance(value, str)
+                    )
             message = message.model_copy(
                 update={
                     "payload": {
                         "vehicles": [
                             self._vehicle_states[key] for key in sorted(self._vehicle_states)
-                        ]
+                        ],
+                        "collision_vehicle_ids": list(self._collision_vehicle_ids),
                     }
                 }
             )
@@ -177,7 +184,8 @@ class FrameBroker:
                 payload={
                     "vehicles": [
                         vehicle.model_dump(mode="json") for vehicle in frame.traffic.vehicles
-                    ]
+                    ],
+                    "collision_vehicle_ids": list(frame.traffic.collision_vehicle_ids),
                 },
             ),
             make_envelope(

@@ -6,9 +6,12 @@ from enum import Enum
 class AutomationLevel(str, Enum):
     HUMAN = "HUMAN"
     ACC = "ACC"
+    L0 = "L0"
+    L1 = "L1"
     L2 = "L2"
     L3 = "L3"
     L4 = "L4"
+    L5 = "L5"
 
 
 class VehicleAction(str, Enum):

@@ -123,6 +123,9 @@ class PythonSumoRuntime:
     def set_vehicle_speed(self, vehicle_id: str, speed_mps: float) -> None:
         self._require_connection().vehicle.setSpeed(vehicle_id, speed_mps)
 
+    def set_vehicle_speed_mode(self, vehicle_id: str, mode: int) -> None:
+        self._require_connection().vehicle.setSpeedMode(vehicle_id, mode)
+
     def set_vehicle_acceleration(
         self, vehicle_id: str, acceleration_mps2: float, duration_s: float
     ) -> None:
@@ -134,6 +137,13 @@ class PythonSumoRuntime:
 
     def change_lane_relative(self, vehicle_id: str, direction: int, duration_s: float) -> None:
         self._require_connection().vehicle.changeLaneRelative(vehicle_id, direction, duration_s)
+
+    def set_vehicle_lane_change_mode(self, vehicle_id: str, mode: int) -> None:
+        self._require_connection().vehicle.setLaneChangeMode(vehicle_id, mode)
+
+    def colliding_vehicle_ids(self) -> tuple[str, ...]:
+        values = self._require_connection().simulation.getCollidingVehiclesIDList()
+        return tuple(sorted(str(value) for value in values))
 
     def close(self) -> None:
         if self._connection is None:

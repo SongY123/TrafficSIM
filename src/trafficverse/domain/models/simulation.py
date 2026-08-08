@@ -17,6 +17,7 @@ class TrafficSnapshot(StrictModel):
     sequence: int = Field(ge=0)
     vehicles: tuple[VehicleState, ...] = ()
     traffic_lights: tuple[TrafficLightState, ...] = ()
+    collision_vehicle_ids: tuple[str, ...] = ()
 
 
 class CarlaFrame(StrictModel):

@@ -24,9 +24,12 @@
       "enum": [
         "HUMAN",
         "ACC",
+        "L0",
+        "L1",
         "L2",
         "L3",
-        "L4"
+        "L4",
+        "L5"
       ],
       "title": "AutomationLevel",
       "type": "string"
@@ -376,6 +379,11 @@
           ],
           "default": null,
           "title": "Expected Version"
+        },
+        "freeze_collisions": {
+          "default": false,
+          "title": "Freeze Collisions",
+          "type": "boolean"
         },
         "host": {
           "default": "127.0.0.1",

@@ -171,6 +171,7 @@ def _vehicle(
     *,
     vehicle_id: str = "vehicle-1",
     speed_mps: float = 5.0,
+    automation_level: str = "HUMAN",
 ) -> dict[str, object]:
     return {
         "schema_version": "1.0",
@@ -178,7 +179,7 @@ def _vehicle(
         "vehicle_id": vehicle_id,
         "simulation_time_ms": sequence * 50,
         "sequence": sequence,
-        "automation_level": "HUMAN",
+        "automation_level": automation_level,
         "position": {"x": 1.0, "y": 2.0, "z": 0.0},
         "speed_mps": speed_mps,
         "acceleration_mps2": 0.0,
@@ -458,6 +459,7 @@ def test_start_prepares_created_experiment_then_starts_when_ready() -> None:
             "speed_multiplier": 1.0,
         },
     )
+    realtime.connection_changed.emit("CONNECTED")
     viewmodel.start()
     viewmodel.handle_envelope(_envelope("experiment.state.changed", 0, {"status": "READY"}))
 
@@ -506,10 +508,53 @@ def test_launch_creates_experiment_then_opens_monitor_and_starts() -> None:
             "speed_multiplier": 1.0,
         },
     )
+    assert realtime.sent == []
+    realtime.connection_changed.emit("CONNECTED")
 
     assert ("create", (WORKSPACE_ID, SCENARIO_ID, "image2road")) in rest.calls
     assert monitor_requests == 1
     assert realtime.sent == [("experiment.prepare", {})]
+
+
+def test_launching_another_map_stops_active_experiment_then_launches_selected_map() -> None:
+    viewmodel, rest, realtime = _viewmodel()
+    _enter_workspace(viewmodel)
+    viewmodel.handle_rest_success(
+        "maps.list",
+        [
+            {
+                "map_id": map_id,
+                "kind": "sumo",
+                "display_name": map_id,
+                "validated": True,
+                "network_schema_version": "sumo-net/display-1.0",
+                "manifest_available": False,
+                "sumo_config_file": f"{map_id}.sumocfg",
+                "sumo_step_ms": 50,
+            }
+            for map_id in ("scene-a", "scene-b")
+        ],
+    )
+    viewmodel.handle_rest_success(
+        "experiment.create",
+        {
+            "experiment_id": str(EXPERIMENT_ID),
+            "workspace_id": str(WORKSPACE_ID),
+            "status": "RUNNING",
+            "simulation_time_ms": 0,
+            "speed_multiplier": 1.0,
+        },
+    )
+    viewmodel.select_map("scene-b")
+
+    viewmodel.launch_experiment()
+
+    assert realtime.sent[-1] == ("experiment.stop", {"reason": "SCENARIO_SWITCH"})
+
+    viewmodel.handle_envelope(_envelope("experiment.state.changed", 1, {"status": "COMPLETED"}))
+
+    assert realtime.closed is True
+    assert rest.calls[-1] == ("create", (WORKSPACE_ID, SCENARIO_ID, "scene-b"))
 
 
 def test_vehicle_sequence_gap_requests_world_snapshot() -> None:
@@ -540,6 +585,39 @@ def test_vehicle_sequence_gap_requests_world_snapshot() -> None:
     viewmodel.handle_envelope(_envelope("vehicle.delta", 4, {"vehicles": [_vehicle(4)]}))
 
     assert realtime.snapshot_requests == 1
+
+
+def test_repeated_vehicle_sequence_gaps_rate_limit_snapshot_recovery() -> None:
+    viewmodel, _, realtime = _viewmodel()
+    _enter_workspace(viewmodel)
+    viewmodel.handle_rest_success(
+        "experiment.create",
+        {
+            "experiment_id": str(EXPERIMENT_ID),
+            "workspace_id": str(WORKSPACE_ID),
+            "status": "RUNNING",
+            "simulation_time_ms": 0,
+            "speed_multiplier": 1.0,
+        },
+    )
+    viewmodel.handle_envelope(
+        _envelope(
+            "world.snapshot",
+            2,
+            {
+                "traffic": {"vehicles": [_vehicle(2)], "traffic_lights": []},
+                "carla": None,
+                "events": [],
+                "metrics": [],
+            },
+        )
+    )
+
+    viewmodel.handle_envelope(_envelope("vehicle.delta", 4, {"vehicles": [_vehicle(4)]}))
+    viewmodel.handle_envelope(_envelope("vehicle.delta", 6, {"vehicles": [_vehicle(6)]}))
+    viewmodel.handle_envelope(_envelope("vehicle.delta", 25, {"vehicles": [_vehicle(25)]}))
+
+    assert realtime.snapshot_requests == 2
 
 
 def test_running_world_deltas_forward_new_vehicle_positions_to_the_map() -> None:
@@ -589,7 +667,17 @@ def test_live_metrics_track_active_total_speed_and_completed_travel_time() -> No
         _envelope(
             "vehicle.delta",
             1,
-            {"vehicles": [_vehicle(1, vehicle_id="vehicle-1", speed_mps=5.0)]},
+            {
+                "vehicles": [
+                    _vehicle(
+                        1,
+                        vehicle_id="target_L0_001",
+                        speed_mps=5.0,
+                        automation_level="L0",
+                    )
+                ],
+                "collision_vehicle_ids": [],
+            },
         )
     )
     viewmodel.handle_envelope(
@@ -598,9 +686,20 @@ def test_live_metrics_track_active_total_speed_and_completed_travel_time() -> No
             2,
             {
                 "vehicles": [
-                    _vehicle(2, vehicle_id="vehicle-1", speed_mps=5.0),
-                    _vehicle(2, vehicle_id="vehicle-2", speed_mps=15.0),
-                ]
+                    _vehicle(
+                        2,
+                        vehicle_id="target_L0_001",
+                        speed_mps=5.0,
+                        automation_level="L0",
+                    ),
+                    _vehicle(
+                        2,
+                        vehicle_id="target_L1_002",
+                        speed_mps=15.0,
+                        automation_level="L1",
+                    ),
+                ],
+                "collision_vehicle_ids": ["target_L0_001"],
             },
         )
     )
@@ -608,7 +707,17 @@ def test_live_metrics_track_active_total_speed_and_completed_travel_time() -> No
         _envelope(
             "vehicle.delta",
             3,
-            {"vehicles": [_vehicle(3, vehicle_id="vehicle-2", speed_mps=15.0)]},
+            {
+                "vehicles": [
+                    _vehicle(
+                        3,
+                        vehicle_id="target_L1_002",
+                        speed_mps=15.0,
+                        automation_level="L1",
+                    )
+                ],
+                "collision_vehicle_ids": ["target_L0_001"],
+            },
         )
     )
 
@@ -617,6 +726,22 @@ def test_live_metrics_track_active_total_speed_and_completed_travel_time() -> No
         total_vehicle_count=2,
         average_speed_mps=15.0,
         average_travel_time_ms=100.0,
+        level_average_speed_mps=(
+            ("L0", 0.0),
+            ("L1", 15.0),
+            ("L2", 0.0),
+            ("L3", 0.0),
+            ("L4", 0.0),
+            ("L5", 0.0),
+        ),
+        level_collision_counts=(
+            ("L0", 1),
+            ("L1", 0),
+            ("L2", 0),
+            ("L3", 0),
+            ("L4", 0),
+            ("L5", 0),
+        ),
     )
 
 
@@ -668,6 +793,8 @@ def test_restart_stops_active_experiment_then_creates_and_launches_a_new_one() -
     )
 
     assert realtime.connected == RESTARTED_EXPERIMENT_ID
+    assert realtime.sent[-1] == ("experiment.stop", {"reason": "USER_RESTART"})
+    realtime.connection_changed.emit("CONNECTED")
     assert realtime.sent[-1] == ("experiment.prepare", {})
 
 

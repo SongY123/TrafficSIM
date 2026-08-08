@@ -14,6 +14,14 @@
   --error: #f56c6c;
   --separator: #363637;
   --legend-text: #909399;
+  --l0: #f56c6c;
+  --l1: #e6a23c;
+  --l2: #f5cd50;
+  --l3: #409eff;
+  --l4: #67c23a;
+  --l5: #a78bfa;
+  --emergency: #ff2d91;
+  --obstacle: #ffbe28;
   --ai: #e6a23c;
   --automated: #409eff;
   --signal: #67c23a;
@@ -43,6 +51,14 @@
   --error: #f56c6c;
   --separator: #ebeef5;
   --legend-text: #909399;
+  --l0: #e05151;
+  --l1: #d57f1c;
+  --l2: #d3aa19;
+  --l3: #247bd8;
+  --l4: #4ea624;
+  --l5: #8563e0;
+  --emergency: #e01476;
+  --obstacle: #e09912;
   --ai: #e6a23c;
   --automated: #409eff;
   --signal: #67c23a;
@@ -96,13 +112,61 @@ button { font: inherit; }
 .map-legend {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   color: var(--legend-text);
   font-size: 10px;
 }
 
 .legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .legend-icon { position: relative; display: inline-block; flex: 0 0 auto; }
+.legend-icon.l0,
+.legend-icon.l1,
+.legend-icon.l2,
+.legend-icon.l3,
+.legend-icon.l4,
+.legend-icon.l5 {
+  width: 12px;
+  height: 12px;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+}
+.legend-icon.l0 { color: var(--l0); }
+.legend-icon.l1 { color: var(--l1); }
+.legend-icon.l2 { color: var(--l2); }
+.legend-icon.l3 { color: var(--l3); }
+.legend-icon.l4 { color: var(--l4); }
+.legend-icon.l5 { color: var(--l5); }
+.legend-icon.emergency,
+.legend-icon.obstacle {
+  width: 12px;
+  height: 12px;
+  border: 1px solid currentcolor;
+  border-radius: 3px;
+}
+.legend-icon.emergency {
+  color: var(--emergency);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--emergency) 65%, transparent);
+}
+.legend-icon.emergency::before,
+.legend-icon.obstacle::before {
+  position: absolute;
+  inset: 3px;
+  background: currentcolor;
+  content: "";
+}
+.legend-icon.obstacle { color: var(--obstacle); }
+.legend-icon.l0::before,
+.legend-icon.l1::before,
+.legend-icon.l2::before,
+.legend-icon.l3::before,
+.legend-icon.l4::before,
+.legend-icon.l5::before {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: currentcolor;
+  content: "";
+}
 .legend-icon.ai {
   width: 12px;
   height: 12px;

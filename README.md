@@ -67,6 +67,19 @@ uv run trafficverse ui --api-url http://127.0.0.1:8000
 `<目录名>-<配置文件名>`。所有输入必须存在并位于 `configs/maps` 内。损坏场景会显示校验错误，
 但不会阻止其他场景加载。
 
+直道障碍物示例位于 `configs/maps/mixed-automation-obstacle`，道路为双向三车道，前进方向右侧两条车道
+从仿真开始就由真实障碍车辆堵塞。场景包含多辆随机分布的 L0-L5 车辆，同等级车辆的 Krauss 参数带确定性
+正态扰动；直接打开它的 `.sumocfg` 会使用 SUMO 自身的安全换道机制。
+要观察 L0-L5 的差异化制动和换道策略，在 macOS 上运行：
+
+```bash
+open -a XQuartz
+uv run python scripts/dev/run_mixed_automation_obstacle.py --delay-ms 500
+```
+
+该示例 runner 默认让 L0 车辆较晚发现障碍并以较弱减速度制动，因此仍可能发生碰撞；使用
+`--no-l0-crash` 可切换回 SUMO 原生安全跟驰模式。
+
 ### Town04 + CARLA Core Run（独立验收链路）
 
 1. 启动 SUMO TraCI 后端。推荐 headless；它没有需要接入 TrafficVerse 的页面：
