@@ -117,6 +117,20 @@ def test_map_is_fixed_to_2d_and_view_mode_is_not_exposed_to_the_qt_host() -> Non
     assert 'self._dispatch("setViewMode", view_mode)' not in host
 
 
+def test_map_reset_uses_one_camera_transition_for_bounds_and_orientation() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+    reset_view = source.split("function resetView", maxsplit=1)[1].split(
+        "function enableCommandDragRotation", maxsplit=1
+    )[0]
+
+    assert "map.fitBounds(state.networkBounds" in reset_view
+    assert "pitch: 0" in reset_view
+    assert "bearing: 0" in reset_view
+    assert "map.easeTo" not in reset_view
+    assert "maxZoom:18,pitch:0,bearing:0" in bundle
+
+
 def test_map_visuals_are_externalized_and_support_light_theme() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     style = (MAP_WEB_ROOT / "src/style.js").read_text(encoding="utf-8")

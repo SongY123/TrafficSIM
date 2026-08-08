@@ -689,9 +689,10 @@ function resetView(duration = 500) {
   map.fitBounds(state.networkBounds, {
     padding: {top: 100, right: 46, bottom: 46, left: 46},
     duration,
-    maxZoom: 18
+    maxZoom: 18,
+    pitch: 0,
+    bearing: 0
   });
-  map.easeTo({pitch: 0, bearing: 0, duration});
 }
 
 function enableCommandDragRotation() {

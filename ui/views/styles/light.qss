@@ -152,6 +152,22 @@ QFrame#automationConfigurationRow {
 }
 QFrame#automationConfigurationRow QComboBox,
 QFrame#automationConfigurationRow QSpinBox { background: #fafafa; }
+QSpinBox#automationVehicleCount { padding-right: 38px; qproperty-arrowColor: #606266; }
+QSpinBox#automationVehicleCount::up-button,
+QSpinBox#automationVehicleCount::down-button {
+  subcontrol-origin: border; width: 34px; border-left: 1px solid #dcdfe6;
+}
+QSpinBox#automationVehicleCount::up-button {
+  subcontrol-position: top right; border-bottom: 1px solid #dcdfe6;
+}
+QSpinBox#automationVehicleCount::down-button { subcontrol-position: bottom right; }
+QSpinBox#automationVehicleCount::up-arrow,
+QSpinBox#automationVehicleCount::down-arrow { image: none; width: 0; height: 0; }
+QSpinBox#automationVehicleCount::up-button:hover,
+QSpinBox#automationVehicleCount::down-button:hover { background: #ecf5ff; }
+QSpinBox#automationVehicleCount[macosStepper="true"] { padding-right: 44px; }
+QSpinBox#automationVehicleCount[macosStepper="true"]::up-button,
+QSpinBox#automationVehicleCount[macosStepper="true"]::down-button { width: 40px; }
 QPushButton#automationRowAction { min-width: 28px; max-width: 28px; padding: 6px 0; }
 QPushButton#automationRowAction[action="remove"] { color: #909399; }
 QPushButton#addAutomationCategoryButton {
