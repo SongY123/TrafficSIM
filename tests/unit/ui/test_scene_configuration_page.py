@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionSpinBox,
 )
-from ui.models import MapSummary
+from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary
 from ui.views.scene_configuration_page import SceneConfigurationPage
 from ui.views.theme import ThemeMode, load_stylesheet
 
@@ -107,6 +107,38 @@ def test_scene_configuration_removes_automation_level() -> None:
     assert removed not in page.automation_rows
     assert page.add_automation_button.isEnabled()
     assert page.vehicle_total.text() == "总计：50"
+
+    page.close()
+
+
+def test_scene_configuration_applies_traffic_scenario_preset() -> None:
+    _application()
+    page = SceneConfigurationPage(load_web_map=False)
+    preset = TRAFFIC_SCENARIO_PRESETS[1]
+    page.set_maps(
+        (
+            MapSummary(
+                map_id=preset.map_id,
+                kind="sumo",
+                display_name=preset.name,
+                validated=True,
+                network_schema_version="sumo-net/display-1.0",
+                manifest_available=False,
+                sumo_config_file="scenario.sumocfg",
+                sumo_step_ms=50,
+            ),
+        )
+    )
+
+    applied = page.apply_traffic_scenario(preset)
+
+    assert applied
+    assert page.scene_name.text() == preset.name
+    assert page.map_combo.currentData() == preset.map_id
+    assert page.duration_time.time() == QTime(0, 1, 0)
+    assert [(row.level, row.vehicle_count) for row in page.automation_rows] == list(
+        preset.automation_counts
+    )
 
     page.close()
 

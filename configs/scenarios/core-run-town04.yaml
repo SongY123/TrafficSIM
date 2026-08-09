@@ -26,9 +26,12 @@ automation:
   proportions:
     HUMAN: 1.0
     ACC: 0.0
+    L0: 0.0
+    L1: 0.0
     L2: 0.0
     L3: 0.0
     L4: 0.0
+    L5: 0.0
 roi:
   radius_m: 1000.0
   buffer_m: 200.0

@@ -57,8 +57,8 @@ def test_map_source_uses_interleaved_meter_offset_layers_without_polling() -> No
     assert "lineCapRounded: true" in source
     assert "lineJointRounded: true" in source
     assert source.count("new GeoJsonLayer") == 6
-    assert source.count("new ScatterplotLayer") == 4
-    assert source.count("new PolygonLayer") == 3
+    assert source.count("new ScatterplotLayer") == 6
+    assert source.count("new PolygonLayer") == 4
     assert "new ScenegraphLayer" not in source
     assert "new LightingEffect" in source
     assert "../../assets/models/truck/truck.gltf" not in source
@@ -71,6 +71,10 @@ def test_map_source_uses_interleaved_meter_offset_layers_without_polling() -> No
     assert "focusVehicle(vehicleId)" in source
     assert "setInterval" not in source
     assert "requestAnimationFrame" not in source
+    assert "function isAmbulance(vehicle)" in source
+    assert "function isStaticObstacle(vehicle)" in source
+    assert "trafficverse-obstacle-bodies" in source
+    assert "救护车" in (MAP_WEB_ROOT / "index.html").read_text(encoding="utf-8")
 
 
 def test_flat_map_layers_disable_depth_test_to_prevent_zoom_z_fighting() -> None:
@@ -182,6 +186,7 @@ def test_map_renders_oriented_top_down_cars_without_sideways_truck_overlay() -> 
     assert 'id: "trafficverse-vehicle-bodies"' in source
     assert 'id: "trafficverse-vehicle-details"' in source
     assert 'id: "trafficverse-vehicle-headlights"' in source
+    assert 'id: "trafficverse-emergency-highlight"' in source
     assert 'id: "trafficverse-vehicle-models"' not in source
     assert "new ScenegraphLayer" not in source
     assert "vehicle.heading_rad" in source
@@ -190,6 +195,7 @@ def test_map_renders_oriented_top_down_cars_without_sideways_truck_overlay() -> 
     assert "trafficverse-vehicle-bodies" in bundle
     assert "trafficverse-vehicle-details" in bundle
     assert "trafficverse-vehicle-headlights" in bundle
+    assert "trafficverse-emergency-highlight" in bundle
     assert "trafficverse-vehicle-models" not in bundle
 
 
@@ -203,21 +209,27 @@ def test_map_hud_has_a_safe_inset_from_the_webview_edge() -> None:
     assert "border-left: 0;" not in hud_rules
 
 
-def test_map_hud_only_shows_the_three_requested_icon_legends() -> None:
+def test_map_hud_shows_automation_and_special_vehicle_legends() -> None:
     html = (MAP_WEB_ROOT / "index.html").read_text(encoding="utf-8")
     css = (MAP_WEB_ROOT / "styles.css").read_text(encoding="utf-8")
 
     assert 'aria-label="地图图例"' in html
-    assert html.count('class="legend-item"') == 3
-    assert all(label in html for label in ("人工智能", "自动驾驶", "交通信号"))
+    assert html.count('class="legend-item"') == 9
     assert all(
-        icon in html for icon in ("legend-icon ai", "legend-icon automated", "legend-icon signal")
+        label in html
+        for label in ("L0", "L1", "L2", "L3", "L4", "L5", "救护车", "障碍物", "交通信号")
+    )
+    assert all(
+        f"legend-icon {icon}" in html
+        for icon in ("l0", "l1", "l2", "l3", "l4", "l5", "emergency", "obstacle", "signal")
     )
     assert "map-eyebrow" not in html
     assert "map-title" not in html
     assert 'id="map-status" hidden' in html
     assert ".legend-icon.ai" in css
     assert ".legend-icon.automated" in css
+    assert ".legend-icon.emergency" in css
+    assert ".legend-icon.obstacle" in css
     assert ".legend-icon.signal" in css
 
 

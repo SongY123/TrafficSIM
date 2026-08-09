@@ -1,0 +1,7 @@
+{
+  "apiVersion": "trafficverse/v1",
+  "kind": "SumoScenarioPackage",
+  "spec": {
+    "name": "高速公路车辆突然加塞"
+  }
+}

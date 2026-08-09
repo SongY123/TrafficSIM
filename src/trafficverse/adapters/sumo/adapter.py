@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from uuid import UUID
@@ -26,6 +27,8 @@ from trafficverse.domain.models import (
     Vector3,
     VehicleState,
 )
+
+_AUTOMATION_LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:_|$)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +56,8 @@ class SumoTrafficEngineAdapter:
         self._departed_vehicle_ids: tuple[str, ...] = ()
         self._arrived_vehicle_ids: tuple[str, ...] = ()
         self._rejected_control_vehicle_ids: tuple[str, ...] = ()
+        self._frozen_collision_vehicle_ids: set[str] = set()
+        self._collision_vehicle_ids: set[str] = set()
 
     def load(self, config: SumoConfig) -> None:
         if self._connected:
@@ -86,6 +91,8 @@ class SumoTrafficEngineAdapter:
         self._config = config
         self._version = version
         self._simulation_time_ms = initial_time_ms
+        self._frozen_collision_vehicle_ids.clear()
+        self._collision_vehicle_ids.clear()
         self._connected = True
 
     def apply_controls(self, commands: Mapping[str, ControlCommand]) -> None:
@@ -93,6 +100,13 @@ class SumoTrafficEngineAdapter:
         rejected = []
         for vehicle_id, command in sorted(commands.items()):
             try:
+                if command.safety_checks_override:
+                    self._runtime.set_vehicle_speed_mode(vehicle_id, 0)
+                if command.lane_change_mode is not None:
+                    self._runtime.set_vehicle_lane_change_mode(
+                        vehicle_id,
+                        command.lane_change_mode,
+                    )
                 if command.stop_requested:
                     self._runtime.set_vehicle_speed(vehicle_id, 0.0)
                 elif command.desired_speed_mps is not None:
@@ -108,10 +122,17 @@ class SumoTrafficEngineAdapter:
                     self._runtime.change_lane_relative(
                         vehicle_id,
                         direction,
-                        config.step_ms / 1000.0,
+                        command.lane_change_duration_s,
                     )
             except Exception:
                 rejected.append(vehicle_id)
+        if config.freeze_collisions:
+            for vehicle_id in tuple(sorted(self._frozen_collision_vehicle_ids)):
+                try:
+                    self._runtime.set_vehicle_speed_mode(vehicle_id, 0)
+                    self._runtime.set_vehicle_speed(vehicle_id, 0.0)
+                except Exception:
+                    self._frozen_collision_vehicle_ids.discard(vehicle_id)
         self._rejected_control_vehicle_ids = tuple(rejected)
 
     def step(self, target_time_ms: int) -> TrafficSnapshot:
@@ -137,6 +158,18 @@ class SumoTrafficEngineAdapter:
             self._departed_vehicle_ids = self._runtime.departed_vehicle_ids()
             self._arrived_vehicle_ids = self._runtime.arrived_vehicle_ids()
             vehicle_samples = self._runtime.vehicle_samples()
+            current_collision_ids = set(self._runtime.colliding_vehicle_ids())
+            self._collision_vehicle_ids.update(current_collision_ids)
+            if config.freeze_collisions:
+                present_ids = {sample.vehicle_id for sample in vehicle_samples}
+                self._frozen_collision_vehicle_ids.intersection_update(present_ids)
+                collision_ids = current_collision_ids & present_ids
+                for vehicle_id in sorted(collision_ids):
+                    self._runtime.set_vehicle_speed_mode(vehicle_id, 0)
+                    self._runtime.set_vehicle_speed(vehicle_id, 0.0)
+                self._frozen_collision_vehicle_ids.update(collision_ids)
+                if collision_ids:
+                    vehicle_samples = self._runtime.vehicle_samples()
             traffic_light_samples = self._runtime.traffic_light_samples()
         except TrafficVerseError:
             raise
@@ -162,6 +195,7 @@ class SumoTrafficEngineAdapter:
                 )
                 for sample in traffic_light_samples
             ),
+            collision_vehicle_ids=tuple(sorted(self._collision_vehicle_ids)),
         )
 
     def health(self) -> ComponentHealth:
@@ -196,7 +230,7 @@ class SumoTrafficEngineAdapter:
             vehicle_id=sample.vehicle_id,
             simulation_time_ms=target_time_ms,
             sequence=self._sequence + 1,
-            automation_level=AutomationLevel.HUMAN,
+            automation_level=_automation_level(sample.vehicle_id),
             position=Vector3(x=sample.x_m, y=sample.y_m, z=sample.z_m),
             speed_mps=sample.speed_mps,
             acceleration_mps2=sample.acceleration_mps2,
@@ -236,3 +270,10 @@ def _vehicle_action(acceleration_mps2: float) -> VehicleAction:
     if acceleration_mps2 < -0.05:
         return VehicleAction.BRAKE
     return VehicleAction.KEEP_LANE
+
+
+def _automation_level(vehicle_id: str) -> AutomationLevel:
+    match = _AUTOMATION_LEVEL_PATTERN.search(vehicle_id)
+    if match is None:
+        return AutomationLevel.HUMAN
+    return AutomationLevel(f"L{match.group(1)}")

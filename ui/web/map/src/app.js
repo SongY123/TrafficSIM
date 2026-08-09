@@ -43,6 +43,8 @@ const state = {
   networkBounds: null,
   viewMode: "2d",
   selectedVehicleId: null,
+  followScenarioVehicles: true,
+  lastScenarioFitAtMs: 0,
   theme: "dark",
   lightingEffect: createLightingEffect(MAP_THEMES.dark)
 };
@@ -78,7 +80,8 @@ try {
 const overlay = new MapboxOverlay({
   interleaved: true,
   effects: [state.lightingEffect],
-  layers: []
+  layers: [],
+  getTooltip: ({object}) => vehicleTooltip(object)
 });
 
 function activeTheme() {
@@ -112,10 +115,40 @@ function phaseColor(signalId, alpha = 245) {
 }
 
 function vehicleColor(vehicle, alpha = 245) {
-  const color = vehicle.automation_level === "HUMAN"
-    ? activeTheme().vehicle.human
-    : activeTheme().vehicle.automated;
+  if (isAmbulance(vehicle)) {
+    return [...activeTheme().emergencyVehicle, alpha];
+  }
+  const color = activeTheme().vehicle[vehicle.automation_level] ?? activeTheme().vehicle.HUMAN;
   return [...color, alpha];
+}
+
+function vehicleAccentColor(vehicle, alpha = 245) {
+  if (isAmbulance(vehicle)) {
+    return [...activeTheme().emergencyVehicleAccent, alpha];
+  }
+  const color =
+    activeTheme().vehicleAccent[vehicle.automation_level] ?? activeTheme().vehicleAccent.HUMAN;
+  return [...color, alpha];
+}
+
+function isAmbulance(vehicle) {
+  return (vehicle?.vehicle_id ?? "").startsWith("ambulance_");
+}
+
+function isStaticObstacle(vehicle) {
+  return (vehicle?.vehicle_id ?? "").startsWith("static_obstacle_");
+}
+
+function vehicleTooltip(vehicle) {
+  if (!vehicle?.vehicle_id) {
+    return null;
+  }
+  if (isStaticObstacle(vehicle)) {
+    return `${vehicle.vehicle_id}\n固定道路障碍物`;
+  }
+  const speedKmh = Number.isFinite(vehicle.speed_mps) ? vehicle.speed_mps * 3.6 : 0;
+  const identity = isAmbulance(vehicle) ? "救护车" : `等级 ${vehicle.automation_level}`;
+  return `${vehicle.vehicle_id}\n${identity} · ${speedKmh.toFixed(1)} km/h\n车道 ${vehicle.lane_id}`;
 }
 
 function laneWidthM(feature) {
@@ -306,7 +339,7 @@ function vehicleCabinPolygon(vehicle) {
 function vehicleDetailParts() {
   const halfWidthM = LAYER_STYLE.vehicleWidthM * 0.5;
   const wheelLateralM = halfWidthM * 0.96;
-  return state.vehicles.flatMap((vehicle) => {
+  return state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle)).flatMap((vehicle) => {
     const parts = [
       {vehicle, kind: "roof", polygon: vehicleCabinPolygon(vehicle)},
       {
@@ -385,21 +418,15 @@ function vehiclePartColor(part) {
     return theme.vehicleSensor;
   }
   if (part.kind === "hood-highlight") {
-    const accent = theme.vehicleAccent[
-      part.vehicle.automation_level === "HUMAN" ? "human" : "automated"
-    ];
-    return [...accent, 190];
+    return vehicleAccentColor(part.vehicle, 190);
   }
-  const accent = theme.vehicleAccent[
-    part.vehicle.automation_level === "HUMAN" ? "human" : "automated"
-  ];
-  return [...accent, 245];
+  return vehicleAccentColor(part.vehicle);
 }
 
 function vehicleLightPoints() {
   const halfLengthM = LAYER_STYLE.vehicleLengthM * 0.5;
   const lateralM = LAYER_STYLE.vehicleWidthM * 0.34;
-  return state.vehicles.flatMap((vehicle) => [
+  return state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle)).flatMap((vehicle) => [
     {vehicle, forwardM: halfLengthM - 0.12, lateralM: -lateralM, kind: "headlight"},
     {vehicle, forwardM: halfLengthM - 0.12, lateralM, kind: "headlight"},
     {vehicle, forwardM: -halfLengthM + 0.1, lateralM: -lateralM, kind: "tail-light"},
@@ -552,14 +579,68 @@ function signalLayers(phaseTrigger) {
 
 function vehicleLayers() {
   const theme = activeTheme();
+  const vehicles = state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle));
+  const obstacles = state.vehicles.filter(isStaticObstacle);
+  const ambulances = vehicles.filter(isAmbulance);
   const common = {
-    data: state.vehicles,
+    data: vehicles,
     coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
     coordinateOrigin: [0, 0, 0],
     pickable: true,
     onClick: selectVehicle
   };
   return [
+    new ScatterplotLayer({
+      id: "trafficverse-obstacle-halo",
+      data: obstacles,
+      coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+      coordinateOrigin: [0, 0, 0],
+      getPosition: (vehicle) => toMapPosition(vehicle.position),
+      getFillColor: [...theme.obstacle, 70],
+      getLineColor: theme.obstacle,
+      getRadius: 4.2,
+      radiusUnits: "meters",
+      radiusMinPixels: 6,
+      radiusMaxPixels: 14,
+      stroked: true,
+      lineWidthMinPixels: 2,
+      pickable: false,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
+    new PolygonLayer({
+      id: "trafficverse-obstacle-bodies",
+      data: obstacles,
+      coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+      coordinateOrigin: [0, 0, 0],
+      getPolygon: (vehicle) => orientedVehiclePolygon(vehicle, [
+        [3.0, -1.45], [3.0, 1.45], [-3.0, 1.45], [-3.0, -1.45]
+      ]),
+      getFillColor: theme.obstacle,
+      getLineColor: theme.obstacleOutline,
+      getLineWidth: 2,
+      lineWidthUnits: "pixels",
+      stroked: true,
+      pickable: true,
+      onClick: selectVehicle,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
+    new ScatterplotLayer({
+      id: "trafficverse-emergency-highlight",
+      data: ambulances,
+      coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+      coordinateOrigin: [0, 0, 0],
+      getPosition: (vehicle) => toMapPosition(vehicle.position),
+      getFillColor: [...theme.emergencyVehicle, 85],
+      getLineColor: theme.emergencyVehicleAccent,
+      getRadius: 5.4,
+      radiusUnits: "meters",
+      radiusMinPixels: 9,
+      radiusMaxPixels: 18,
+      stroked: true,
+      lineWidthMinPixels: 2.5,
+      pickable: false,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
     new PolygonLayer({
       ...common,
       id: "trafficverse-vehicle-shadows",
@@ -575,16 +656,26 @@ function vehicleLayers() {
       getPosition: (vehicle) => toMapPosition(vehicle.position),
       getFillColor: (vehicle) =>
         vehicle.vehicle_id === state.selectedVehicleId
-          ? vehicleColor(vehicle, 52)
-          : [0, 0, 0, 0],
+          ? vehicleColor(vehicle, 105)
+          : vehicleColor(vehicle, 150),
+      getLineColor: (vehicle) => vehicleColor(vehicle),
       getRadius: (vehicle) =>
-        vehicle.vehicle_id === state.selectedVehicleId
+        isAmbulance(vehicle)
+          ? LAYER_STYLE.vehicleHaloRadiusM * 1.35
+          : vehicle.vehicle_id === state.selectedVehicleId
           ? LAYER_STYLE.vehicleHaloRadiusM
-          : 0,
+          : LAYER_STYLE.vehicleHaloRadiusM * 0.72,
       radiusUnits: "meters",
-      radiusMinPixels: 5,
+      radiusMinPixels: 4,
+      radiusMaxPixels: 11,
+      stroked: true,
+      lineWidthMinPixels: 1,
       parameters: FLAT_LAYER_PARAMETERS,
-      updateTriggers: {getFillColor: state.theme}
+      updateTriggers: {
+        getFillColor: [state.theme, state.selectedVehicleId],
+        getLineColor: state.theme,
+        getRadius: state.selectedVehicleId
+      }
     }),
     new PolygonLayer({
       ...common,
@@ -683,6 +774,7 @@ function visitCoordinates(coordinates, visitor) {
 }
 
 function resetView(duration = 500) {
+  state.followScenarioVehicles = false;
   if (!state.networkBounds || state.networkBounds.isEmpty()) {
     return;
   }
@@ -692,6 +784,50 @@ function resetView(duration = 500) {
     maxZoom: 18,
     pitch: 0,
     bearing: 0
+  });
+}
+
+function scenarioVehicles() {
+  const ids = state.vehicles.map((vehicle) => vehicle.vehicle_id ?? "");
+  if (ids.some((vehicleId) => vehicleId.startsWith("static_obstacle_"))) {
+    return state.vehicles.filter((vehicle) =>
+      /^(target_|static_obstacle_)/.test(vehicle.vehicle_id ?? "")
+    );
+  }
+  if (ids.some((vehicleId) => vehicleId.startsWith("cutin_"))) {
+    return state.vehicles.filter((vehicle) => (vehicle.vehicle_id ?? "").startsWith("cutin_"));
+  }
+  if (ids.some((vehicleId) => vehicleId === "ambulance_L5_0")) {
+    return state.vehicles.filter((vehicle) => /^(yield_|ambulance_)/.test(vehicle.vehicle_id ?? ""));
+  }
+  return [];
+}
+
+function fitScenarioVehicles() {
+  if (!state.followScenarioVehicles) {
+    return;
+  }
+  const nowMs = performance.now();
+  if (nowMs - state.lastScenarioFitAtMs < 400) {
+    return;
+  }
+  const vehicles = scenarioVehicles();
+  if (vehicles.length < 2) {
+    return;
+  }
+  const bounds = new maplibregl.LngLatBounds();
+  for (const vehicle of vehicles) {
+    const [x, y] = toMapPosition(vehicle.position);
+    bounds.extend(localMetersToLngLat(x, y));
+  }
+  if (bounds.isEmpty()) {
+    return;
+  }
+  state.lastScenarioFitAtMs = nowMs;
+  map.fitBounds(bounds, {
+    padding: {top: 115, right: 90, bottom: 90, left: 90},
+    duration: 180,
+    maxZoom: 18
   });
 }
 
@@ -763,7 +899,10 @@ function fitNetwork(network) {
     });
   }
   state.networkBounds = bounds;
+  state.followScenarioVehicles = true;
+  state.lastScenarioFitAtMs = 0;
   resetView(0);
+  state.followScenarioVehicles = true;
 }
 
 document.getElementById("reset-view").addEventListener("click", () => resetView());
@@ -808,6 +947,7 @@ window.TrafficVerseMap = {
   setVehicles(vehicles) {
     state.vehicles = Array.isArray(vehicles) ? vehicles : [];
     renderLayers();
+    fitScenarioVehicles();
   },
   setTrafficLights(trafficLights) {
     state.trafficLights = new Map(
@@ -844,6 +984,11 @@ map.once("load", () => {
   enableCommandDragRotation();
   applyTheme(state.theme);
   connectQtBridge();
+  map.on("movestart", (event) => {
+    if (event.originalEvent) {
+      state.followScenarioVehicles = false;
+    }
+  });
 });
 map.on("error", (event) => {
   const message = event?.error?.message ?? "未知错误";

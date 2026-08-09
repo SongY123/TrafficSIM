@@ -27,6 +27,10 @@ from ui.models import (
     WorldState,
 )
 
+_AUTOMATION_LEVELS = ("L0", "L1", "L2", "L3", "L4", "L5")
+_AUTOMATION_LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:_|$)")
+_SNAPSHOT_RECOVERY_INTERVAL_MS = 1_000
+
 
 class RunViewModel(QObject):
     workspace_catalog_changed = Signal(object)
@@ -73,20 +77,24 @@ class RunViewModel(QObject):
         self._experiment_workspace_id: UUID | None = None
         self._status: ExperimentStatus | None = None
         self._world: WorldState | None = None
+        self._last_snapshot_recovery_time_ms: int | None = None
         self._launch_after_create = False
         self._start_after_prepare = False
         self._restart_after_stop = False
+        self._stop_for_relaunch_when_running = False
         self._seen_vehicle_ids: set[str] = set()
         self._active_vehicle_ids: set[str] = set()
         self._vehicle_entered_at_ms: dict[str, int] = {}
+        self._vehicle_automation_levels: dict[str, str] = {}
         self._completed_travel_time_total_ms = 0
         self._completed_vehicle_count = 0
+        self._realtime_connected = False
         self._import_timer = QTimer(self)
         self._import_timer.setInterval(500)
         self._import_timer.timeout.connect(self._poll_import)
         rest.request_succeeded.connect(self.handle_rest_success)
         rest.request_failed.connect(self.handle_rest_failure)
-        realtime.connection_changed.connect(self.connection_changed)
+        realtime.connection_changed.connect(self._handle_realtime_connection)
         realtime.envelope_received.connect(self.handle_envelope)
         realtime.protocol_error.connect(
             lambda message: self.notification.emit("error", f"实时协议错误：{message}")
@@ -243,6 +251,32 @@ class RunViewModel(QObject):
 
     def launch_experiment(self) -> None:
         """Create the configured experiment, then enter and start live monitoring."""
+        if self._status in {ExperimentStatus.COMPLETED, ExperimentStatus.FAILED}:
+            self._begin_restart()
+            return
+        if self._status in {ExperimentStatus.RUNNING, ExperimentStatus.PAUSED}:
+            self._restart_after_stop = self._send(
+                "experiment.stop",
+                {"reason": "SCENARIO_SWITCH"},
+            )
+            return
+        if self._status is ExperimentStatus.STOPPING:
+            self._restart_after_stop = True
+            return
+        if self._status in {
+            ExperimentStatus.CREATED,
+            ExperimentStatus.PREPARING,
+            ExperimentStatus.READY,
+        }:
+            self._restart_after_stop = True
+            self._stop_for_relaunch_when_running = True
+            if self._status is ExperimentStatus.CREATED:
+                self.start()
+            elif self._status is ExperimentStatus.PREPARING:
+                self._start_after_prepare = True
+            else:
+                self.start()
+            return
         self._launch_after_create = True
         if not self.create_experiment():
             self._launch_after_create = False
@@ -250,7 +284,8 @@ class RunViewModel(QObject):
     def start(self) -> None:
         if self._status is ExperimentStatus.CREATED:
             self._start_after_prepare = True
-            self._send("experiment.prepare", {})
+            if self._realtime_connected:
+                self._send("experiment.prepare", {})
         elif self._status is ExperimentStatus.READY:
             self._send("experiment.start", {})
 
@@ -262,6 +297,7 @@ class RunViewModel(QObject):
 
     def stop(self) -> None:
         self._restart_after_stop = False
+        self._stop_for_relaunch_when_running = False
         self._send("experiment.stop", {"reason": "USER_REQUEST"})
 
     def restart(self) -> None:
@@ -397,14 +433,21 @@ class RunViewModel(QObject):
             update = self._world.apply(envelope)
             self.simulation_time_changed.emit(self._world.simulation_time_ms)
             if update.sequence_gap is not None:
-                previous, current = update.sequence_gap
-                self.notification.emit(
-                    "warning", f"实时数据从序号 {previous} 跳到 {current}，正在恢复完整快照。"
-                )
-                self._realtime.request_snapshot()
+                last_recovery_ms = self._last_snapshot_recovery_time_ms
+                if (
+                    last_recovery_ms is None
+                    or self._world.simulation_time_ms - last_recovery_ms
+                    >= _SNAPSHOT_RECOVERY_INTERVAL_MS
+                ):
+                    self._last_snapshot_recovery_time_ms = self._world.simulation_time_ms
+                    self._realtime.request_snapshot()
             if update.vehicles_changed:
                 vehicles = tuple(self._world.vehicles.values())
-                self._update_live_metrics(vehicles, self._world.simulation_time_ms)
+                self._update_live_metrics(
+                    vehicles,
+                    self._world.collision_vehicle_ids,
+                    self._world.simulation_time_ms,
+                )
                 self.vehicles_changed.emit(vehicles)
             if update.traffic_lights_changed:
                 self.traffic_lights_changed.emit(tuple(self._world.traffic_lights.values()))
@@ -414,6 +457,7 @@ class RunViewModel(QObject):
                 self._set_status(self._world.status)
             if envelope.type == "command.rejected":
                 self._restart_after_stop = False
+                self._stop_for_relaunch_when_running = False
                 message = (
                     envelope.payload.get("message") if isinstance(envelope.payload, dict) else None
                 )
@@ -430,6 +474,7 @@ class RunViewModel(QObject):
         self._experiment_id = view.experiment_id
         self._experiment_workspace_id = view.workspace_id
         self._world = WorldState(view.experiment_id, simulation_time_ms=view.simulation_time_ms)
+        self._last_snapshot_recovery_time_ms = None
         self._reset_live_metrics()
         self._set_status(view.status)
         self._realtime.connect_to_experiment(view.experiment_id)
@@ -441,6 +486,11 @@ class RunViewModel(QObject):
         if status is ExperimentStatus.READY and self._start_after_prepare:
             self._start_after_prepare = False
             self._send("experiment.start", {})
+        if status is ExperimentStatus.RUNNING and self._stop_for_relaunch_when_running:
+            self._stop_for_relaunch_when_running = not self._send(
+                "experiment.stop",
+                {"reason": "SCENARIO_SWITCH"},
+            )
         if (
             status in {ExperimentStatus.COMPLETED, ExperimentStatus.FAILED}
             and self._restart_after_stop
@@ -449,6 +499,7 @@ class RunViewModel(QObject):
 
     def _begin_restart(self) -> None:
         self._restart_after_stop = False
+        self._stop_for_relaunch_when_running = False
         self._reset_experiment_context()
         self._launch_after_create = True
         if not self.create_experiment():
@@ -457,11 +508,13 @@ class RunViewModel(QObject):
     def _update_live_metrics(
         self,
         vehicles: tuple[Vehicle, ...],
+        collision_vehicle_ids: set[str],
         simulation_time_ms: int,
     ) -> None:
         current_ids = {vehicle.vehicle_id for vehicle in vehicles}
         self._seen_vehicle_ids.update(current_ids)
         for vehicle in vehicles:
+            self._vehicle_automation_levels[vehicle.vehicle_id] = vehicle.automation_level
             self._vehicle_entered_at_ms.setdefault(
                 vehicle.vehicle_id,
                 min(vehicle.simulation_time_ms, simulation_time_ms),
@@ -484,12 +537,34 @@ class RunViewModel(QObject):
             if self._completed_vehicle_count
             else None
         )
+        level_speed_samples: dict[str, list[float]] = {level: [] for level in _AUTOMATION_LEVELS}
+        for vehicle in vehicles:
+            if vehicle.automation_level in level_speed_samples:
+                level_speed_samples[vehicle.automation_level].append(vehicle.speed_mps)
+        level_average_speed_mps = tuple(
+            (
+                level,
+                sum(level_speed_samples[level]) / len(level_speed_samples[level])
+                if level_speed_samples[level]
+                else 0.0,
+            )
+            for level in _AUTOMATION_LEVELS
+        )
+        collision_counts = dict.fromkeys(_AUTOMATION_LEVELS, 0)
+        for vehicle_id in collision_vehicle_ids:
+            level = self._vehicle_automation_levels.get(vehicle_id) or _vehicle_level(vehicle_id)
+            if level in collision_counts:
+                collision_counts[level] += 1
         self.live_metrics_changed.emit(
             LiveMetrics(
                 current_vehicle_count=len(vehicles),
                 total_vehicle_count=len(self._seen_vehicle_ids),
                 average_speed_mps=average_speed_mps,
                 average_travel_time_ms=average_travel_time_ms,
+                level_average_speed_mps=level_average_speed_mps,
+                level_collision_counts=tuple(
+                    (level, collision_counts[level]) for level in _AUTOMATION_LEVELS
+                ),
             )
         )
 
@@ -497,6 +572,7 @@ class RunViewModel(QObject):
         self._seen_vehicle_ids.clear()
         self._active_vehicle_ids.clear()
         self._vehicle_entered_at_ms.clear()
+        self._vehicle_automation_levels.clear()
         self._completed_travel_time_total_ms = 0
         self._completed_vehicle_count = 0
         self.live_metrics_changed.emit(
@@ -505,6 +581,8 @@ class RunViewModel(QObject):
                 total_vehicle_count=0,
                 average_speed_mps=0.0,
                 average_travel_time_ms=None,
+                level_average_speed_mps=tuple((level, 0.0) for level in _AUTOMATION_LEVELS),
+                level_collision_counts=tuple((level, 0) for level in _AUTOMATION_LEVELS),
             )
         )
 
@@ -518,6 +596,16 @@ class RunViewModel(QObject):
             self.notification.emit("error", f"命令发送失败：{error}")
             return False
         return True
+
+    def _handle_realtime_connection(self, status: str) -> None:
+        self._realtime_connected = status == "CONNECTED"
+        self.connection_changed.emit(status)
+        if (
+            self._realtime_connected
+            and self._start_after_prepare
+            and self._status is ExperimentStatus.CREATED
+        ):
+            self._send("experiment.prepare", {})
 
     def _handle_import_job(self, job: MapImportJob) -> None:
         self._import_job_id = job.job_id
@@ -541,13 +629,16 @@ class RunViewModel(QObject):
 
     def _reset_experiment_context(self) -> None:
         self._realtime.close()
+        self._realtime_connected = False
         self._experiment_id = None
         self._experiment_workspace_id = None
         self._status = None
         self._world = None
+        self._last_snapshot_recovery_time_ms = None
         self._launch_after_create = False
         self._start_after_prepare = False
         self._restart_after_stop = False
+        self._stop_for_relaunch_when_running = False
         self.experiment_status_changed.emit("NOT_CREATED")
         self.simulation_time_changed.emit(0)
         self.vehicles_changed.emit(())
@@ -562,6 +653,11 @@ class RunViewModel(QObject):
             (item for item in self._workspaces if item.workspace_id == workspace_id),
             None,
         )
+
+
+def _vehicle_level(vehicle_id: str) -> str | None:
+    match = _AUTOMATION_LEVEL_PATTERN.search(vehicle_id)
+    return f"L{match.group(1)}" if match is not None else None
 
 
 def _items(payload: object) -> list[object]:

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-08-07T15:15:27.750535+08:00 by Eclipse SUMO netconvert 1.27.1
+<netconvertConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <node-files value="configs/maps/mixed-automation-obstacle/mixed-automation-obstacle.nod.xml"/>
+        <edge-files value="configs/maps/mixed-automation-obstacle/mixed-automation-obstacle.edg.xml"/>
+        <type-files value="configs/maps/mixed-automation-obstacle/mixed-automation-obstacle.typ.xml"/>
+    </input>
+
+    <output>
+        <output-file value="configs/maps/mixed-automation-obstacle/mixed-automation-obstacle.net.xml"/>
+    </output>
+
+</netconvertConfiguration>
+-->
+
+<net version="1.20" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+
+    <location netOffset="0.00,0.00" convBoundary="0.00,0.00,1400.00,0.00" origBoundary="0.00,0.00,1400.00,0.00" projParameter="!"/>
+
+    <type id="highway" priority="3" numLanes="3" speed="27.78" allow="emergency passenger" spreadType="center" width="3.50"/>
+
+    <edge id=":end_0" function="internal">
+        <lane id=":end_0_0" index="0" allow="emergency passenger" speed="3.82" length="5.11" width="3.50" shape="1400.00,-1.75 1401.31,-0.88 1401.75,0.00 1401.31,0.88 1400.00,1.75"/>
+    </edge>
+    <edge id=":start_0" function="internal">
+        <lane id=":start_0_0" index="0" allow="emergency passenger" speed="3.82" length="5.11" width="3.50" shape="-0.02,1.75 -1.33,0.88 -1.77,0.00 -1.33,-0.88 -0.02,-1.75"/>
+    </edge>
+
+    <edge id="road_fwd" from="start" to="end" priority="3" type="highway" spreadType="center" shape="-0.02,-5.25 1400.00,-5.25">
+        <lane id="road_fwd_0" index="0" allow="emergency passenger" speed="27.78" length="1400.02" width="3.50" shape="-0.02,-8.75 1400.00,-8.75"/>
+        <lane id="road_fwd_1" index="1" allow="emergency passenger" speed="27.78" length="1400.02" width="3.50" shape="-0.02,-5.25 1400.00,-5.25"/>
+        <lane id="road_fwd_2" index="2" allow="emergency passenger" speed="27.78" length="1400.02" width="3.50" shape="-0.02,-1.75 1400.00,-1.75"/>
+    </edge>
+    <edge id="road_rev" from="end" to="start" priority="3" type="highway" spreadType="center" shape="1400.00,5.25 -0.02,5.25">
+        <lane id="road_rev_0" index="0" allow="emergency passenger" speed="27.78" length="1400.02" width="3.50" shape="1400.00,8.75 -0.02,8.75"/>
+        <lane id="road_rev_1" index="1" allow="emergency passenger" speed="27.78" length="1400.02" width="3.50" shape="1400.00,5.25 -0.02,5.25"/>
+        <lane id="road_rev_2" index="2" allow="emergency passenger" speed="27.78" length="1400.02" width="3.50" shape="1400.00,1.75 -0.02,1.75"/>
+    </edge>
+
+    <junction id="end" type="priority" x="1400.00" y="0.00" incLanes="road_fwd_0 road_fwd_1 road_fwd_2" intLanes=":end_0_0" shape="1400.00,0.00 1400.00,-10.50 1400.00,0.00">
+        <request index="0" response="0" foes="0" cont="0"/>
+    </junction>
+    <junction id="start" type="priority" x="0.00" y="0.00" incLanes="road_rev_0 road_rev_1 road_rev_2" intLanes=":start_0_0" shape="0.00,0.00 0.00,10.50 0.00,0.00">
+        <request index="0" response="0" foes="0" cont="0"/>
+    </junction>
+
+    <connection from="road_fwd" to="road_rev" fromLane="2" toLane="2" via=":end_0_0" dir="t" state="M"/>
+    <connection from="road_rev" to="road_fwd" fromLane="2" toLane="2" via=":start_0_0" dir="t" state="M"/>
+
+    <connection from=":end_0" to="road_rev" fromLane="0" toLane="2" dir="t" state="M"/>
+    <connection from=":start_0" to="road_fwd" fromLane="0" toLane="2" dir="t" state="M"/>
+
+</net>

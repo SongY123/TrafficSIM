@@ -1,0 +1,7 @@
+{
+  "apiVersion": "trafficverse/v1",
+  "kind": "SumoScenarioPackage",
+  "spec": {
+    "name": "救护车接近与应急让行"
+  }
+}

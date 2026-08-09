@@ -92,6 +92,9 @@ class ControlCommand(StrictModel):
     desired_acceleration_mps2: float | None = None
     desired_speed_mps: float | None = Field(default=None, ge=0.0)
     lane_change: LaneChangeDirection = LaneChangeDirection.NONE
+    lane_change_duration_s: float = Field(default=5.0, gt=0.0, le=60.0)
+    lane_change_mode: int | None = Field(default=None, ge=0, le=4095)
+    safety_checks_override: bool = False
     takeover_requested: bool = False
     stop_requested: bool = False
 
@@ -101,6 +104,8 @@ class ControlCommand(StrictModel):
             self.desired_acceleration_mps2 is None
             and self.desired_speed_mps is None
             and self.lane_change is LaneChangeDirection.NONE
+            and self.lane_change_mode is None
+            and not self.safety_checks_override
             and not self.takeover_requested
             and not self.stop_requested
         ):
