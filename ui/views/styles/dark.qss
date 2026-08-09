@@ -152,6 +152,22 @@ QFrame#automationConfigurationRow {
 }
 QFrame#automationConfigurationRow QComboBox,
 QFrame#automationConfigurationRow QSpinBox { background: #090c12; }
+QSpinBox#automationVehicleCount { padding-right: 38px; qproperty-arrowColor: #cfd3dc; }
+QSpinBox#automationVehicleCount::up-button,
+QSpinBox#automationVehicleCount::down-button {
+  subcontrol-origin: border; width: 34px; border-left: 1px solid #343b4a;
+}
+QSpinBox#automationVehicleCount::up-button {
+  subcontrol-position: top right; border-bottom: 1px solid #343b4a;
+}
+QSpinBox#automationVehicleCount::down-button { subcontrol-position: bottom right; }
+QSpinBox#automationVehicleCount::up-arrow,
+QSpinBox#automationVehicleCount::down-arrow { image: none; width: 0; height: 0; }
+QSpinBox#automationVehicleCount::up-button:hover,
+QSpinBox#automationVehicleCount::down-button:hover { background: #18222c; }
+QSpinBox#automationVehicleCount[macosStepper="true"] { padding-right: 44px; }
+QSpinBox#automationVehicleCount[macosStepper="true"]::up-button,
+QSpinBox#automationVehicleCount[macosStepper="true"]::down-button { width: 40px; }
 QPushButton#automationRowAction { min-width: 28px; max-width: 28px; padding: 6px 0; }
 QPushButton#automationRowAction[action="remove"] { color: #7f8799; }
 QPushButton#addAutomationCategoryButton {
@@ -240,3 +256,57 @@ QHeaderView::section {
 QTabWidget::pane { border: 1px solid #414243; border-radius: 4px; }
 QTabBar::tab { background: #1d1e1f; color: #a3a6ad; padding: 8px 14px; }
 QTabBar::tab:selected { color: #409eff; border-bottom: 2px solid #409eff; }
+
+QPushButton[role="historyEntry"] {
+  background: transparent; border: 0; border-left: 1px solid #343b4a;
+  border-radius: 0; color: #8b93a7; padding: 7px 5px 7px 25px;
+  text-align: left; font-size: 12px; font-family: "__TRAFFICVERSE_MONO_FONT__";
+}
+QPushButton[role="historyEntry"]:hover { background: #151b29; color: #cdd6e8; }
+QPushButton[role="historyEntry"][active="true"] {
+  background: #11192a; border: 1px solid #29426f; border-left: 3px solid #6f8dff;
+  border-radius: 4px; color: #e6ebf5; font-weight: 600;
+}
+QWidget#dataReplayPage, QWidget#replayBody { background: #11141d; }
+QLabel#replayTimestamp {
+  background: #1c2432; border: 1px solid #303a4b; border-radius: 6px;
+  color: #12d7f4; padding: 7px 11px; font-family: "__TRAFFICVERSE_MONO_FONT__";
+  font-size: 12px; font-weight: 600;
+}
+QPushButton#replayRestartButton, QPushButton#replayBackButton, QPushButton#replayExportButton {
+  padding: 8px 14px; font-weight: 600;
+}
+QFrame#replaySummaryBar, QFrame#replaySection {
+  background: #1b1e27; border: 1px solid #343a48; border-radius: 10px;
+}
+QWidget#replaySummaryItem { background: transparent; border-right: 1px solid #303542; }
+QLabel#replaySummaryLabel, QLabel#replayMetricLabel, QLabel#replayMetricUnit,
+QLabel#replayChartRange { color: #858da0; font-size: 11px; }
+QLabel#replaySummaryValue {
+  color: #d8dce7; font-size: 12px; font-weight: 600;
+  font-family: "__TRAFFICVERSE_MONO_FONT__";
+}
+QLabel#replaySummaryValue[summaryKey="duration"] { color: #12d7f4; font-size: 15px; }
+QLabel#replaySummaryValue[summaryKey="status"] { color: #2fdf84; }
+QLabel#replaySectionTitle { color: #d8dce7; font-size: 16px; font-weight: 700; }
+QFrame#replayMetricCard, QFrame#replayChartCard {
+  background: #1c1f28; border: 1px solid #343946; border-radius: 8px;
+}
+QLabel#replayMetricValue {
+  color: #e1e4ec; font-size: 25px; font-weight: 700;
+  font-family: "__TRAFFICVERSE_MONO_FONT__";
+}
+QLabel#replayMetricValue[tone="primary"] { color: #12d7f4; }
+QLabel#replayMetricValue[tone="warning"] { color: #ff9c78; }
+QLabel#replayChartTitle { color: #d8dce7; font-size: 12px; font-weight: 600; }
+QFrame#replayTrendChart { background: transparent; border: 0; }
+QFrame#replayRoadCanvas {
+  background: #09101a; border: 1px solid #263140; border-radius: 8px;
+}
+QPushButton#replayMapModeButton {
+  background: #242731; border: 1px solid #383e4c; color: #aab1c0;
+  padding: 6px 9px; font-size: 11px;
+}
+QPushButton#replayMapModeButton:checked {
+  background: #263252; border-color: #536ead; color: #86a0ff;
+}

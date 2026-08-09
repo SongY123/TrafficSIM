@@ -17,6 +17,7 @@ from ui.models.protocol import (
     WorldState,
     WorldUpdate,
 )
+from ui.models.replay import MOCK_REPLAY_RECORDS, ReplayMetric, ReplayRecord, ReplayTrend
 
 __all__ = [
     "AgentApiSummary",
@@ -29,7 +30,11 @@ __all__ = [
     "MapImportJob",
     "MapManifest",
     "MapSummary",
+    "MOCK_REPLAY_RECORDS",
     "ReadinessResponse",
+    "ReplayMetric",
+    "ReplayRecord",
+    "ReplayTrend",
     "TrafficLight",
     "Vehicle",
     "WorldState",

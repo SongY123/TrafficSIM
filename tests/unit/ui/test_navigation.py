@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
+from ui.models import MOCK_REPLAY_RECORDS
 from ui.views.navigation import NavigationRail
 from ui.views.theme import ThemeMode, load_stylesheet
 
@@ -54,6 +55,44 @@ def test_workspace_navigation_matches_grouped_stitch_structure_and_starts_collap
 
     assert navigation.findChild(QPushButton, "nav_analysis") is None
     assert navigation.findChild(QPushButton, "nav_live") is None
+    navigation.close()
+
+
+def test_history_navigation_expands_on_main_click_and_opens_selected_replay() -> None:
+    app = _application()
+    navigation = NavigationRail()
+    navigation.resize(236, 720)
+    navigation.show()
+    requests: list[str] = []
+    navigation.replay_requested.connect(requests.append)
+    history = navigation.findChild(QPushButton, "nav_experiments")
+    children = navigation.findChild(QWidget, "nav_children_experiments")
+    entries = [
+        button
+        for button in navigation.findChildren(QPushButton)
+        if button.property("role") == "historyEntry"
+    ]
+
+    assert history is not None
+    assert children is not None
+    assert len(entries) == len(MOCK_REPLAY_RECORDS)
+    assert children.isHidden()
+    history.click()
+    app.processEvents()
+    assert not children.isHidden()
+    assert children.height() >= 32 * len(MOCK_REPLAY_RECORDS)
+    assert all(entry.isVisible() and entry.height() == 32 for entry in entries)
+    assert all(entry.text() for entry in entries)
+
+    entries[0].click()
+    navigation.set_active("replay")
+    navigation.set_history_selection(requests[0])
+    row = navigation.findChild(QWidget, "navRow_experiments")
+
+    assert requests == [entries[0].property("recordId")]
+    assert entries[0].property("active") is True
+    assert row is not None
+    assert row.property("active") is True
     navigation.close()
 
 
