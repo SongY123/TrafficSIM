@@ -17,6 +17,7 @@ from ui.models.protocol import (
     WorldState,
     WorldUpdate,
 )
+from ui.models.replay import MOCK_REPLAY_RECORDS, ReplayMetric, ReplayRecord, ReplayTrend
 from ui.models.traffic_scenario import TRAFFIC_SCENARIO_PRESETS, TrafficScenarioPreset
 
 __all__ = [
@@ -30,7 +31,11 @@ __all__ = [
     "MapImportJob",
     "MapManifest",
     "MapSummary",
+    "MOCK_REPLAY_RECORDS",
     "ReadinessResponse",
+    "ReplayMetric",
+    "ReplayRecord",
+    "ReplayTrend",
     "TrafficLight",
     "TrafficScenarioPreset",
     "TRAFFIC_SCENARIO_PRESETS",

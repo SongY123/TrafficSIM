@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import platform
+
+import pytest
 from PySide6.QtCore import QTime
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QPushButton,
+    QStyle,
+    QStyleOptionSpinBox,
+)
 from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary
 from ui.views.scene_configuration_page import SceneConfigurationPage
+from ui.views.theme import ThemeMode, load_stylesheet
 
 
 def _application() -> QApplication:
@@ -58,8 +68,8 @@ def test_scene_configuration_matches_reference_defaults() -> None:
     assert page.scene_name.placeholderText() == "请输入场景名称"
     assert page.description.toPlainText() == ""
     assert page.description.placeholderText() == "请输入场景描述"
-    assert page.weather_time_combo.currentText() == "晴朗 · 中午"
     assert page.duration_time.time() == QTime(1, 0, 0)
+    assert page.findChild(QComboBox, "simulationWeatherTimeCombo") is None
     assert page.save_draft_button.text() == "保存草稿"
     assert page.save_configuration_button.text() == "保存配置"
 
@@ -131,3 +141,93 @@ def test_scene_configuration_applies_traffic_scenario_preset() -> None:
     )
 
     page.close()
+
+
+def test_macos_automation_count_uses_large_stepper_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = _application()
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+
+    page = SceneConfigurationPage(load_web_map=False)
+    count_input = page.automation_rows[0].count_input
+
+    assert count_input.property("macosStepper") is True
+    assert count_input.minimumHeight() == 48
+    for theme in (ThemeMode.LIGHT, ThemeMode.DARK):
+        stylesheet = load_stylesheet(theme)
+        assert 'QSpinBox#automationVehicleCount[macosStepper="true"]::up-button' in stylesheet
+        assert 'QSpinBox#automationVehicleCount[macosStepper="true"]::down-button' in stylesheet
+        assert "width: 40px;" in stylesheet
+
+    previous_stylesheet = application.styleSheet()
+    application.setStyleSheet(load_stylesheet(ThemeMode.DARK))
+    page.show()
+    application.processEvents()
+    option = QStyleOptionSpinBox()
+    count_input.initStyleOption(option)
+    up_button = count_input.style().subControlRect(
+        QStyle.ComplexControl.CC_SpinBox,
+        option,
+        QStyle.SubControl.SC_SpinBoxUp,
+        count_input,
+    )
+    down_button = count_input.style().subControlRect(
+        QStyle.ComplexControl.CC_SpinBox,
+        option,
+        QStyle.SubControl.SC_SpinBoxDown,
+        count_input,
+    )
+
+    assert up_button.width() >= 40
+    assert down_button.width() >= 40
+    assert up_button.height() >= 24
+    assert down_button.height() >= 24
+
+    page.close()
+    application.setStyleSheet(previous_stylesheet)
+
+
+def test_windows_automation_stepper_renders_explicit_arrow_icons(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = _application()
+    monkeypatch.setattr(platform, "system", lambda: "Windows")
+    previous_stylesheet = application.styleSheet()
+    application.setStyleSheet(load_stylesheet(ThemeMode.DARK))
+    page = SceneConfigurationPage(load_web_map=False)
+    page.show()
+    application.processEvents()
+    count_input = page.automation_rows[0].count_input
+    assert count_input.property("arrowColor").name() == "#cfd3dc"
+    pixmap = count_input.grab()
+    image = pixmap.toImage()
+    pixel_ratio = pixmap.devicePixelRatio()
+    option = QStyleOptionSpinBox()
+    count_input.initStyleOption(option)
+
+    for subcontrol in (
+        QStyle.SubControl.SC_SpinBoxUp,
+        QStyle.SubControl.SC_SpinBoxDown,
+    ):
+        button = count_input.style().subControlRect(
+            QStyle.ComplexControl.CC_SpinBox,
+            option,
+            subcontrol,
+            count_input,
+        )
+        bright_pixels = sum(
+            image.pixelColor(x, y).lightness() >= 150
+            for x in range(
+                round(button.left() * pixel_ratio),
+                round((button.right() + 1) * pixel_ratio),
+            )
+            for y in range(
+                round(button.top() * pixel_ratio),
+                round((button.bottom() + 1) * pixel_ratio),
+            )
+        )
+        assert bright_pixels >= 4
+
+    page.close()
+    application.setStyleSheet(previous_stylesheet)

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QTime, Signal, Slot
+import platform
+
+from PySide6.QtCore import Property, QPoint, Qt, QTime, Signal, Slot
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPalette, QPen, QPolygon
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -13,6 +16,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QStyle,
+    QStyleOptionSpinBox,
     QTextEdit,
     QTimeEdit,
     QVBoxLayout,
@@ -24,6 +29,61 @@ from ui.views.components import PAGE_CONTENT_MARGIN, page_header
 from ui.widgets import MapLibreDeckMapWidget
 
 _AUTOMATION_LEVELS = tuple(f"L{level}" for level in range(6))
+_AUTOMATION_STEPPER_HEIGHT = 36
+_MACOS_AUTOMATION_STEPPER_HEIGHT = 48
+
+
+class _AutomationCountSpinBox(QSpinBox):
+    """Draw stable step arrows without relying on platform-native glyphs."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._arrow_color = QColor()
+
+    def _get_arrow_color(self) -> QColor:
+        return self._arrow_color
+
+    def _set_arrow_color(self, color: QColor) -> None:
+        self._arrow_color = color
+
+    arrowColor = Property(QColor, _get_arrow_color, _set_arrow_color)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        option = QStyleOptionSpinBox()
+        self.initStyleOption(option)
+        painter = QPainter(self)
+        color = (
+            self._arrow_color
+            if self._arrow_color.isValid()
+            else self.palette().color(QPalette.ColorRole.Text)
+        )
+        pen = QPen(color)
+        pen.setWidthF(1.8)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        for subcontrol, points_down in (
+            (QStyle.SubControl.SC_SpinBoxUp, False),
+            (QStyle.SubControl.SC_SpinBoxDown, True),
+        ):
+            button = self.style().subControlRect(
+                QStyle.ComplexControl.CC_SpinBox,
+                option,
+                subcontrol,
+                self,
+            )
+            center = button.center()
+            vertical_offset = 2 if points_down else -2
+            painter.drawPolyline(
+                QPolygon(
+                    (
+                        QPoint(center.x() - 4, center.y() - vertical_offset),
+                        QPoint(center.x(), center.y() + vertical_offset),
+                        QPoint(center.x() + 4, center.y() - vertical_offset),
+                    )
+                )
+            )
 
 
 class _AutomationConfigurationRow(QFrame):
@@ -48,8 +108,13 @@ class _AutomationConfigurationRow(QFrame):
         self.level_combo.currentIndexChanged.connect(self.changed)
         layout.addWidget(self.level_combo, 3)
 
-        self.count_input = QSpinBox()
+        self.count_input = _AutomationCountSpinBox()
         self.count_input.setObjectName("automationVehicleCount")
+        uses_large_stepper = platform.system() == "Darwin"
+        self.count_input.setProperty("macosStepper", uses_large_stepper)
+        self.count_input.setMinimumHeight(
+            _MACOS_AUTOMATION_STEPPER_HEIGHT if uses_large_stepper else _AUTOMATION_STEPPER_HEIGHT
+        )
         self.count_input.setRange(0, 100_000)
         self.count_input.setValue(count)
         self.count_input.setSuffix(" 辆")
@@ -80,7 +145,7 @@ class _AutomationConfigurationRow(QFrame):
 
 
 class SceneConfigurationPage(QWidget):
-    """Collect map, automation mix, and environment settings for a simulation."""
+    """Collect map, automation mix, and duration settings for a simulation."""
 
     map_selected = Signal(str)
     launch_requested = Signal()
@@ -185,7 +250,7 @@ class SceneConfigurationPage(QWidget):
         layout.setSpacing(16)
         layout.addWidget(self._automation_configuration())
         layout.addStretch(1)
-        layout.addWidget(self._environment_configuration())
+        layout.addWidget(self._simulation_parameters())
         layout.addLayout(self._footer_actions())
         return section
 
@@ -208,42 +273,14 @@ class SceneConfigurationPage(QWidget):
         self.vehicle_total.setObjectName("automationTotal")
         return self.vehicle_total
 
-    def _environment_configuration(self) -> QFrame:
-        section, layout = self._section("环境配置")
-        fields = QGridLayout()
-        fields.setContentsMargins(0, 0, 0, 0)
-        fields.setHorizontalSpacing(12)
-        fields.setVerticalSpacing(6)
-
-        environment_label = self._field_label("天气 / 真实时间")
-        self.weather_time_combo = QComboBox()
-        self.weather_time_combo.setObjectName("simulationWeatherTimeCombo")
-        self.weather_time_combo.addItems(
-            (
-                "晴朗 · 早上",
-                "晴朗 · 中午",
-                "晴朗 · 晚上",
-                "多云 · 早上",
-                "多云 · 中午",
-                "小雨 · 晚上",
-                "大雨 · 晚上",
-                "雾天 · 清晨",
-            )
-        )
-        self.weather_time_combo.setCurrentIndex(1)
-
+    def _simulation_parameters(self) -> QFrame:
+        section, layout = self._section("仿真参数配置")
         duration_label = self._field_label("仿真时长")
         self.duration_time = QTimeEdit(QTime(1, 0, 0))
         self.duration_time.setObjectName("simulationDurationTime")
         self.duration_time.setDisplayFormat("HH:mm:ss")
-
-        fields.addWidget(environment_label, 0, 0)
-        fields.addWidget(duration_label, 0, 1)
-        fields.addWidget(self.weather_time_combo, 1, 0)
-        fields.addWidget(self.duration_time, 1, 1)
-        fields.setColumnStretch(0, 1)
-        fields.setColumnStretch(1, 1)
-        layout.addLayout(fields)
+        layout.addWidget(duration_label)
+        layout.addWidget(self.duration_time)
         return section
 
     def _footer_actions(self) -> QHBoxLayout:
@@ -286,6 +323,7 @@ class SceneConfigurationPage(QWidget):
     def _field_label(text: str, *, required: bool = False) -> QLabel:
         label = QLabel(f"{text} *" if required else text)
         label.setObjectName("simulationFieldLabel")
+        label.setProperty("required", required)
         return label
 
     def set_maps(self, maps: tuple[MapSummary, ...]) -> None:
@@ -325,7 +363,6 @@ class SceneConfigurationPage(QWidget):
             return False
         self.scene_name.setText(preset.name)
         self.description.setPlainText(preset.description)
-        self.weather_time_combo.setCurrentText(preset.weather)
         hours, remainder = divmod(preset.duration_s, 3600)
         minutes, seconds = divmod(remainder, 60)
         self.duration_time.setTime(QTime(hours, minutes, seconds))

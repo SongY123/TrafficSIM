@@ -14,11 +14,12 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from ui.models import WorkspaceSummary
+from ui.models import MOCK_REPLAY_RECORDS, WorkspaceSummary
 from ui.views.element_plus_icons import ICON_SIZE, render_element_plus_icon, render_svg_pixmap
 from ui.views.theme import ThemeMode, load_icon_colors
 
@@ -42,6 +43,7 @@ _NAVIGATION_GROUPS = (
 _SETTINGS_NAVIGATION = ("settings", "setting.svg", "系统设置")
 _ICON_ROOT = Path(__file__).resolve().parents[1] / "assets/icons/element-plus"
 _BRAND_LOGO = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg"
+_HISTORY_ENTRY_HEIGHT = 32
 
 
 class _ExpandableNavigationRow(QWidget):
@@ -76,6 +78,7 @@ class _ExpandableNavigationRow(QWidget):
 
 class NavigationRail(QWidget):
     page_selected = Signal(str)
+    replay_requested = Signal(str)
     project_detail_requested = Signal()
     workspace_exit_requested = Signal()
 
@@ -88,6 +91,7 @@ class NavigationRail(QWidget):
         self._expand_buttons: dict[str, QPushButton] = {}
         self._child_containers: dict[str, QWidget] = {}
         self._expandable_rows: dict[str, _ExpandableNavigationRow] = {}
+        self._history_buttons: dict[str, QPushButton] = {}
         self._icon_paths: dict[str, Path] = {}
         self._theme = ThemeMode.DARK
 
@@ -144,7 +148,10 @@ class NavigationRail(QWidget):
 
     def set_active(self, key: str) -> None:
         for button_key, button in self._buttons.items():
-            button.setProperty("active", button_key == key)
+            button.setProperty(
+                "active",
+                button_key == key or (button_key == "experiments" and key == "replay"),
+            )
             button.style().unpolish(button)
             button.style().polish(button)
         for button_key, button in self._sub_buttons.items():
@@ -152,8 +159,19 @@ class NavigationRail(QWidget):
             button.style().unpolish(button)
             button.style().polish(button)
         for row_key, row in self._expandable_rows.items():
-            row.set_active(row_key == key)
+            row.set_active(row_key == key or (row_key == "experiments" and key == "replay"))
         self.refresh_icons()
+
+    def set_history_selection(self, record_id: str | None) -> None:
+        """Highlight a mock replay record and keep its history group expanded."""
+        for button_id, button in self._history_buttons.items():
+            button.setProperty("active", button_id == record_id)
+            button.style().unpolish(button)
+            button.style().polish(button)
+        if record_id is not None:
+            children = self._child_containers["experiments"]
+            children.show()
+            self._expand_buttons["experiments"].setText("⌄")
 
     def refresh_icons(self, theme: ThemeMode | None = None) -> None:
         if theme is not None:
@@ -191,12 +209,20 @@ class NavigationRail(QWidget):
         row.addStretch(1)
         return row
 
-    def _nav_button(self, key: str, icon_file: str, label: str) -> QPushButton:
+    def _nav_button(
+        self,
+        key: str,
+        icon_file: str,
+        label: str,
+        *,
+        emits_page: bool = True,
+    ) -> QPushButton:
         button = QPushButton(label)
         button.setProperty("navKey", key)
         button.setAccessibleName(label)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.clicked.connect(lambda checked=False, page=key: self.page_selected.emit(page))
+        if emits_page:
+            button.clicked.connect(lambda checked=False, page=key: self.page_selected.emit(page))
         self._buttons[key] = button
         self._icon_paths[key] = _ICON_ROOT / icon_file
         button.setObjectName(f"nav_{key}")
@@ -221,8 +247,15 @@ class NavigationRail(QWidget):
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(0)
-        main_button = self._nav_button(key, icon_file, label)
+        main_button = self._nav_button(
+            key,
+            icon_file,
+            label,
+            emits_page=key != "experiments",
+        )
         main_button.setProperty("role", "navigationRowMain")
+        if key == "experiments":
+            main_button.clicked.connect(lambda checked=False, page=key: self._toggle_children(page))
         row_layout.addWidget(main_button, 1)
         expand_button = QPushButton("›")
         expand_button.setObjectName(f"nav_expand_{key}")
@@ -239,18 +272,44 @@ class NavigationRail(QWidget):
         children_layout = QVBoxLayout(children)
         children_layout.setContentsMargins(0, 0, 0, 0)
         children_layout.setSpacing(0)
-        child_button = QPushButton(child_label)
-        child_button.setObjectName(f"nav_child_{key}")
-        child_button.setProperty("role", "subnavigation")
-        child_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        child_button.clicked.connect(lambda checked=False, page=key: self.page_selected.emit(page))
-        children_layout.addWidget(child_button)
+        if key == "experiments":
+            for index, record in enumerate(MOCK_REPLAY_RECORDS):
+                history_button = QPushButton(record.occurred_at)
+                history_button.setObjectName(f"nav_history_{index}")
+                history_button.setProperty("role", "historyEntry")
+                history_button.setProperty("recordId", record.record_id)
+                history_button.setProperty("active", False)
+                history_button.setToolTip(f"打开 {record.scenario_name} 的数据回放")
+                history_button.setCursor(Qt.CursorShape.PointingHandCursor)
+                history_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                history_button.setFixedHeight(_HISTORY_ENTRY_HEIGHT)
+                history_button.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Fixed,
+                )
+                history_button.clicked.connect(
+                    lambda checked=False, record_id=record.record_id: self.replay_requested.emit(
+                        record_id
+                    )
+                )
+                children_layout.addWidget(history_button)
+                self._history_buttons[record.record_id] = history_button
+            children.setMinimumHeight(_HISTORY_ENTRY_HEIGHT * len(MOCK_REPLAY_RECORDS))
+        else:
+            child_button = QPushButton(child_label)
+            child_button.setObjectName(f"nav_child_{key}")
+            child_button.setProperty("role", "subnavigation")
+            child_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            child_button.clicked.connect(
+                lambda checked=False, page=key: self.page_selected.emit(page)
+            )
+            children_layout.addWidget(child_button)
+            self._sub_buttons[key] = child_button
         children.hide()
         column.addWidget(children)
 
         self._expand_buttons[key] = expand_button
         self._child_containers[key] = children
-        self._sub_buttons[key] = child_button
         self._expandable_rows[key] = row
         return container
 

@@ -13,7 +13,6 @@ class TrafficScenarioPreset:
     behavior_summary: str
     map_id: str
     duration_s: int
-    weather: str
     automation_counts: tuple[tuple[str, int], ...]
 
     @property
@@ -32,7 +31,6 @@ TRAFFIC_SCENARIO_PRESETS = (
         ),
         map_id="mixed-automation-obstacle",
         duration_s=90,
-        weather="晴朗 · 中午",
         automation_counts=(("L0", 12), ("L1", 12), ("L2", 12), ("L3", 12), ("L4", 12), ("L5", 12)),
     ),
     TrafficScenarioPreset(
@@ -45,7 +43,6 @@ TRAFFIC_SCENARIO_PRESETS = (
         ),
         map_id="mixed-automation-cutin",
         duration_s=60,
-        weather="晴朗 · 早上",
         automation_counts=(
             ("L0", 16),
             ("L1", 16),
@@ -65,7 +62,6 @@ TRAFFIC_SCENARIO_PRESETS = (
         ),
         map_id="mixed-automation-emergency-yield",
         duration_s=60,
-        weather="多云 · 中午",
         automation_counts=(
             ("L0", 12),
             ("L1", 12),
