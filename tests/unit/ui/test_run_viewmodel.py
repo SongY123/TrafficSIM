@@ -4,7 +4,15 @@ from uuid import UUID
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
-from ui.models import ExperimentStatus, LiveMetrics
+from ui.models import (
+    AutomationDemand,
+    ExperimentStatus,
+    LiveMetrics,
+    ReplayRecord,
+    ReplaySummary,
+    ReplayWindow,
+    SimulationConfigurationDraft,
+)
 from ui.viewmodels import RunViewModel
 
 EXPERIMENT_ID = UUID("00000000-0000-0000-0000-000000000010")
@@ -29,6 +37,21 @@ class FakeRest(QObject):
 
     def list_maps(self) -> None:
         self.calls.append(("maps", None))
+
+    def list_simulations(self, workspace_id: UUID | None = None) -> None:
+        self.calls.append(("simulations", workspace_id))
+
+    def get_simulation(self, run_id: str) -> None:
+        self.calls.append(("simulation", run_id))
+
+    def get_simulation_network(self, run_id: str) -> None:
+        self.calls.append(("simulation-network", run_id))
+
+    def get_simulation_replay(self, run_id: str, from_time_ms: int = 0) -> None:
+        self.calls.append(("simulation-replay", (run_id, from_time_ms)))
+
+    def export_simulation(self, run_id: str, target: Path) -> None:
+        self.calls.append(("simulation-export", (run_id, target)))
 
     def list_workspaces(self, query: str | None = None) -> None:
         self.calls.append(("workspaces", query))
@@ -89,8 +112,28 @@ class FakeRest(QObject):
     def import_map(self, path: Path) -> None:
         self.calls.append(("import", path))
 
-    def create_experiment(self, workspace_id: UUID, scenario_id: UUID, map_id: str) -> None:
-        self.calls.append(("create", (workspace_id, scenario_id, map_id)))
+    def save_simulation_configuration(
+        self,
+        workspace_id: UUID,
+        scenario_id: UUID,
+        configuration: SimulationConfigurationDraft,
+    ) -> None:
+        self.calls.append(("save-configuration", (workspace_id, scenario_id, configuration)))
+
+    def create_experiment(
+        self,
+        workspace_id: UUID,
+        scenario_id: UUID,
+        map_id: str,
+        configuration_id: str | None = None,
+        run_kind: str = "simulation",
+    ) -> None:
+        value: object = (
+            (workspace_id, scenario_id, map_id)
+            if configuration_id is None and run_kind == "simulation"
+            else (workspace_id, scenario_id, map_id, configuration_id, run_kind)
+        )
+        self.calls.append(("create", value))
 
 
 class FakeRealtime(QObject):
@@ -150,6 +193,16 @@ def _enter_workspace(viewmodel: RunViewModel) -> None:
         ],
     )
     viewmodel.enter_selected_workspace()
+
+
+def _simulation_configuration() -> SimulationConfigurationDraft:
+    return SimulationConfigurationDraft(
+        scene_name="Morning run",
+        description="Exact L4 demand",
+        map_id="image2road",
+        duration_ms=120_000,
+        automation_demands=(AutomationDemand(level="L4", vehicle_count=50),),
+    )
 
 
 def _envelope(message_type: str, sequence: int, payload: object) -> dict[str, object]:
@@ -263,6 +316,67 @@ def test_created_workspace_is_entered_without_success_notification() -> None:
     assert contexts and getattr(contexts[-1], "workspace_id", None) == workspace_id
     assert notifications == []
     assert ("maps", None) in rest.calls
+
+
+def test_history_result_network_replay_and_export_are_routed_through_rest() -> None:
+    viewmodel, rest, _ = _viewmodel()
+    _enter_workspace(viewmodel)
+    run_id = "2026-08-11-09-08-07"
+    summary = {
+        "run_id": run_id,
+        "workspace_id": str(WORKSPACE_ID),
+        "status": "COMPLETED",
+        "created_at": "2026-08-11T09:08:07+08:00",
+        "started_at": "2026-08-11T09:08:08+08:00",
+        "ended_at": "2026-08-11T09:09:08+08:00",
+        "scene_name": "History validation",
+        "map_id": "image2road",
+        "map_name": "Image2Road",
+        "configured_duration_ms": 60_000,
+        "simulation_time_ms": 60_000,
+        "replay_available": True,
+        "export_available": True,
+    }
+    histories: list[object] = []
+    records: list[object] = []
+    networks: list[tuple[str, object]] = []
+    windows: list[object] = []
+    viewmodel.history_catalog_changed.connect(histories.append)
+    viewmodel.replay_record_changed.connect(records.append)
+    viewmodel.replay_network_changed.connect(
+        lambda selected_run_id, value: networks.append((selected_run_id, value))
+    )
+    viewmodel.replay_window_changed.connect(windows.append)
+
+    viewmodel.handle_rest_success("simulations.list", [summary])
+    viewmodel.load_simulation_result(run_id)
+    viewmodel.load_replay_window(run_id, 1_000)
+    export_path = Path("history-export.zip")
+    viewmodel.export_simulation_result(run_id, export_path)
+    viewmodel.handle_rest_success(
+        f"simulation.get:{run_id}",
+        {**summary, "metrics": [], "trends": [], "road_results": []},
+    )
+    network = {"type": "FeatureCollection", "features": []}
+    viewmodel.handle_rest_success(f"simulation.network:{run_id}", network)
+    viewmodel.handle_rest_success(
+        f"simulation.replay:{run_id}:1000",
+        {"run_id": run_id, "frames": [], "next_time_ms": None},
+    )
+
+    assert len(histories) == 1
+    assert isinstance(histories[0], tuple)
+    assert isinstance(histories[0][0], ReplaySummary)
+    assert histories[0][0].run_id == run_id
+    assert isinstance(records[0], ReplayRecord)
+    assert records[0].run_id == run_id
+    assert networks == [(run_id, network)]
+    assert isinstance(windows[0], ReplayWindow)
+    assert windows[0].run_id == run_id
+    assert ("simulation", run_id) in rest.calls
+    assert ("simulation-network", run_id) in rest.calls
+    assert ("simulation-replay", (run_id, 1_000)) in rest.calls
+    assert ("simulation-export", (run_id, export_path)) in rest.calls
 
 
 def test_map_catalog_skips_core_run_asset_and_auto_selects_sumo_package() -> None:
@@ -516,6 +630,121 @@ def test_launch_creates_experiment_then_opens_monitor_and_starts() -> None:
     assert realtime.sent == [("experiment.prepare", {})]
 
 
+def test_unsaved_page_configuration_is_saved_before_simulation_creation() -> None:
+    viewmodel, rest, _ = _viewmodel()
+    _enter_workspace(viewmodel)
+    viewmodel.handle_rest_success(
+        "maps.list",
+        [
+            {
+                "map_id": "image2road",
+                "kind": "sumo",
+                "display_name": "Image road",
+                "validated": True,
+                "network_schema_version": "sumo-net/display-1.0",
+                "manifest_available": False,
+                "sumo_config_file": "image2road.sumocfg",
+                "sumo_step_ms": 1000,
+            }
+        ],
+    )
+    configuration = _simulation_configuration()
+
+    viewmodel.launch_configuration(configuration)
+
+    assert rest.calls[-1] == (
+        "save-configuration",
+        (WORKSPACE_ID, SCENARIO_ID, configuration),
+    )
+    assert not [call for call in rest.calls if call[0] == "create"]
+
+    viewmodel.handle_rest_success(
+        "simulation-configuration.save",
+        {
+            "configuration_id": "2026-08-11-09-08-07",
+            "map_id": "image2road",
+            "map_name": "Image road",
+            "relative_directory": "configs/configs/2026-08-11-09-08-07",
+        },
+    )
+
+    expected_create: object = (
+        "create",
+        (
+            WORKSPACE_ID,
+            SCENARIO_ID,
+            "image2road",
+            "2026-08-11-09-08-07",
+            "simulation",
+        ),
+    )
+    assert rest.calls[-1] == expected_create
+
+
+def test_saved_unchanged_configuration_is_reused_without_another_save() -> None:
+    viewmodel, rest, _ = _viewmodel()
+    _enter_workspace(viewmodel)
+    configuration = _simulation_configuration()
+    notifications: list[tuple[str, str]] = []
+    viewmodel.notification.connect(lambda level, message: notifications.append((level, message)))
+
+    viewmodel.save_configuration(configuration)
+    viewmodel.handle_rest_success(
+        "simulation-configuration.save",
+        {
+            "configuration_id": "2026-08-11-09-08-07",
+            "map_id": "image2road",
+            "map_name": "Image road",
+            "relative_directory": "configs/configs/2026-08-11-09-08-07",
+        },
+    )
+    assert notifications[-1] == ("success", "配置已保存。")
+    assert "configs/configs" not in notifications[-1][1]
+    save_count = len([call for call in rest.calls if call[0] == "save-configuration"])
+
+    viewmodel.launch_configuration(configuration)
+
+    assert len([call for call in rest.calls if call[0] == "save-configuration"]) == save_count
+    assert rest.calls[-1] == (
+        "create",
+        (
+            WORKSPACE_ID,
+            SCENARIO_ID,
+            "image2road",
+            "2026-08-11-09-08-07",
+            "simulation",
+        ),
+    )
+
+
+def test_quick_test_uses_test_artifact_kind_after_auto_save() -> None:
+    viewmodel, rest, _ = _viewmodel()
+    _enter_workspace(viewmodel)
+    configuration = _simulation_configuration()
+
+    viewmodel.test_configuration(configuration)
+    viewmodel.handle_rest_success(
+        "simulation-configuration.save",
+        {
+            "configuration_id": "2026-08-11-09-08-07",
+            "map_id": "image2road",
+            "map_name": "Image road",
+            "relative_directory": "configs/configs/2026-08-11-09-08-07",
+        },
+    )
+
+    assert rest.calls[-1] == (
+        "create",
+        (
+            WORKSPACE_ID,
+            SCENARIO_ID,
+            "image2road",
+            "2026-08-11-09-08-07",
+            "test",
+        ),
+    )
+
+
 def test_launching_another_map_stops_active_experiment_then_launches_selected_map() -> None:
     viewmodel, rest, realtime = _viewmodel()
     _enter_workspace(viewmodel)
@@ -554,7 +783,8 @@ def test_launching_another_map_stops_active_experiment_then_launches_selected_ma
     viewmodel.handle_envelope(_envelope("experiment.state.changed", 1, {"status": "COMPLETED"}))
 
     assert realtime.closed is True
-    assert rest.calls[-1] == ("create", (WORKSPACE_ID, SCENARIO_ID, "scene-b"))
+    assert ("create", (WORKSPACE_ID, SCENARIO_ID, "scene-b")) in rest.calls
+    assert rest.calls[-1] == ("simulations", WORKSPACE_ID)
 
 
 def test_vehicle_sequence_gap_requests_world_snapshot() -> None:
@@ -779,7 +1009,8 @@ def test_restart_stops_active_experiment_then_creates_and_launches_a_new_one() -
 
     assert realtime.sent[-1] == ("experiment.stop", {"reason": "USER_RESTART"})
     assert realtime.closed is True
-    assert rest.calls[-1] == ("create", (WORKSPACE_ID, SCENARIO_ID, "image2road"))
+    assert ("create", (WORKSPACE_ID, SCENARIO_ID, "image2road")) in rest.calls
+    assert rest.calls[-1] == ("simulations", WORKSPACE_ID)
 
     viewmodel.handle_rest_success(
         "experiment.create",

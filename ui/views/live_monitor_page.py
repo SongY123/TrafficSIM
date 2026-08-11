@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import ControlAvailability, LiveMetrics
+from ui.models import ControlAvailability, LiveMetrics, ReplayFrame
 from ui.views.components import (
     PAGE_CONTENT_MARGIN,
     metric_card,
@@ -37,14 +37,27 @@ class LiveMonitorPage(QWidget):
     def __init__(self, *, load_web_map: bool, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("liveMonitorPage")
+        self._replay_mode = False
+        self._replay_seen_vehicle_ids: set[str] = set()
+        self._replay_active_vehicle_ids: set[str] = set()
+        self._replay_entered_at_ms: dict[str, int] = {}
+        self._replay_vehicle_levels: dict[str, str] = {}
+        self._replay_completed_time_total_ms = 0
+        self._replay_completed_vehicle_count = 0
+        self._replay_last_time_ms: int | None = None
         self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        root.addWidget(
-            page_header("仿真运行", "SUMO 二维交通态势与实时运行控制", self._header_actions())
-        )
+        header = page_header("仿真运行", "SUMO 二维交通态势与实时运行控制", self._header_actions())
+        page_title = header.findChild(QLabel, "pageTitle")
+        page_subtitle = header.findChild(QLabel, "pageSubtitle")
+        if page_title is None or page_subtitle is None:
+            raise RuntimeError("live page header labels were not created")
+        self.page_title: QLabel = page_title
+        self.page_subtitle: QLabel = page_subtitle
+        root.addWidget(header)
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
@@ -245,6 +258,108 @@ class LiveMonitorPage(QWidget):
         )
         self._metric_value(self.average_travel_time_metric).setText(travel_time)
 
+    def set_replay_mode(self, active: bool) -> None:
+        """Reuse the live page as a read-only structured playback surface."""
+        self._replay_mode = active
+        if active:
+            self._reset_replay_metrics()
+            self.page_title.setText("仿真回放")
+            self.page_subtitle.setText("读取结构化快照与增量，不重新运行仿真器")
+            self.connection_label.setText("离线结构化记录")
+            self.start_button.setText("播放")
+            self.pause_button.setText("暂停")
+            self.resume_button.setText("继续")
+            self.stop_button.setText("退出回放")
+            self.restart_button.setText("从头播放")
+            self.set_replay_state("PAUSED")
+            return
+        self.page_title.setText("仿真运行")
+        self.page_subtitle.setText("SUMO 二维交通态势与实时运行控制")
+        self.connection_label.setText("API 连接中")
+        self.start_button.setText("启动")
+        self.pause_button.setText("暂停")
+        self.resume_button.setText("继续")
+        self.stop_button.setText("停止")
+        self.restart_button.setText("重新开始")
+
+    @Slot(object)
+    def set_replay_frame(self, value: object) -> None:
+        if not self._replay_mode or not isinstance(value, ReplayFrame):
+            return
+        if (
+            self._replay_last_time_ms is not None
+            and value.simulation_time_ms < self._replay_last_time_ms
+        ):
+            self._reset_replay_metrics()
+        self.map_widget.set_vehicles(value.vehicles)
+        self.map_widget.set_traffic_lights(value.traffic_lights)
+        self.set_time(value.simulation_time_ms)
+        speeds_by_level: dict[str, list[float]] = {}
+        for vehicle in value.vehicles:
+            speeds_by_level.setdefault(vehicle.automation_level, []).append(vehicle.speed_mps)
+            self._replay_vehicle_levels[vehicle.vehicle_id] = vehicle.automation_level
+            self._replay_entered_at_ms.setdefault(vehicle.vehicle_id, value.simulation_time_ms)
+        current_vehicle_ids = {vehicle.vehicle_id for vehicle in value.vehicles}
+        self._replay_seen_vehicle_ids.update(current_vehicle_ids)
+        for vehicle_id in self._replay_active_vehicle_ids - current_vehicle_ids:
+            entered_at_ms = self._replay_entered_at_ms.pop(vehicle_id, None)
+            if entered_at_ms is not None:
+                self._replay_completed_time_total_ms += max(
+                    0, value.simulation_time_ms - entered_at_ms
+                )
+                self._replay_completed_vehicle_count += 1
+        self._replay_active_vehicle_ids = current_vehicle_ids
+        self._replay_last_time_ms = value.simulation_time_ms
+        average_speed_mps = (
+            sum(vehicle.speed_mps for vehicle in value.vehicles) / len(value.vehicles)
+            if value.vehicles
+            else 0.0
+        )
+        self.set_metrics(
+            LiveMetrics(
+                current_vehicle_count=len(value.vehicles),
+                total_vehicle_count=len(self._replay_seen_vehicle_ids),
+                average_speed_mps=average_speed_mps,
+                average_travel_time_ms=(
+                    self._replay_completed_time_total_ms / self._replay_completed_vehicle_count
+                    if self._replay_completed_vehicle_count
+                    else None
+                ),
+                level_average_speed_mps=tuple(
+                    (
+                        level,
+                        sum(speeds_by_level.get(level, ())) / len(speeds_by_level.get(level, ()))
+                        if speeds_by_level.get(level)
+                        else 0.0,
+                    )
+                    for level in ("L0", "L1", "L2", "L3", "L4", "L5")
+                ),
+                level_collision_counts=self._replay_collision_counts(value.collision_vehicle_ids),
+            )
+        )
+
+    @Slot(str)
+    def set_replay_state(self, state: str) -> None:
+        if not self._replay_mode:
+            return
+        labels = {
+            "PAUSED": "回放已暂停",
+            "RUNNING": "回放中",
+            "COMPLETED": "回放完成",
+            "EMPTY": "无回放帧",
+        }
+        self.set_status(labels.get(state, state))
+        running = state == "RUNNING"
+        has_frames = state != "EMPTY"
+        resumable = state == "PAUSED"
+        self.start_button.setEnabled(resumable)
+        self.pause_button.setEnabled(running)
+        self.resume_button.setEnabled(resumable)
+        self.stop_button.setEnabled(True)
+        self.restart_button.setEnabled(has_frames)
+        for button in self.speed_group.buttons():
+            button.setEnabled(has_frames)
+
     def set_status(self, status: str) -> None:
         self.status_label.setText(status)
 
@@ -264,6 +379,8 @@ class LiveMonitorPage(QWidget):
             button.setEnabled(availability.can_set_speed)
 
     def set_connection(self, state: str) -> None:
+        if self._replay_mode:
+            return
         labels = {
             "API_CONNECTED": "API 已连接",
             "CONNECTED": "实时已连接",
@@ -272,6 +389,26 @@ class LiveMonitorPage(QWidget):
             "DISCONNECTED": "实时已断开",
         }
         self.connection_label.setText(labels.get(state, state))
+
+    def _reset_replay_metrics(self) -> None:
+        self._replay_seen_vehicle_ids.clear()
+        self._replay_active_vehicle_ids.clear()
+        self._replay_entered_at_ms.clear()
+        self._replay_vehicle_levels.clear()
+        self._replay_completed_time_total_ms = 0
+        self._replay_completed_vehicle_count = 0
+        self._replay_last_time_ms = None
+
+    def _replay_collision_counts(
+        self, collision_vehicle_ids: tuple[str, ...]
+    ) -> tuple[tuple[str, int], ...]:
+        levels = ("L0", "L1", "L2", "L3", "L4", "L5")
+        counts = dict.fromkeys(levels, 0)
+        for vehicle_id in collision_vehicle_ids:
+            level = self._replay_vehicle_levels.get(vehicle_id)
+            if level in counts:
+                counts[level] += 1
+        return tuple((level, counts[level]) for level in levels)
 
     @staticmethod
     def _metric_value(card: QFrame) -> QLabel:

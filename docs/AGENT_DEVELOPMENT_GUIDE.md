@@ -1,6 +1,6 @@
 # TrafficVerse Agent Development Guide
 
-> 版本：v1.2
+> 版本：v1.3
 > 状态：SUMO/CARLA Migration Baseline
 > 计划：[SUMO_MIGRATION_PLAN](./SUMO_MIGRATION_PLAN.md)
 
@@ -147,7 +147,9 @@ API/UI、对应配置/契约/测试和 ADR-027 文档。
 - managed 模式调用 PATH 中的 `sumo`，优先使用同发行版 TraCI tools，不硬编码版本等值；
 - 场景 begin/end/step-length 进入内部 resolved snapshot，只有 manager 推进；
 - 无 OpenDRIVE binding 的 TLS 使用 `sumo-tls:<tls-id>:<link-index>`；
-- 运行副本和 outputs 只能写入 `artifacts/sumo/<experiment-id>`；
+- 桌面配置快照写入 `configs/configs/<timestamp>`，正式/测试运行副本与 outputs 分别只能写入
+  `artifacts/simulations/<timestamp>` 和 `artifacts/tests/<timestamp>`；无快照的兼容 API 保留
+  `artifacts/sumo/<experiment-id>`；
 - CARLA disabled 时不得构造 ROI、registration 或 CARLA signal planner；
 - 场景配置页只列出 `kind=sumo` 条目；Town04 Core Run manifest 只在资产中心和独立联仿 Gate
   中保留，不得作为二维场景 fallback；

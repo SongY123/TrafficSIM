@@ -1,5 +1,6 @@
 from ui.models.protocol import (
     AgentApiSummary,
+    AutomationDemand,
     ComponentHealth,
     ControlAvailability,
     Envelope,
@@ -10,6 +11,8 @@ from ui.models.protocol import (
     MapManifest,
     MapSummary,
     ReadinessResponse,
+    SimulationConfigurationDraft,
+    SimulationConfigurationView,
     TrafficLight,
     Vehicle,
     WorkspaceOverview,
@@ -17,11 +20,21 @@ from ui.models.protocol import (
     WorldState,
     WorldUpdate,
 )
-from ui.models.replay import MOCK_REPLAY_RECORDS, ReplayMetric, ReplayRecord, ReplayTrend
+from ui.models.replay import (
+    ReplayFrame,
+    ReplayMetric,
+    ReplayRecord,
+    ReplayRoadResult,
+    ReplaySummary,
+    ReplayTrend,
+    ReplayTrendSample,
+    ReplayWindow,
+)
 from ui.models.traffic_scenario import TRAFFIC_SCENARIO_PRESETS, TrafficScenarioPreset
 
 __all__ = [
     "AgentApiSummary",
+    "AutomationDemand",
     "ComponentHealth",
     "ControlAvailability",
     "Envelope",
@@ -31,11 +44,17 @@ __all__ = [
     "MapImportJob",
     "MapManifest",
     "MapSummary",
-    "MOCK_REPLAY_RECORDS",
     "ReadinessResponse",
+    "SimulationConfigurationDraft",
+    "SimulationConfigurationView",
     "ReplayMetric",
     "ReplayRecord",
+    "ReplayFrame",
+    "ReplayRoadResult",
+    "ReplaySummary",
     "ReplayTrend",
+    "ReplayTrendSample",
+    "ReplayWindow",
     "TrafficLight",
     "TrafficScenarioPreset",
     "TRAFFIC_SCENARIO_PRESETS",

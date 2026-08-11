@@ -1,12 +1,21 @@
 """Simulation snapshots, events, metrics, and wire envelopes."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, JsonValue, field_validator
+from pydantic import Field, JsonValue, field_validator, model_validator
 
-from trafficverse.domain.enums import ComponentStatus, EventSeverity
+from trafficverse.domain.enums import (
+    AutomationLevel,
+    ComponentStatus,
+    EventSeverity,
+    SimulationRunKind,
+)
 from trafficverse.domain.models.common import StrictModel
 from trafficverse.domain.models.vehicle import TrafficLightState, VehicleState
 
@@ -75,3 +84,67 @@ class WebSocketEnvelope(StrictModel):
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("sent_at must include a timezone")
         return value
+
+
+class AutomationDemand(StrictModel):
+    """Exact number of generated vehicles for one supported automation level."""
+
+    level: Literal[
+        AutomationLevel.L0,
+        AutomationLevel.L1,
+        AutomationLevel.L2,
+        AutomationLevel.L3,
+        AutomationLevel.L4,
+        AutomationLevel.L5,
+    ]
+    vehicle_count: int = Field(ge=0, le=100_000)
+
+
+class SimulationConfigurationDraft(StrictModel):
+    """Validated user input used to materialize an immutable SUMO configuration."""
+
+    workspace_id: UUID
+    scenario_id: UUID
+    scene_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=1_000)
+    map_id: str = Field(min_length=1, max_length=200)
+    duration_ms: int = Field(gt=0)
+    automation_demands: tuple[AutomationDemand, ...] = Field(max_length=6)
+
+    @field_validator("scene_name", "map_id")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value must not be blank")
+        return stripped
+
+    @model_validator(mode="after")
+    def require_unique_levels(self) -> SimulationConfigurationDraft:
+        levels = tuple(item.level for item in self.automation_demands)
+        if len(set(levels)) != len(levels):
+            raise ValueError("automation levels must be unique")
+        return self
+
+
+class SimulationConfigurationSnapshot(StrictModel):
+    """Stable reference returned after a user configuration has been saved."""
+
+    configuration_id: str = Field(pattern=r"^\d{4}(?:-\d{2}){5}$")
+    map_id: str = Field(min_length=1)
+    map_name: str = Field(min_length=1)
+    relative_directory: str = Field(min_length=1)
+
+
+@dataclass(frozen=True, slots=True)
+class SimulationRunInput:
+    """Internal artifact copy that is safe to pass to the runtime factory."""
+
+    configuration_id: str
+    run_id: str
+    run_kind: SimulationRunKind
+    workspace_id: UUID
+    scenario_id: UUID
+    map_id: str
+    directory: Path
+    sumo_config_path: Path

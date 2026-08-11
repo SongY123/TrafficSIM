@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import MOCK_REPLAY_RECORDS, WorkspaceSummary
+from ui.models import ReplaySummary, WorkspaceSummary
 from ui.views.element_plus_icons import ICON_SIZE, render_element_plus_icon, render_svg_pixmap
 from ui.views.theme import ThemeMode, load_icon_colors
 
@@ -92,6 +92,7 @@ class NavigationRail(QWidget):
         self._child_containers: dict[str, QWidget] = {}
         self._expandable_rows: dict[str, _ExpandableNavigationRow] = {}
         self._history_buttons: dict[str, QPushButton] = {}
+        self._history_layout: QVBoxLayout | None = None
         self._icon_paths: dict[str, Path] = {}
         self._theme = ThemeMode.DARK
 
@@ -163,7 +164,7 @@ class NavigationRail(QWidget):
         self.refresh_icons()
 
     def set_history_selection(self, record_id: str | None) -> None:
-        """Highlight a mock replay record and keep its history group expanded."""
+        """Highlight a simulation record and keep its history group expanded."""
         for button_id, button in self._history_buttons.items():
             button.setProperty("active", button_id == record_id)
             button.style().unpolish(button)
@@ -172,6 +173,49 @@ class NavigationRail(QWidget):
             children = self._child_containers["experiments"]
             children.show()
             self._expand_buttons["experiments"].setText("⌄")
+
+    def set_history(self, records: tuple[ReplaySummary, ...]) -> None:
+        """Replace navigation entries with folders discovered by the history API."""
+        layout = self._history_layout
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            if item is None:
+                break
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self._history_buttons.clear()
+        for index, record in enumerate(records):
+            timestamp = record.created_at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            history_button = QPushButton(timestamp)
+            history_button.setObjectName(f"nav_history_{index}")
+            history_button.setProperty("role", "historyEntry")
+            history_button.setProperty("recordId", record.run_id)
+            history_button.setProperty("active", False)
+            history_button.setToolTip(f"打开 {record.scene_name} 的仿真结果")
+            history_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            history_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            history_button.setFixedHeight(_HISTORY_ENTRY_HEIGHT)
+            history_button.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Fixed,
+            )
+            history_button.clicked.connect(
+                lambda checked=False, run_id=record.run_id: self.replay_requested.emit(run_id)
+            )
+            layout.addWidget(history_button)
+            self._history_buttons[record.run_id] = history_button
+        if not records:
+            empty = QLabel("暂无历史仿真")
+            empty.setObjectName("historyEmptyState")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty.setFixedHeight(_HISTORY_ENTRY_HEIGHT)
+            layout.addWidget(empty)
+        children = self._child_containers.get("experiments")
+        if children is not None:
+            children.setMinimumHeight(_HISTORY_ENTRY_HEIGHT * max(1, len(records)))
 
     def refresh_icons(self, theme: ThemeMode | None = None) -> None:
         if theme is not None:
@@ -273,28 +317,7 @@ class NavigationRail(QWidget):
         children_layout.setContentsMargins(0, 0, 0, 0)
         children_layout.setSpacing(0)
         if key == "experiments":
-            for index, record in enumerate(MOCK_REPLAY_RECORDS):
-                history_button = QPushButton(record.occurred_at)
-                history_button.setObjectName(f"nav_history_{index}")
-                history_button.setProperty("role", "historyEntry")
-                history_button.setProperty("recordId", record.record_id)
-                history_button.setProperty("active", False)
-                history_button.setToolTip(f"打开 {record.scenario_name} 的数据回放")
-                history_button.setCursor(Qt.CursorShape.PointingHandCursor)
-                history_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-                history_button.setFixedHeight(_HISTORY_ENTRY_HEIGHT)
-                history_button.setSizePolicy(
-                    QSizePolicy.Policy.Expanding,
-                    QSizePolicy.Policy.Fixed,
-                )
-                history_button.clicked.connect(
-                    lambda checked=False, record_id=record.record_id: self.replay_requested.emit(
-                        record_id
-                    )
-                )
-                children_layout.addWidget(history_button)
-                self._history_buttons[record.record_id] = history_button
-            children.setMinimumHeight(_HISTORY_ENTRY_HEIGHT * len(MOCK_REPLAY_RECORDS))
+            self._history_layout = children_layout
         else:
             child_button = QPushButton(child_label)
             child_button.setObjectName(f"nav_child_{key}")

@@ -1,6 +1,17 @@
 """Public TrafficVerse domain models."""
 
 from trafficverse.domain.models.common import StrictModel, Vector3
+from trafficverse.domain.models.history import (
+    SimulationHistoryDetail,
+    SimulationHistorySummary,
+    SimulationReplayFrame,
+    SimulationReplayWindow,
+    SimulationResultExport,
+    SimulationResultMetric,
+    SimulationResultTrend,
+    SimulationRoadResult,
+    SimulationTrendSample,
+)
 from trafficverse.domain.models.persistence import (
     ArtifactCreate,
     ArtifactRecord,
@@ -15,11 +26,15 @@ from trafficverse.domain.models.persistence import (
     ScenarioWrite,
 )
 from trafficverse.domain.models.simulation import (
+    AutomationDemand,
     CarlaFrame,
     ComponentHealth,
     DomainEvent,
     MetricSample,
+    SimulationConfigurationDraft,
+    SimulationConfigurationSnapshot,
     SimulationFrame,
+    SimulationRunInput,
     TrafficSnapshot,
     WebSocketEnvelope,
 )
@@ -45,6 +60,7 @@ from trafficverse.domain.models.workspace import (
 
 __all__ = [
     "ActorSpawnResult",
+    "AutomationDemand",
     "AgentApiRecord",
     "AgentApiWrite",
     "ArtifactCreate",
@@ -66,6 +82,18 @@ __all__ = [
     "ScenarioVersionRecord",
     "ScenarioWrite",
     "SimulationFrame",
+    "SimulationHistoryDetail",
+    "SimulationHistorySummary",
+    "SimulationReplayFrame",
+    "SimulationReplayWindow",
+    "SimulationResultExport",
+    "SimulationResultMetric",
+    "SimulationResultTrend",
+    "SimulationRoadResult",
+    "SimulationTrendSample",
+    "SimulationConfigurationDraft",
+    "SimulationConfigurationSnapshot",
+    "SimulationRunInput",
     "StrictModel",
     "TrafficSnapshot",
     "TrafficLightState",

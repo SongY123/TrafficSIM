@@ -91,6 +91,43 @@ components:
       - updated_at
       title: AgentApiView
       type: object
+    AutomationDemand:
+      additionalProperties: false
+      description: Exact number of generated vehicles for one supported automation
+        level.
+      properties:
+        level:
+          enum:
+          - L0
+          - L1
+          - L2
+          - L3
+          - L4
+          - L5
+          title: Level
+          type: string
+        vehicle_count:
+          maximum: 100000.0
+          minimum: 0.0
+          title: Vehicle Count
+          type: integer
+      required:
+      - level
+      - vehicle_count
+      title: AutomationDemand
+      type: object
+    AutomationLevel:
+      enum:
+      - HUMAN
+      - ACC
+      - L0
+      - L1
+      - L2
+      - L3
+      - L4
+      - L5
+      title: AutomationLevel
+      type: string
     Body_import_map_api_v1_maps_import_post:
       properties:
         file:
@@ -112,12 +149,21 @@ components:
     ExperimentCreateRequest:
       additionalProperties: false
       properties:
+        configuration_id:
+          anyOf:
+          - pattern: ^\d{4}(?:-\d{2}){5}$
+            type: string
+          - type: 'null'
+          title: Configuration Id
         map_id:
           anyOf:
           - minLength: 1
             type: string
           - type: 'null'
           title: Map Id
+        run_kind:
+          $ref: '#/components/schemas/SimulationRunKind'
+          default: simulation
         scenario_id:
           format: uuid
           title: Scenario Id
@@ -367,6 +413,452 @@ components:
       - multiplier
       title: SetSpeedRequest
       type: object
+    SimulationConfigurationSaveRequest:
+      additionalProperties: false
+      description: Named REST request for persisting a configuration-page snapshot.
+      properties:
+        automation_demands:
+          items:
+            $ref: '#/components/schemas/AutomationDemand'
+          maxItems: 6
+          title: Automation Demands
+          type: array
+        description:
+          default: ''
+          maxLength: 1000
+          title: Description
+          type: string
+        duration_ms:
+          exclusiveMinimum: 0.0
+          title: Duration Ms
+          type: integer
+        map_id:
+          maxLength: 200
+          minLength: 1
+          title: Map Id
+          type: string
+        scenario_id:
+          format: uuid
+          title: Scenario Id
+          type: string
+        scene_name:
+          maxLength: 200
+          minLength: 1
+          title: Scene Name
+          type: string
+        workspace_id:
+          format: uuid
+          title: Workspace Id
+          type: string
+      required:
+      - workspace_id
+      - scenario_id
+      - scene_name
+      - map_id
+      - duration_ms
+      - automation_demands
+      title: SimulationConfigurationSaveRequest
+      type: object
+    SimulationConfigurationView:
+      additionalProperties: false
+      description: REST view of a saved configuration snapshot.
+      properties:
+        configuration_id:
+          pattern: ^\d{4}(?:-\d{2}){5}$
+          title: Configuration Id
+          type: string
+        map_id:
+          minLength: 1
+          title: Map Id
+          type: string
+        map_name:
+          minLength: 1
+          title: Map Name
+          type: string
+        relative_directory:
+          minLength: 1
+          title: Relative Directory
+          type: string
+      required:
+      - configuration_id
+      - map_id
+      - map_name
+      - relative_directory
+      title: SimulationConfigurationView
+      type: object
+    SimulationHistoryDetail:
+      additionalProperties: false
+      description: Detailed immutable result view for a selected formal run.
+      properties:
+        configured_duration_ms:
+          minimum: 0.0
+          title: Configured Duration Ms
+          type: integer
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        ended_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Ended At
+        experiment_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Experiment Id
+        export_available:
+          default: true
+          title: Export Available
+          type: boolean
+        map_id:
+          minLength: 1
+          title: Map Id
+          type: string
+        map_name:
+          minLength: 1
+          title: Map Name
+          type: string
+        metrics:
+          items:
+            $ref: '#/components/schemas/SimulationResultMetric'
+          title: Metrics
+          type: array
+        replay_available:
+          title: Replay Available
+          type: boolean
+        road_results:
+          items:
+            $ref: '#/components/schemas/SimulationRoadResult'
+          title: Road Results
+          type: array
+        run_id:
+          pattern: ^\d{4}(?:-\d{2}){5}$
+          title: Run Id
+          type: string
+        scene_name:
+          minLength: 1
+          title: Scene Name
+          type: string
+        simulation_time_ms:
+          minimum: 0.0
+          title: Simulation Time Ms
+          type: integer
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started At
+        status:
+          $ref: '#/components/schemas/ExperimentStatus'
+        status_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status Reason
+        trends:
+          items:
+            $ref: '#/components/schemas/SimulationResultTrend'
+          title: Trends
+          type: array
+        workspace_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Workspace Id
+      required:
+      - run_id
+      - status
+      - created_at
+      - scene_name
+      - map_id
+      - map_name
+      - configured_duration_ms
+      - simulation_time_ms
+      - replay_available
+      - metrics
+      - trends
+      - road_results
+      title: SimulationHistoryDetail
+      type: object
+    SimulationHistorySummary:
+      additionalProperties: false
+      description: One formal run discovered below the configured simulation artifact
+        root.
+      properties:
+        configured_duration_ms:
+          minimum: 0.0
+          title: Configured Duration Ms
+          type: integer
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        ended_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Ended At
+        experiment_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Experiment Id
+        export_available:
+          default: true
+          title: Export Available
+          type: boolean
+        map_id:
+          minLength: 1
+          title: Map Id
+          type: string
+        map_name:
+          minLength: 1
+          title: Map Name
+          type: string
+        replay_available:
+          title: Replay Available
+          type: boolean
+        run_id:
+          pattern: ^\d{4}(?:-\d{2}){5}$
+          title: Run Id
+          type: string
+        scene_name:
+          minLength: 1
+          title: Scene Name
+          type: string
+        simulation_time_ms:
+          minimum: 0.0
+          title: Simulation Time Ms
+          type: integer
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started At
+        status:
+          $ref: '#/components/schemas/ExperimentStatus'
+        status_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status Reason
+        workspace_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Workspace Id
+      required:
+      - run_id
+      - status
+      - created_at
+      - scene_name
+      - map_id
+      - map_name
+      - configured_duration_ms
+      - simulation_time_ms
+      - replay_available
+      title: SimulationHistorySummary
+      type: object
+    SimulationReplayFrame:
+      additionalProperties: false
+      description: One reconstructed authoritative state used by read-only playback.
+      properties:
+        collision_vehicle_ids:
+          default: []
+          items:
+            type: string
+          title: Collision Vehicle Ids
+          type: array
+        sequence:
+          minimum: 0.0
+          title: Sequence
+          type: integer
+        simulation_time_ms:
+          minimum: 0.0
+          title: Simulation Time Ms
+          type: integer
+        traffic_lights:
+          default: []
+          items:
+            $ref: '#/components/schemas/TrafficLightState'
+          title: Traffic Lights
+          type: array
+        vehicles:
+          default: []
+          items:
+            $ref: '#/components/schemas/VehicleState'
+          title: Vehicles
+          type: array
+      required:
+      - simulation_time_ms
+      - sequence
+      title: SimulationReplayFrame
+      type: object
+    SimulationReplayWindow:
+      additionalProperties: false
+      description: Bounded replay page; callers continue from ``next_time_ms`` when
+        present.
+      properties:
+        frames:
+          items:
+            $ref: '#/components/schemas/SimulationReplayFrame'
+          title: Frames
+          type: array
+        next_time_ms:
+          anyOf:
+          - minimum: 0.0
+            type: integer
+          - type: 'null'
+          title: Next Time Ms
+        run_id:
+          pattern: ^\d{4}(?:-\d{2}){5}$
+          title: Run Id
+          type: string
+      required:
+      - run_id
+      - frames
+      title: SimulationReplayWindow
+      type: object
+    SimulationResultMetric:
+      additionalProperties: false
+      description: One aggregate value calculated from an explicit SUMO result field.
+      properties:
+        key:
+          enum:
+          - vehicle_total
+          - completed_total
+          - average_speed_mps
+          - average_travel_time_s
+          - average_waiting_time_s
+          - average_queue_length_veh
+          - maximum_queue_length_veh
+          title: Key
+          type: string
+        label:
+          minLength: 1
+          title: Label
+          type: string
+        source:
+          minLength: 1
+          title: Source
+          type: string
+        unit:
+          minLength: 1
+          title: Unit
+          type: string
+        value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Value
+      required:
+      - key
+      - label
+      - unit
+      - source
+      title: SimulationResultMetric
+      type: object
+    SimulationResultTrend:
+      additionalProperties: false
+      description: A time-aligned SUMO summary series.
+      properties:
+        key:
+          enum:
+          - vehicle_count
+          - average_speed_mps
+          - queue_length_veh
+          - average_waiting_time_s
+          - completed_total
+          title: Key
+          type: string
+        label:
+          minLength: 1
+          title: Label
+          type: string
+        samples:
+          items:
+            $ref: '#/components/schemas/SimulationTrendSample'
+          title: Samples
+          type: array
+        unit:
+          minLength: 1
+          title: Unit
+          type: string
+      required:
+      - key
+      - label
+      - unit
+      - samples
+      title: SimulationResultTrend
+      type: object
+    SimulationRoadResult:
+      additionalProperties: false
+      description: Aggregate values for one SUMO edge in the run's actual network.
+      properties:
+        average_speed_mps:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - type: 'null'
+          title: Average Speed Mps
+        congestion_ratio:
+          anyOf:
+          - maximum: 1.0
+            minimum: 0.0
+            type: number
+          - type: 'null'
+          title: Congestion Ratio
+        edge_id:
+          minLength: 1
+          title: Edge Id
+          type: string
+        queue_length_m:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - type: 'null'
+          title: Queue Length M
+        traffic_flow_veh_per_hour:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - type: 'null'
+          title: Traffic Flow Veh Per Hour
+      required:
+      - edge_id
+      title: SimulationRoadResult
+      type: object
+    SimulationRunKind:
+      enum:
+      - simulation
+      - test
+      title: SimulationRunKind
+      type: string
+    SimulationTrendSample:
+      additionalProperties: false
+      properties:
+        simulation_time_ms:
+          minimum: 0.0
+          title: Simulation Time Ms
+          type: integer
+        value:
+          title: Value
+          type: number
+      required:
+      - simulation_time_ms
+      - value
+      title: SimulationTrendSample
+      type: object
     StopExperimentRequest:
       additionalProperties: false
       properties:
@@ -377,6 +869,33 @@ components:
           title: Reason
           type: string
       title: StopExperimentRequest
+      type: object
+    TrafficLightState:
+      additionalProperties: false
+      properties:
+        phase:
+          minLength: 1
+          title: Phase
+          type: string
+        remaining_ms:
+          anyOf:
+          - minimum: 0.0
+            type: integer
+          - type: 'null'
+          title: Remaining Ms
+        signal_id:
+          minLength: 1
+          title: Signal Id
+          type: string
+        simulation_time_ms:
+          minimum: 0.0
+          title: Simulation Time Ms
+          type: integer
+      required:
+      - signal_id
+      - simulation_time_ms
+      - phase
+      title: TrafficLightState
       type: object
     ValidationError:
       properties:
@@ -398,6 +917,114 @@ components:
       - msg
       - type
       title: ValidationError
+      type: object
+    Vector3:
+      additionalProperties: false
+      properties:
+        x:
+          title: X
+          type: number
+        y:
+          title: Y
+          type: number
+        z:
+          default: 0.0
+          title: Z
+          type: number
+      required:
+      - x
+      - y
+      title: Vector3
+      type: object
+    VehicleAction:
+      enum:
+      - KEEP_LANE
+      - ACCELERATE
+      - BRAKE
+      - LANE_CHANGE_LEFT
+      - LANE_CHANGE_RIGHT
+      - STOP
+      - TAKEOVER
+      title: VehicleAction
+      type: string
+    VehicleState:
+      additionalProperties: false
+      properties:
+        acceleration_mps2:
+          title: Acceleration Mps2
+          type: number
+        action:
+          $ref: '#/components/schemas/VehicleAction'
+        automation_level:
+          $ref: '#/components/schemas/AutomationLevel'
+        controller_id:
+          minLength: 1
+          title: Controller Id
+          type: string
+        experiment_id:
+          format: uuid
+          title: Experiment Id
+          type: string
+        heading_rad:
+          title: Heading Rad
+          type: number
+        lane_id:
+          minLength: 1
+          title: Lane Id
+          type: string
+        position:
+          $ref: '#/components/schemas/Vector3'
+        risk_score:
+          maximum: 1.0
+          minimum: 0.0
+          title: Risk Score
+          type: number
+        route_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route Id
+        schema_version:
+          const: '1.0'
+          default: '1.0'
+          title: Schema Version
+          type: string
+        sequence:
+          minimum: 0.0
+          title: Sequence
+          type: integer
+        simulation_time_ms:
+          minimum: 0.0
+          title: Simulation Time Ms
+          type: integer
+        speed_mps:
+          minimum: 0.0
+          title: Speed Mps
+          type: number
+        target_lane_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Lane Id
+        vehicle_id:
+          minLength: 1
+          title: Vehicle Id
+          type: string
+      required:
+      - experiment_id
+      - vehicle_id
+      - simulation_time_ms
+      - sequence
+      - automation_level
+      - position
+      - speed_mps
+      - acceleration_mps2
+      - heading_rad
+      - lane_id
+      - controller_id
+      - action
+      - risk_score
+      title: VehicleState
       type: object
     WorkspaceActivitySample:
       additionalProperties: false
@@ -952,6 +1579,167 @@ paths:
                 $ref: '#/components/schemas/ReadinessResponse'
           description: Successful Response
       summary: Ready
+  /api/v1/simulation-configurations:
+    post:
+      operationId: save_simulation_configuration_api_v1_simulation_configurations_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationConfigurationSaveRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationConfigurationView'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Save Simulation Configuration
+  /api/v1/simulations:
+    get:
+      operationId: list_simulations_api_v1_simulations_get
+      parameters:
+      - in: query
+        name: workspace_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Workspace Id
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SimulationHistorySummary'
+                title: Response List Simulations Api V1 Simulations Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: List Simulations
+  /api/v1/simulations/{run_id}:
+    get:
+      operationId: get_simulation_api_v1_simulations__run_id__get
+      parameters:
+      - in: path
+        name: run_id
+        required: true
+        schema:
+          title: Run Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationHistoryDetail'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Simulation
+  /api/v1/simulations/{run_id}/export:
+    get:
+      operationId: export_simulation_api_v1_simulations__run_id__export_get
+      parameters:
+      - in: path
+        name: run_id
+        required: true
+        schema:
+          title: Run Id
+          type: string
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Export Simulation
+  /api/v1/simulations/{run_id}/network:
+    get:
+      operationId: get_simulation_network_api_v1_simulations__run_id__network_get
+      parameters:
+      - in: path
+        name: run_id
+        required: true
+        schema:
+          title: Run Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Simulation Network
+  /api/v1/simulations/{run_id}/replay:
+    get:
+      operationId: get_simulation_replay_api_v1_simulations__run_id__replay_get
+      parameters:
+      - in: path
+        name: run_id
+        required: true
+        schema:
+          title: Run Id
+          type: string
+      - in: query
+        name: from_time_ms
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: From Time Ms
+          type: integer
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 2000
+          maximum: 10000
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationReplayWindow'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Simulation Replay
   /api/v1/workspaces:
     get:
       operationId: list_workspaces_api_v1_workspaces_get

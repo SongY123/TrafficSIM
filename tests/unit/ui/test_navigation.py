@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from PySide6.QtCore import QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
-from ui.models import MOCK_REPLAY_RECORDS
+from ui.models import ExperimentStatus, ReplaySummary
 from ui.views.navigation import NavigationRail
 from ui.views.theme import ThemeMode, load_stylesheet
 
@@ -11,6 +13,24 @@ from ui.views.theme import ThemeMode, load_stylesheet
 def _application() -> QApplication:
     existing = QApplication.instance()
     return existing if isinstance(existing, QApplication) else QApplication([])
+
+
+def _history() -> tuple[ReplaySummary, ...]:
+    return tuple(
+        ReplaySummary(
+            run_id=run_id,
+            status=ExperimentStatus.COMPLETED,
+            created_at=datetime(2026, 8, 11, 9, index, tzinfo=timezone.utc),
+            scene_name=f"Scenario {index}",
+            map_id="town04",
+            map_name="Town04",
+            configured_duration_ms=60_000,
+            simulation_time_ms=60_000,
+            replay_available=index == 0,
+            export_available=True,
+        )
+        for index, run_id in enumerate(("2026-08-11-09-08-07", "2026-08-11-08-07-06"))
+    )
 
 
 def test_brand_logo_renders_the_complete_svg_canvas() -> None:
@@ -63,6 +83,8 @@ def test_history_navigation_expands_on_main_click_and_opens_selected_replay() ->
     navigation = NavigationRail()
     navigation.resize(236, 720)
     navigation.show()
+    records = _history()
+    navigation.set_history(records)
     requests: list[str] = []
     navigation.replay_requested.connect(requests.append)
     history = navigation.findChild(QPushButton, "nav_experiments")
@@ -75,12 +97,12 @@ def test_history_navigation_expands_on_main_click_and_opens_selected_replay() ->
 
     assert history is not None
     assert children is not None
-    assert len(entries) == len(MOCK_REPLAY_RECORDS)
+    assert len(entries) == len(records)
     assert children.isHidden()
     history.click()
     app.processEvents()
     assert not children.isHidden()
-    assert children.height() >= 32 * len(MOCK_REPLAY_RECORDS)
+    assert children.height() >= 32 * len(records)
     assert all(entry.isVisible() and entry.height() == 32 for entry in entries)
     assert all(entry.text() for entry in entries)
 

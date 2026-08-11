@@ -127,6 +127,26 @@ class ExperimentView(ProtocolModel):
     speed_multiplier: float = Field(gt=0.0)
 
 
+class AutomationDemand(ProtocolModel):
+    level: Literal["L0", "L1", "L2", "L3", "L4", "L5"]
+    vehicle_count: int = Field(ge=0, le=100_000)
+
+
+class SimulationConfigurationDraft(ProtocolModel):
+    scene_name: str
+    description: str = Field(default="", max_length=1_000)
+    map_id: str
+    duration_ms: int
+    automation_demands: tuple[AutomationDemand, ...]
+
+
+class SimulationConfigurationView(ProtocolModel):
+    configuration_id: str = Field(pattern=r"^\d{4}(?:-\d{2}){5}$")
+    map_id: str = Field(min_length=1)
+    map_name: str = Field(min_length=1)
+    relative_directory: str = Field(min_length=1)
+
+
 class ReadinessComponent(ProtocolModel):
     component: str = Field(min_length=1)
     status: str = Field(min_length=1)

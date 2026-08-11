@@ -262,6 +262,122 @@ def test_core_api_discovers_image2road_as_directly_runnable_sumo_package(
         assert created.json()["simulation_time_ms"] == 0
 
 
+def test_configuration_api_saves_and_stages_test_run_from_generated_package(
+    tmp_path: Path,
+) -> None:
+    configuration_root = tmp_path / "configs/configs"
+    simulation_root = tmp_path / "artifacts/simulations"
+    test_root = tmp_path / "artifacts/tests"
+    app = build_core_api(
+        SCENARIO_PATH,
+        repository_root=REPOSITORY_ROOT,
+        artifact_root=tmp_path / "maps",
+        sumo_artifact_root=tmp_path / "sumo",
+        configuration_root=configuration_root,
+        simulation_artifact_root=simulation_root,
+        test_artifact_root=test_root,
+    )
+
+    with TestClient(app) as client:
+        workspace_id = client.get("/api/v1/workspaces").json()[0]["workspace_id"]
+        saved = client.post(
+            "/api/v1/simulation-configurations",
+            json={
+                "workspace_id": workspace_id,
+                "scenario_id": str(UUID(int=42)),
+                "scene_name": "API generated test",
+                "description": "exact level counts",
+                "map_id": "image2road",
+                "duration_ms": 60_000,
+                "automation_demands": [
+                    {"level": "L0", "vehicle_count": 2},
+                    {"level": "L4", "vehicle_count": 3},
+                ],
+            },
+        )
+        assert saved.status_code == 201
+        configuration_id = saved.json()["configuration_id"]
+        saved_directory = configuration_root / configuration_id
+        assert (saved_directory / "configuration.json").is_file()
+
+        created = client.post(
+            "/api/v1/experiments",
+            json={
+                "workspace_id": workspace_id,
+                "scenario_id": str(UUID(int=42)),
+                "map_id": "image2road",
+                "configuration_id": configuration_id,
+                "run_kind": "test",
+            },
+        )
+
+        assert created.status_code == 202
+        run_directories = tuple(path for path in test_root.iterdir() if path.is_dir())
+        assert len(run_directories) == 1
+        run_directory = run_directories[0]
+        assert (run_directory / "run.json").is_file()
+        assert (run_directory / "image2road/image2road.sumocfg").is_file()
+        assert not simulation_root.exists()
+
+
+def test_formal_simulation_history_network_detail_and_export_api(tmp_path: Path) -> None:
+    configuration_root = tmp_path / "configs/configs"
+    simulation_root = tmp_path / "artifacts/simulations"
+    app = build_core_api(
+        SCENARIO_PATH,
+        repository_root=REPOSITORY_ROOT,
+        artifact_root=tmp_path / "maps",
+        sumo_artifact_root=tmp_path / "sumo",
+        configuration_root=configuration_root,
+        simulation_artifact_root=simulation_root,
+        test_artifact_root=tmp_path / "artifacts/tests",
+    )
+
+    with TestClient(app) as client:
+        workspace_id = client.get("/api/v1/workspaces").json()[0]["workspace_id"]
+        saved = client.post(
+            "/api/v1/simulation-configurations",
+            json={
+                "workspace_id": workspace_id,
+                "scenario_id": str(UUID(int=42)),
+                "scene_name": "History API validation",
+                "description": "formal run artifact",
+                "map_id": "image2road",
+                "duration_ms": 60_000,
+                "automation_demands": [],
+            },
+        ).json()
+        client.post(
+            "/api/v1/experiments",
+            json={
+                "workspace_id": workspace_id,
+                "scenario_id": str(UUID(int=42)),
+                "map_id": "image2road",
+                "configuration_id": saved["configuration_id"],
+                "run_kind": "simulation",
+            },
+        )
+
+        listed = client.get("/api/v1/simulations", params={"workspace_id": workspace_id})
+        assert listed.status_code == 200
+        assert len(listed.json()) == 1
+        run_id = listed.json()[0]["run_id"]
+        assert listed.json()[0]["scene_name"] == "History API validation"
+        assert listed.json()[0]["status"] == "CREATED"
+        detail = client.get(f"/api/v1/simulations/{run_id}")
+        network = client.get(f"/api/v1/simulations/{run_id}/network")
+        exported = client.get(f"/api/v1/simulations/{run_id}/export")
+
+        assert detail.status_code == 200
+        assert len(detail.json()["metrics"]) == 7
+        assert network.status_code == 200
+        assert network.headers["content-type"].startswith("application/geo+json")
+        assert network.json()["features"]
+        assert exported.status_code == 200
+        assert exported.headers["content-type"] == "application/zip"
+        assert exported.content.startswith(b"PK")
+
+
 def test_map_import_endpoint_publishes_compiled_geojson(tmp_path: Path) -> None:
     dependencies = _dependencies(tmp_path, FakeManager(uuid4()))
     source = MAP_DIRECTORY / "Town04.xodr"

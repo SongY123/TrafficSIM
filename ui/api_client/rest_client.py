@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from uuid import UUID
 
-from PySide6.QtCore import QFile, QIODeviceBase, QObject, QUrl, QUrlQuery, Signal
+from PySide6.QtCore import QFile, QIODeviceBase, QObject, QSaveFile, QUrl, QUrlQuery, Signal
 from PySide6.QtNetwork import (
     QHttpMultiPart,
     QHttpPart,
@@ -15,6 +15,8 @@ from PySide6.QtNetwork import (
     QNetworkReply,
     QNetworkRequest,
 )
+
+from ui.models import SimulationConfigurationDraft
 
 
 class RestApiClient(QObject):
@@ -38,6 +40,33 @@ class RestApiClient(QObject):
 
     def list_maps(self) -> None:
         self._get("maps.list", "/api/v1/maps")
+
+    def list_simulations(self, workspace_id: UUID | None = None) -> None:
+        parameters = {"workspace_id": str(workspace_id)} if workspace_id is not None else None
+        self._get("simulations.list", "/api/v1/simulations", parameters)
+
+    def get_simulation(self, run_id: str) -> None:
+        self._get(f"simulation.get:{run_id}", f"/api/v1/simulations/{run_id}")
+
+    def get_simulation_network(self, run_id: str) -> None:
+        self._get(
+            f"simulation.network:{run_id}",
+            f"/api/v1/simulations/{run_id}/network",
+        )
+
+    def get_simulation_replay(self, run_id: str, from_time_ms: int = 0) -> None:
+        self._get(
+            f"simulation.replay:{run_id}:{from_time_ms}",
+            f"/api/v1/simulations/{run_id}/replay",
+            {"from_time_ms": str(from_time_ms), "limit": "2000"},
+        )
+
+    def export_simulation(self, run_id: str, target: Path) -> None:
+        operation = f"simulation.export:{run_id}"
+        reply = self._network.get(
+            QNetworkRequest(self._url(f"/api/v1/simulations/{run_id}/export"))
+        )
+        reply.finished.connect(lambda: self._finish_download(operation, target, reply))
 
     def list_workspaces(self, query: str | None = None) -> None:
         parameters = {"query": query} if query else None
@@ -144,15 +173,42 @@ class RestApiClient(QObject):
         multipart.setParent(reply)
         self._watch(operation, reply)
 
-    def create_experiment(self, workspace_id: UUID, scenario_id: UUID, map_id: str) -> None:
+    def save_simulation_configuration(
+        self,
+        workspace_id: UUID,
+        scenario_id: UUID,
+        configuration: SimulationConfigurationDraft,
+    ) -> None:
         self._post_json(
-            "experiment.create",
-            "/api/v1/experiments",
+            "simulation-configuration.save",
+            "/api/v1/simulation-configurations",
             {
                 "workspace_id": str(workspace_id),
                 "scenario_id": str(scenario_id),
-                "map_id": map_id,
+                **configuration.model_dump(mode="json"),
             },
+        )
+
+    def create_experiment(
+        self,
+        workspace_id: UUID,
+        scenario_id: UUID,
+        map_id: str,
+        configuration_id: str | None = None,
+        run_kind: str = "simulation",
+    ) -> None:
+        payload: dict[str, object] = {
+            "workspace_id": str(workspace_id),
+            "scenario_id": str(scenario_id),
+            "map_id": map_id,
+        }
+        if configuration_id is not None:
+            payload["configuration_id"] = configuration_id
+            payload["run_kind"] = run_kind
+        self._post_json(
+            "experiment.create",
+            "/api/v1/experiments",
+            payload,
         )
 
     def get_experiment(self, experiment_id: UUID) -> None:
@@ -213,6 +269,24 @@ class RestApiClient(QObject):
             self.request_succeeded.emit(operation, payload)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             self.request_failed.emit(operation, f"服务器返回了无法解析的数据：{error}")
+        finally:
+            reply.deleteLater()
+
+    def _finish_download(self, operation: str, target: Path, reply: QNetworkReply) -> None:
+        try:
+            raw = bytes(reply.readAll().data())
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                self.request_failed.emit(operation, self._error_message(reply, raw))
+                return
+            destination = QSaveFile(str(target))
+            if not destination.open(QIODeviceBase.OpenModeFlag.WriteOnly):
+                self.request_failed.emit(operation, f"无法写入导出文件：{target.name}")
+                return
+            if destination.write(raw) != len(raw) or not destination.commit():
+                destination.cancelWriting()
+                self.request_failed.emit(operation, f"导出文件写入失败：{target.name}")
+                return
+            self.request_succeeded.emit(operation, str(target))
         finally:
             reply.deleteLater()
 

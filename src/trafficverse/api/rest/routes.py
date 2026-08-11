@@ -21,6 +21,8 @@ from trafficverse.api.models import (
     MapSummary,
     ReadinessResponse,
     SetSpeedRequest,
+    SimulationConfigurationSaveRequest,
+    SimulationConfigurationView,
     StopExperimentRequest,
     WorkspaceCreateRequest,
     WorkspaceUpdateRequest,
@@ -31,6 +33,10 @@ from trafficverse.domain.errors import TrafficVerseError
 from trafficverse.domain.models import (
     AgentApiRecord,
     AgentApiWrite,
+    SimulationConfigurationDraft,
+    SimulationHistoryDetail,
+    SimulationHistorySummary,
+    SimulationReplayWindow,
     WorkspaceOverview,
     WorkspaceRecord,
     WorkspaceWrite,
@@ -178,6 +184,69 @@ def build_router(dependencies: ApiDependencies) -> APIRouter:
             media_type="application/geo+json",
         )
 
+    @router.get("/simulations", response_model=tuple[SimulationHistorySummary, ...])
+    async def list_simulations(
+        workspace_id: Annotated[UUID | None, Query()] = None,
+    ) -> tuple[SimulationHistorySummary, ...]:
+        if dependencies.histories is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "simulation history storage is not configured",
+            )
+        return await dependencies.histories.list_runs(workspace_id)
+
+    @router.get("/simulations/{run_id}", response_model=SimulationHistoryDetail)
+    async def get_simulation(run_id: str) -> SimulationHistoryDetail:
+        if dependencies.histories is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "simulation history storage is not configured",
+            )
+        return await dependencies.histories.get_run(run_id)
+
+    @router.get("/simulations/{run_id}/network")
+    async def get_simulation_network(run_id: str) -> JSONResponse:
+        if dependencies.histories is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "simulation history storage is not configured",
+            )
+        return JSONResponse(
+            await dependencies.histories.get_network(run_id),
+            media_type="application/geo+json",
+        )
+
+    @router.get("/simulations/{run_id}/replay", response_model=SimulationReplayWindow)
+    async def get_simulation_replay(
+        run_id: str,
+        from_time_ms: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=10_000)] = 2_000,
+    ) -> SimulationReplayWindow:
+        if dependencies.histories is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "simulation history storage is not configured",
+            )
+        return await dependencies.histories.get_replay(
+            run_id,
+            from_time_ms=from_time_ms,
+            limit=limit,
+        )
+
+    @router.get("/simulations/{run_id}/export", response_class=Response)
+    async def export_simulation(run_id: str) -> Response:
+        if dependencies.histories is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "simulation history storage is not configured",
+            )
+        exported = await dependencies.histories.export_run(run_id)
+        return Response(
+            content=exported.payload,
+            media_type=exported.media_type,
+            headers={"Content-Disposition": f'attachment; filename="{exported.filename}"'},
+        )
+
     @router.post(
         "/maps/import",
         response_model=MapImportJob,
@@ -197,17 +266,64 @@ def build_router(dependencies: ApiDependencies) -> APIRouter:
         return dependencies.maps.import_job(job_id)
 
     @router.post(
+        "/simulation-configurations",
+        response_model=SimulationConfigurationView,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def save_simulation_configuration(
+        request: SimulationConfigurationSaveRequest,
+    ) -> SimulationConfigurationView:
+        if dependencies.configurations is None:
+            raise TrafficVerseError(
+                ErrorCode.COMPONENT_UNAVAILABLE,
+                "simulation configuration storage is not configured",
+            )
+        await dependencies.workspaces.get(request.workspace_id)
+        snapshot = await dependencies.configurations.save(
+            SimulationConfigurationDraft.model_validate(request.model_dump())
+        )
+        return SimulationConfigurationView.model_validate(snapshot.model_dump())
+
+    @router.post(
         "/experiments",
         response_model=ExperimentView,
         status_code=status.HTTP_202_ACCEPTED,
     )
     async def create_experiment(request: ExperimentCreateRequest) -> ExperimentView:
         await dependencies.workspaces.get(request.workspace_id)
+        run_input = None
+        if request.configuration_id is not None:
+            if dependencies.configurations is None:
+                raise TrafficVerseError(
+                    ErrorCode.COMPONENT_UNAVAILABLE,
+                    "simulation configuration storage is not configured",
+                )
+            run_input = await dependencies.configurations.prepare_run(
+                request.configuration_id,
+                request.run_kind,
+                request.workspace_id,
+                request.scenario_id,
+                request.map_id,
+            )
+            if (
+                run_input.workspace_id != request.workspace_id
+                or run_input.scenario_id != request.scenario_id
+            ):
+                raise TrafficVerseError(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "saved simulation configuration does not belong to the requested context",
+                )
+            if request.map_id is not None and request.map_id != run_input.map_id:
+                raise TrafficVerseError(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "saved simulation configuration map does not match the request",
+                )
         return await dependencies.runtimes.create(
             uuid4(),
             request.workspace_id,
             request.scenario_id,
-            request.map_id,
+            run_input.map_id if run_input is not None else request.map_id,
+            run_input,
         )
 
     @router.get("/experiments/{experiment_id}", response_model=ExperimentView)

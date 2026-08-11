@@ -1,9 +1,9 @@
 # TrafficVerse System Design
 
-> 版本：v1.6
+> 版本：v1.7
 > 状态：Target Baseline（SUMO/CARLA 迁移中）
 > 产品基线：[PRD](./PRD.md)
-> 决策基线：[ADR-024、ADR-025、ADR-027](./ADR.md)
+> 决策基线：[ADR-024、ADR-025、ADR-027、ADR-028](./ADR.md)
 
 ## 1. 系统边界与不可变原则
 
@@ -87,7 +87,9 @@ sumo -c configs/maps/town04/map.sumocfg --remote-port 8813
 | CARLA | disabled，不加载 ROI、registration、signals.yaml |
 | 静态地图 | 从同一 `.net.xml` 生成 display-only GeoJSON |
 | TLS ID | `sumo-tls:<tls-id>:<link-index>` |
-| 运行目录 | `artifacts/sumo/<experiment-id>/package/` |
+| 配置快照 | `configs/configs/<timestamp>/` |
+| 正式运行目录 | `artifacts/simulations/<timestamp>/` |
+| 快速测试目录 | `artifacts/tests/<timestamp>/` |
 
 一个目录只有一个 `.sumocfg` 时，目录名就是运行 ID；有多个配置时，ID 为
 `<directory>-<config-stem>`。显式 input file 必须位于 `configs/maps` 根内。配置无效时目录仍可
@@ -147,6 +149,51 @@ Town04 manifest 必须追踪：
 原生 SUMO 包不要求上述 Town04 资产。运行工厂从 `.sumocfg` 生成内部不可变 `ScenarioConfig`
 快照，将 `launch_mode` 设为 `managed`、`expected_version` 设为空、CARLA 设为 disabled，并使用
 stage 后的 `.sumocfg` 绝对路径。该内部快照仍满足类型校验并交给同一个 `SimulationManager`。
+
+桌面端的保存用例先把场景包复制到配置快照；交通需求非空时用显式 `vehicle` 替换原需求，
+为空时原样保留已有 `.rou.xml`。两种情况都修改 `.sumocfg` end time。`configuration.json` 保存
+场景、地图、时长和已配置的智驾等级车辆数；运行时再将整个快照复制到正式或测试 artifact，
+内部 resolved snapshot 只引用 artifact 内的网络、route 和 `.sumocfg`。兼容 API 未提供配置 ID
+时仍使用 ADR-027 的 `artifacts/sumo` 路径。
+
+### 4.4 正式结果、历史列表与回放
+
+正式历史的权威索引是 `artifacts/simulations` 下名称为 `yyyy-mm-dd-hh-mm-ss` 的一级目录。
+后端通过 `SimulationHistoryStorePort` 读取目录，UI 只消费 REST，不直接访问文件系统。运行时将
+实验 ID、状态、原因和起止时间镜像到 `run.json`；旧 artifact 没有状态字段时，仅在存在 SUMO
+summary step 的情况下兼容推断为已完成，否则视为已创建。
+
+每个新正式运行固定生成以下结果，已有场景包的同名输出配置会被运行快照覆盖为稳定路径：
+
+```text
+outputs/trafficverse-summary.xml
+outputs/trafficverse-tripinfo.xml
+outputs/trafficverse-edge-data.xml
+outputs/trafficverse-lane-data.xml
+outputs/trafficverse-queue.xml
+replay/frames.parquet
+replay/vehicle_states.parquet
+replay/traffic_light_states.parquet
+replay/manifest.json
+```
+
+结果页不再维护第二套统计口径：车辆总数、到达数、速度、排队趋势来自 SUMO summary，行程与
+等待时间来自 tripinfo，道路速度/拥堵/流量来自 edgeData，车道排队长度来自 queue。页面显示
+对应 source 字段。道路几何由该运行 `configuration.json` 指向的 `.sumocfg` 继续解析实际
+`.net.xml` 生成，禁止回退到手绘路网。
+
+`ParquetReplayDataLogger` 按配置的轨迹频率采样，周期性记录完整 snapshot，并在其间写 UPSERT/
+REMOVE delta；flush 后写带 checksum 的 manifest。回放 API 从目标时间之前最近 snapshot 开始重建，
+分页面返回不可变帧。桌面端复用 `LiveMonitorPage` 播放这些帧，播放、暂停、重启和倍率只影响墙上
+时间调度，不调用实时实验命令。无 manifest 的旧运行可查看与导出结果，但不能伪装为支持回放。
+
+REST 资源为：
+
+- `GET /api/v1/simulations?workspace_id=`：正式历史列表；
+- `GET /api/v1/simulations/{run_id}`：摘要、统计、趋势和道路结果；
+- `GET /api/v1/simulations/{run_id}/network`：本次运行实际 SUMO 路网；
+- `GET /api/v1/simulations/{run_id}/replay`：有界 snapshot/delta 重建窗口；
+- `GET /api/v1/simulations/{run_id}/export`：原始 artifact 与派生 CSV 的 ZIP。
 
 ## 5. 领域模型
 

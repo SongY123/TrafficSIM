@@ -1,6 +1,6 @@
 # TrafficVerse Architecture Decision Record
 
-> 版本：v1.3
+> 版本：v1.4
 > 状态：Target Baseline（实现迁移中）
 >
 > 输入：[PRD.md](./PRD.md)
@@ -1208,6 +1208,49 @@ TrafficVerse 增加“原生 SUMO 二维包”运行模式，与严格 Town04 Co
 - 纯二维场景的 CARLA 状态为 disabled，不应把它显示成三维故障；
 - 新增真实集成测试必须至少覆盖一个非 Town04、无 `linkSignalID`、且主机 SUMO 版本不同于 Core
   Run 锁定版本的场景。
+
+---
+
+## ADR-028 — 仿真配置快照、精确交通需求和正式/测试运行目录
+
+- 状态：Accepted
+- 日期：2026-08-11
+- 修订：ADR-027 第 7 条的通用 SUMO 运行副本目录
+- 保留：SUMO 交通真值、`SimulationManager` 唯一推进者、原始场景包不可变
+
+### 背景
+
+仿真配置页允许用户编辑场景名称、地图、仿真时长和 L0–L5 车辆数。旧流程仅把地图 ID
+传入实验创建接口，运行时仍使用场景包原始 route 和 end time，因此页面上的交通需求和
+时长不是真正可重现的运行输入。同时，开发者需要将快速验证与正式历史仿真分开。
+
+### 决策
+
+1. “保存配置”在 `configs/configs/yyyy-mm-dd-hh-mm-ss/` 创建不可变快照，复制选中的
+   SUMO 场景包，不修改 `configs/maps` 源文件；
+2. 快照根目录的 `configuration.json` 单独记录工作区/场景 ID、场景名称与描述、地图
+   ID/名称、仿真时长、已配置的 L0–L5 精确车辆数和快照内 `.sumocfg` 相对路径；
+3. 页面交通需求非空时，保留原 route 文件中的命名 `route` 和 L0–L5 `vType` 定义；缺失的
+   已选等级 `vType` 使用稳定默认值补齐。删除原有 `flow/vehicle` 需求，按页面数量生成显式
+   `vehicle`，车辆 ID 稳定且发车时刻在配置时长内均匀分布。页面交通需求为空时，不生成
+   route 文件并原样保留场景包内已有 `.rou.xml`；
+4. 快照内 `.sumocfg` 的 `end` 设为 `begin + duration_ms`，时长必须是该包 SUMO 步长的
+   正整数倍；
+5. “开始仿真”使用 `artifacts/simulations/yyyy-mm-dd-hh-mm-ss/`，“测试”使用
+   `artifacts/tests/yyyy-mm-dd-hh-mm-ss/`。两者都先复制已保存快照，SUMO 输入和输出均限定在
+   该次 artifact 树；
+6. 用户未保存或保存后又修改页面值时，开始/测试在创建实验前自动执行同一保存
+   用例；未变更时复用已保存快照；
+7. API 只接收类型化配置和时间戳 ID，不接收任意本机路径。快照必须校验工作区、场景和地图
+   归属后才能创建运行副本。
+
+### 后果
+
+- ADR-027 的 `artifacts/sumo/<experiment-id>/package/` 仍作为无配置快照的兼容入口；桌面端新建
+  正式/测试运行必须使用本 ADR 的目录；
+- 时间戳在同一秒内冲突时向后选取第一个可用秒，仍保持固定目录格式；
+- `configuration.json` 是用户快照元数据，`.sumocfg` 仍是 SUMO 的权威运行配置；
+- 生成快照和 artifact 是本地用户数据，不进入 Git。
 
 ---
 

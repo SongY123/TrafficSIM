@@ -20,6 +20,10 @@ from trafficverse.domain.models import (
     ScenarioPage,
     ScenarioRecord,
     ScenarioWrite,
+    SimulationHistoryDetail,
+    SimulationHistorySummary,
+    SimulationReplayWindow,
+    SimulationResultExport,
     WorkspaceRecord,
     WorkspaceWrite,
 )
@@ -106,6 +110,28 @@ class ArtifactWriterPort(Protocol):
         relative_path: Path,
         payload: bytes,
     ) -> str: ...
+
+
+class SimulationHistoryStorePort(Protocol):
+    """Read formal simulation artifacts without exposing filesystem paths to callers."""
+
+    def list_runs(
+        self, workspace_id: UUID | None = None
+    ) -> tuple[SimulationHistorySummary, ...]: ...
+
+    def get_run(self, run_id: str) -> SimulationHistoryDetail: ...
+
+    def get_network(self, run_id: str) -> dict[str, object]: ...
+
+    def get_replay(
+        self,
+        run_id: str,
+        *,
+        from_time_ms: int,
+        limit: int,
+    ) -> SimulationReplayWindow: ...
+
+    def export_run(self, run_id: str) -> SimulationResultExport: ...
 
 
 class WorkspaceRepositoryPort(Protocol):

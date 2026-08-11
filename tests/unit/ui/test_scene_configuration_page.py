@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import platform
+from typing import cast
 
 import pytest
 from PySide6.QtCore import QTime
@@ -11,7 +12,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionSpinBox,
 )
-from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary
+from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary, SimulationConfigurationDraft
 from ui.views.scene_configuration_page import SceneConfigurationPage
 from ui.views.theme import ThemeMode, load_stylesheet
 
@@ -64,14 +65,58 @@ def test_scene_configuration_matches_reference_defaults() -> None:
     _application()
     page = SceneConfigurationPage(load_web_map=False)
 
-    assert page.scene_name.text() == ""
+    assert page.scene_name.text() == "未命名场景"
     assert page.scene_name.placeholderText() == "请输入场景名称"
     assert page.description.toPlainText() == ""
     assert page.description.placeholderText() == "请输入场景描述"
     assert page.duration_time.time() == QTime(1, 0, 0)
     assert page.findChild(QComboBox, "simulationWeatherTimeCombo") is None
-    assert page.save_draft_button.text() == "保存草稿"
+    assert page.findChild(QPushButton, "saveSimulationDraftButton") is None
     assert page.save_configuration_button.text() == "保存配置"
+    assert page.test_button.text() == "测试"
+    assert page.automation_rows == []
+    assert page.vehicle_total.text() == "总计：0"
+
+    page.close()
+
+
+def test_configuration_actions_emit_the_current_typed_configuration() -> None:
+    _application()
+    page = SceneConfigurationPage(load_web_map=False)
+    page.set_maps(
+        (
+            MapSummary(
+                map_id="image2road",
+                kind="sumo",
+                display_name="Image road",
+                validated=True,
+                network_schema_version="sumo-net/display-1.0",
+                manifest_available=False,
+                sumo_config_file="image2road.sumocfg",
+                sumo_step_ms=1000,
+            ),
+        )
+    )
+    page.scene_name.setText("Morning run")
+    page.description.setPlainText("Exact traffic mix")
+    page.duration_time.setTime(QTime(0, 2, 0))
+    saved: list[object] = []
+    launched: list[object] = []
+    tested: list[object] = []
+    page.configuration_save_requested.connect(saved.append)
+    page.launch_requested.connect(launched.append)
+    page.test_requested.connect(tested.append)
+
+    page.save_configuration_button.click()
+    page.create_button.click()
+    page.test_button.click()
+
+    assert saved == launched == tested
+    configuration = cast(SimulationConfigurationDraft, saved[0])
+    assert configuration.scene_name == "Morning run"
+    assert configuration.map_id == "image2road"
+    assert configuration.duration_ms == 120_000
+    assert configuration.automation_demands == ()
 
     page.close()
 
@@ -80,17 +125,15 @@ def test_scene_configuration_adds_levels_and_updates_vehicle_total() -> None:
     _application()
     page = SceneConfigurationPage(load_web_map=False)
 
-    assert len(page.automation_rows) == 1
-    assert page.automation_rows[0].level == "L4"
-    assert page.automation_rows[0].vehicle_count == 50
-    assert page.vehicle_total.text() == "总计：50"
+    assert page.automation_rows == []
+    assert page.vehicle_total.text() == "总计：0"
 
     page.add_automation_button.click()
-    added = page.automation_rows[1]
+    added = page.automation_rows[0]
     assert added.level == "L0"
     added.count_input.setValue(200)
 
-    assert page.vehicle_total.text() == "总计：250"
+    assert page.vehicle_total.text() == "总计：200"
 
     page.close()
 
@@ -99,14 +142,14 @@ def test_scene_configuration_removes_automation_level() -> None:
     _application()
     page = SceneConfigurationPage(load_web_map=False)
     page.add_automation_button.click()
-    removed = page.automation_rows[1]
+    removed = page.automation_rows[0]
 
     page._remove_automation_row(removed)
 
-    assert len(page.automation_rows) == 1
+    assert page.automation_rows == []
     assert removed not in page.automation_rows
     assert page.add_automation_button.isEnabled()
-    assert page.vehicle_total.text() == "总计：50"
+    assert page.vehicle_total.text() == "总计：0"
 
     page.close()
 
@@ -150,6 +193,7 @@ def test_macos_automation_count_uses_large_stepper_targets(
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
 
     page = SceneConfigurationPage(load_web_map=False)
+    page.add_automation_button.click()
     count_input = page.automation_rows[0].count_input
 
     assert count_input.property("macosStepper") is True
@@ -196,6 +240,7 @@ def test_windows_automation_stepper_renders_explicit_arrow_icons(
     previous_stylesheet = application.styleSheet()
     application.setStyleSheet(load_stylesheet(ThemeMode.DARK))
     page = SceneConfigurationPage(load_web_map=False)
+    page.add_automation_button.click()
     page.show()
     application.processEvents()
     count_input = page.automation_rows[0].count_input

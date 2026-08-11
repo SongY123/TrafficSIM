@@ -24,7 +24,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import MapSummary, TrafficScenarioPreset
+from ui.models import (
+    AutomationDemand,
+    MapSummary,
+    SimulationConfigurationDraft,
+    TrafficScenarioPreset,
+)
 from ui.views.components import PAGE_CONTENT_MARGIN, page_header
 from ui.widgets import MapLibreDeckMapWidget
 
@@ -148,9 +153,9 @@ class SceneConfigurationPage(QWidget):
     """Collect map, automation mix, and duration settings for a simulation."""
 
     map_selected = Signal(str)
-    launch_requested = Signal()
-    draft_save_requested = Signal()
-    configuration_save_requested = Signal()
+    launch_requested = Signal(object)
+    test_requested = Signal(object)
+    configuration_save_requested = Signal(object)
 
     def __init__(
         self,
@@ -185,9 +190,13 @@ class SceneConfigurationPage(QWidget):
         widget = QWidget()
         row = QHBoxLayout(widget)
         row.setContentsMargins(0, 0, 0, 0)
+        self.test_button = QPushButton("测试")
+        self.test_button.setObjectName("testSimulationConfigurationButton")
+        self.test_button.clicked.connect(self._request_test)
+        row.addWidget(self.test_button)
         self.create_button = QPushButton("▶  开始仿真")
         self.create_button.setObjectName("primaryButton")
-        self.create_button.clicked.connect(self.launch_requested)
+        self.create_button.clicked.connect(self._request_launch)
         row.addWidget(self.create_button)
         return widget
 
@@ -197,6 +206,7 @@ class SceneConfigurationPage(QWidget):
         name_label = self._field_label("场景名称", required=True)
         self.scene_name = QLineEdit()
         self.scene_name.setObjectName("sceneNameInput")
+        self.scene_name.setText("未命名场景")
         self.scene_name.setPlaceholderText("请输入场景名称")
         self.scene_name.setClearButtonEnabled(True)
         self.scene_name.setAccessibleName("仿真场景名称")
@@ -265,7 +275,6 @@ class SceneConfigurationPage(QWidget):
         self.add_automation_button.setObjectName("addAutomationCategoryButton")
         self.add_automation_button.clicked.connect(self._add_automation_row)
         layout.addWidget(self.add_automation_button)
-        self._append_automation_row("L4", 50)
         return section
 
     def _automation_total_badge(self) -> QLabel:
@@ -287,14 +296,10 @@ class SceneConfigurationPage(QWidget):
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(10)
-        self.save_draft_button = QPushButton("保存草稿")
-        self.save_draft_button.setObjectName("saveSimulationDraftButton")
-        self.save_draft_button.clicked.connect(self.draft_save_requested)
-        actions.addWidget(self.save_draft_button, 1)
         self.save_configuration_button = QPushButton("保存配置")
         self.save_configuration_button.setObjectName("saveSimulationConfigurationButton")
         self.save_configuration_button.setProperty("role", "primaryAction")
-        self.save_configuration_button.clicked.connect(self.configuration_save_requested)
+        self.save_configuration_button.clicked.connect(self._request_configuration_save)
         actions.addWidget(self.save_configuration_button, 1)
         return actions
 
@@ -348,6 +353,32 @@ class SceneConfigurationPage(QWidget):
 
     def set_create_enabled(self, enabled: bool) -> None:
         self.create_button.setEnabled(enabled)
+        self.test_button.setEnabled(enabled)
+
+    def current_configuration(self) -> SimulationConfigurationDraft:
+        """Return the current editable values as a typed local protocol model."""
+        return SimulationConfigurationDraft(
+            scene_name=self.scene_name.text().strip(),
+            description=self.description.toPlainText().strip(),
+            map_id=str(self.map_combo.currentData() or ""),
+            duration_ms=self.duration_time.time().msecsSinceStartOfDay(),
+            automation_demands=tuple(
+                AutomationDemand(level=row.level, vehicle_count=row.vehicle_count)
+                for row in self.automation_rows
+            ),
+        )
+
+    @Slot()
+    def _request_configuration_save(self) -> None:
+        self.configuration_save_requested.emit(self.current_configuration())
+
+    @Slot()
+    def _request_launch(self) -> None:
+        self.launch_requested.emit(self.current_configuration())
+
+    @Slot()
+    def _request_test(self) -> None:
+        self.test_requested.emit(self.current_configuration())
 
     def apply_simulation_copy(self, simulation_name: str, parameter_summary: str) -> None:
         """Prefill editable fields from a simulation record."""
