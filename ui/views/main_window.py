@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from ui.models import (
     MOCK_REPLAY_RECORDS,
+    TRAFFIC_SCENARIO_PRESETS,
     ControlAvailability,
     ExperimentStatus,
     MapSummary,
@@ -76,7 +77,7 @@ class MainWindow(QMainWindow):
         self.scene_page = SceneConfigurationPage(load_web_map=load_web_map)
         self.experiments_page = ExperimentManagementPage()
         self.replay_page = DataReplayPage(MOCK_REPLAY_RECORDS[0])
-        self.traffic_scenes_page = TrafficScenePage()
+        self.traffic_scenes_page = TrafficScenePage(load_web_map=load_web_map)
         self.maps_page = MapAssetPage(load_web_map=load_web_map)
         self.agents_page = AgentAssetPage()
         self.settings_page = SystemSettingsPage()
@@ -123,6 +124,7 @@ class MainWindow(QMainWindow):
         vm = self._viewmodel
         self.navigation.page_selected.connect(self._show_page)
         self.navigation.replay_requested.connect(self._show_replay)
+        self.navigation.traffic_scene_requested.connect(self._show_traffic_scene)
         self.navigation.project_detail_requested.connect(lambda: self._show_page("project"))
         self.navigation.workspace_exit_requested.connect(vm.leave_workspace)
         self.workspace_navigation.workspace_selected.connect(vm.select_workspace)
@@ -151,6 +153,8 @@ class MainWindow(QMainWindow):
         self.scene_page.map_selected.connect(vm.select_map)
         self.scene_page.launch_requested.connect(vm.launch_experiment)
         self.traffic_scenes_page.scene_selected.connect(self._launch_traffic_scenario)
+        self.traffic_scenes_page.configuration_requested.connect(self._configure_traffic_scenario)
+        self.traffic_scenes_page.preview_requested.connect(vm.preview_map_asset)
         self.maps_page.import_requested.connect(self._choose_map)
         self.maps_page.preview_requested.connect(vm.preview_map_asset)
         self.agents_page.configure_requested.connect(vm.configure_agent_api)
@@ -167,6 +171,7 @@ class MainWindow(QMainWindow):
         vm.map_catalog_changed.connect(self._set_maps)
         vm.map_manifest_changed.connect(self.maps_page.set_manifest)
         vm.asset_network_changed.connect(self.maps_page.set_preview_network)
+        vm.asset_network_changed.connect(self.traffic_scenes_page.set_preview_network)
         vm.network_changed.connect(self.live_page.map_widget.set_network)
         vm.network_changed.connect(self.scene_page.set_preview_network)
         vm.vehicles_changed.connect(self._set_vehicles)
@@ -191,6 +196,12 @@ class MainWindow(QMainWindow):
         self.navigation.set_active(key)
         if key != "replay":
             self.navigation.set_history_selection(None)
+        if key == "traffic_scenes":
+            self.navigation.set_traffic_scene_selection(
+                self.traffic_scenes_page.selected_scenario.scenario_id
+            )
+        else:
+            self.navigation.set_traffic_scene_selection(None)
 
     @Slot(str)
     def _show_replay(self, record_id: str) -> None:
@@ -204,6 +215,20 @@ class MainWindow(QMainWindow):
         self.page_stack.setCurrentWidget(self.replay_page)
         self.navigation.set_active("replay")
         self.navigation.set_history_selection(record_id)
+
+    @Slot(str)
+    def _show_traffic_scene(self, scenario_id: str) -> None:
+        preset = next(
+            (item for item in TRAFFIC_SCENARIO_PRESETS if item.scenario_id == scenario_id),
+            None,
+        )
+        if preset is None:
+            return
+        self.traffic_scenes_page.set_scenario(preset)
+        self.page_stack.setCurrentWidget(self.traffic_scenes_page)
+        self.navigation.set_active("traffic_scenes")
+        self.navigation.set_history_selection(None)
+        self.navigation.set_traffic_scene_selection(scenario_id)
 
     @Slot(object)
     def _set_workspaces(self, workspaces: object) -> None:
@@ -285,6 +310,16 @@ class MainWindow(QMainWindow):
         )
         self._show_notice("info", message)
         self._viewmodel.launch_experiment()
+
+    @Slot(object)
+    def _configure_traffic_scenario(self, value: object) -> None:
+        if not isinstance(value, TrafficScenarioPreset):
+            return
+        if not self.scene_page.apply_traffic_scenario(value):
+            self._show_notice("error", "场景对应的 SUMO 资源不可用，请检查场景包。")
+            return
+        self._show_page("scene")
+        self._show_notice("info", f"已加载“{value.name}”的仿真配置。")
 
     @Slot(object)
     def _set_vehicles(self, vehicles: object) -> None:
@@ -432,3 +467,4 @@ class MainWindow(QMainWindow):
         self.project_detail_page.refresh_action_icons(theme)
         self.live_page.map_widget.set_theme(theme.value)
         self.maps_page.map_widget.set_theme(theme.value)
+        self.traffic_scenes_page.set_theme(theme.value)

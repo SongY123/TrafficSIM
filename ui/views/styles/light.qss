@@ -314,3 +314,78 @@ QPushButton#replayMapModeButton {
 QPushButton#replayMapModeButton:checked {
   background: #ecf5ff; border-color: #79bbff; color: #409eff;
 }
+
+/* Traffic scenario navigation and detail page */
+QPushButton[role="scenarioEntry"] {
+  background: transparent; border: 0; border-left: 1px solid #dcdfe6;
+  border-radius: 0; color: #7b8290; padding: 3px 8px 3px 25px;
+  text-align: left; font-size: 12px;
+}
+QPushButton[role="scenarioEntry"]:hover { background: #f5f7fa; color: #4c5668; }
+QPushButton[role="scenarioEntry"][active="true"] {
+  background: #edf6ff; border: 1px solid #b7d8ff; border-left: 3px solid #0066ff;
+  border-radius: 4px; color: #164a8a; font-weight: 600;
+}
+QWidget#trafficScenePage, QWidget#trafficSceneBody { background: #f5f7fb; }
+QWidget#trafficSceneHeaderActions { background: transparent; }
+QScrollArea#trafficSceneScroll { border: 0; background: #f5f7fb; }
+QFrame#trafficSceneHero {
+  background: #090d14; border: 1px solid #cfd6e2; border-radius: 6px;
+}
+QLabel#trafficSceneTitle { color: #ffffff; font-size: 23px; font-weight: 700; }
+QLabel#trafficSceneIncident { color: #d3d9e4; font-size: 12px; }
+QLabel#trafficSceneMeta {
+  background: rgba(15, 21, 32, 205); border: 1px solid rgba(132, 148, 178, 140);
+  border-radius: 3px; color: #d8deea; padding: 4px 8px; font-size: 10px;
+}
+QLabel#trafficSceneAvailability {
+  border: 1px solid #d6dbe5; border-radius: 4px; color: #737b8a;
+  min-width: 68px; padding: 5px 8px; font-size: 11px; font-weight: 700;
+}
+QLabel#trafficSceneAvailability[state="ready"] {
+  background: #ecfbf3; border-color: #a8e6c6; color: #168a4f;
+}
+QLabel#trafficSceneAvailability[state="missing"] {
+  background: #fff1f2; border-color: #ffc2c7; color: #d93847;
+}
+QLabel#trafficSceneContentTitle, QLabel#trafficScenePanelTitle {
+  color: #202532; font-size: 15px; font-weight: 700;
+}
+QLabel#trafficSceneBehaviorSummary { color: #747d8f; font-size: 11px; }
+QFrame#trafficSceneLevelCard {
+  background: #f8f9fc; border: 1px solid #dce1ea; border-radius: 5px;
+}
+QFrame#trafficScenePanel {
+  background: #ffffff; border: 1px solid #d9dee8; border-radius: 6px;
+}
+QWebEngineView#trafficSceneMapPreview {
+  background: #0c111a; border: 1px solid #cfd5e1; border-radius: 5px;
+}
+QLabel#trafficSceneLevel { font-size: 12px; font-weight: 800; }
+QLabel#trafficSceneLevel[level="L0"] { color: #d93847; }
+QLabel#trafficSceneLevel[level="L1"] { color: #d96f20; }
+QLabel#trafficSceneLevel[level="L2"] { color: #aa7b00; }
+QLabel#trafficSceneLevel[level="L3"] { color: #087cb6; }
+QLabel#trafficSceneLevel[level="L4"] { color: #058f7c; }
+QLabel#trafficSceneLevel[level="L5"] { color: #536ead; }
+QLabel#trafficSceneLevelDescription { color: #626b7c; font-size: 11px; }
+QLabel#trafficSceneChartLabel { color: #606a7c; font-size: 11px; font-weight: 600; }
+QWidget#trafficSceneSpeedChart, QWidget#trafficSceneCollisionChart {
+  background: transparent; color: #303746;
+  qproperty-l0Color: #d93847; qproperty-l1Color: #d96f20; qproperty-l2Color: #c29500;
+  qproperty-l3Color: #087cb6; qproperty-l4Color: #058f7c; qproperty-l5Color: #536ead;
+}
+QPushButton#trafficSceneConfigureButton {
+  background: #ffffff; border: 1px solid #cdd3de; color: #4e5768;
+  min-height: 31px; padding: 5px 14px;
+}
+QPushButton#trafficSceneConfigureButton:hover { border-color: #0066ff; color: #0056d9; }
+QPushButton#trafficSceneLaunchButton {
+  background: #0066ff; border: 1px solid #0066ff; color: #ffffff;
+  min-height: 31px; padding: 5px 16px; font-weight: 700;
+}
+QPushButton#trafficSceneLaunchButton:hover { background: #1677ff; }
+QPushButton#trafficSceneConfigureButton:disabled,
+QPushButton#trafficSceneLaunchButton:disabled {
+  background: #eef0f4; border-color: #d9dde5; color: #a2a8b3;
+}
