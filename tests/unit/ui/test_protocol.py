@@ -128,3 +128,18 @@ def test_restart_is_available_for_active_or_finished_experiment(
     status: ExperimentStatus,
 ) -> None:
     assert ControlAvailability.for_status(status).can_restart is True
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        ExperimentStatus.RUNNING,
+        ExperimentStatus.PAUSED,
+        ExperimentStatus.COMPLETED,
+        ExperimentStatus.FAILED,
+    ],
+)
+def test_configuration_can_replace_active_or_finished_experiment(
+    status: ExperimentStatus,
+) -> None:
+    assert ControlAvailability.for_status(status).can_create is True

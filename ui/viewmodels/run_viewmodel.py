@@ -576,6 +576,10 @@ class RunViewModel(QObject):
             envelope = Envelope.model_validate(payload)
             if self._world is None:
                 return
+            if envelope.experiment_id != self._world.experiment_id:
+                # A closing WebSocket can still deliver buffered messages. They belong to the
+                # previous experiment and must not poison the newly selected run.
+                return
             update = self._world.apply(envelope)
             self.simulation_time_changed.emit(self._world.simulation_time_ms)
             if update.sequence_gap is not None:

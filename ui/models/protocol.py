@@ -226,7 +226,13 @@ class ControlAvailability:
     def for_status(cls, status: ExperimentStatus | None) -> ControlAvailability:
         return cls(
             can_create=status is None
-            or status in {ExperimentStatus.COMPLETED, ExperimentStatus.FAILED},
+            or status
+            in {
+                ExperimentStatus.RUNNING,
+                ExperimentStatus.PAUSED,
+                ExperimentStatus.COMPLETED,
+                ExperimentStatus.FAILED,
+            },
             can_start=status in {ExperimentStatus.CREATED, ExperimentStatus.READY},
             can_pause=status is ExperimentStatus.RUNNING,
             can_resume=status is ExperimentStatus.PAUSED,

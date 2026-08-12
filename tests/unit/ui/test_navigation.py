@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
-from ui.models import ExperimentStatus, ReplaySummary
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea, QWidget
+from ui.models import TRAFFIC_SCENARIO_PRESETS, ExperimentStatus, ReplaySummary
 from ui.views.navigation import NavigationRail
 from ui.views.theme import ThemeMode, load_stylesheet
 
@@ -115,6 +116,78 @@ def test_history_navigation_expands_on_main_click_and_opens_selected_replay() ->
     assert entries[0].property("active") is True
     assert row is not None
     assert row.property("active") is True
+    navigation.close()
+
+
+def test_traffic_scene_navigation_lists_and_selects_each_scenario() -> None:
+    app = _application()
+    navigation = NavigationRail()
+    navigation.resize(236, 760)
+    navigation.show()
+    requests: list[str] = []
+    navigation.traffic_scene_requested.connect(requests.append)
+    traffic_scenes = navigation.findChild(QPushButton, "nav_traffic_scenes")
+    children = navigation.findChild(QWidget, "nav_children_traffic_scenes")
+    entries = [
+        button
+        for button in navigation.findChildren(QPushButton)
+        if button.property("role") == "scenarioEntry"
+    ]
+
+    assert traffic_scenes is not None
+    assert children is not None
+    assert len(entries) == len(TRAFFIC_SCENARIO_PRESETS)
+    assert children.isHidden()
+    traffic_scenes.click()
+    app.processEvents()
+
+    assert not children.isHidden()
+    assert children.height() >= 32 * len(TRAFFIC_SCENARIO_PRESETS)
+    assert [entry.text() for entry in entries] == [
+        preset.name for preset in TRAFFIC_SCENARIO_PRESETS
+    ]
+
+    entries[1].click()
+    navigation.set_active("traffic_scenes")
+    navigation.set_traffic_scene_selection(requests[0])
+    row = navigation.findChild(QWidget, "navRow_traffic_scenes")
+
+    assert requests == [TRAFFIC_SCENARIO_PRESETS[1].scenario_id]
+    assert entries[1].property("active") is True
+    assert row is not None
+    assert row.property("active") is True
+    navigation.close()
+
+
+def test_navigation_middle_area_accepts_wheel_scrolling_when_groups_expand() -> None:
+    app = _application()
+    navigation = NavigationRail()
+    navigation.resize(236, 480)
+    navigation.show()
+    for key in ("experiments", "traffic_scenes", "maps", "agents"):
+        expand = navigation.findChild(QPushButton, f"nav_expand_{key}")
+        assert expand is not None
+        expand.click()
+    app.processEvents()
+
+    scroll = navigation.findChild(QScrollArea, "navigationScroll")
+    assert scroll is not None
+    scroll_bar = scroll.verticalScrollBar()
+    assert scroll_bar.maximum() > 0
+    wheel = QWheelEvent(
+        QPointF(12.0, 12.0),
+        QPointF(12.0, 12.0),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    QApplication.sendEvent(scroll.viewport(), wheel)
+    app.processEvents()
+
+    assert scroll_bar.value() > 0
     navigation.close()
 
 

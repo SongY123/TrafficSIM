@@ -34,7 +34,7 @@ class _FakeTraci:
         return self.connection
 
 
-def test_managed_runtime_starts_host_binary_and_closes_owned_process(
+def test_managed_runtime_uses_ephemeral_port_and_nonblocking_close(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -59,10 +59,10 @@ def test_managed_runtime_starts_host_binary_and_closes_owned_process(
     command, options = traci.start_calls[0]
     assert version == "1.26.0"
     assert command == ["/bin/sumo", "-c", str(tmp_path / "scene.sumocfg")]
-    assert options["port"] == 8813
+    assert options["port"] is None
     assert options["stdout"] is None
     assert options["doSwitch"] is False
-    assert connection.closed_with is True
+    assert connection.closed_with is False
 
 
 def test_generic_sumo_tls_ids_are_used_without_opendrive_parameters() -> None:

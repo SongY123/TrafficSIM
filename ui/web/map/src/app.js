@@ -44,7 +44,6 @@ const state = {
   viewMode: "2d",
   selectedVehicleId: null,
   followScenarioVehicles: true,
-  lastScenarioFitAtMs: 0,
   theme: "dark",
   lightingEffect: createLightingEffect(MAP_THEMES.dark)
 };
@@ -807,10 +806,6 @@ function fitScenarioVehicles() {
   if (!state.followScenarioVehicles) {
     return;
   }
-  const nowMs = performance.now();
-  if (nowMs - state.lastScenarioFitAtMs < 400) {
-    return;
-  }
   const vehicles = scenarioVehicles();
   if (vehicles.length < 2) {
     return;
@@ -823,9 +818,9 @@ function fitScenarioVehicles() {
   if (bounds.isEmpty()) {
     return;
   }
-  state.lastScenarioFitAtMs = nowMs;
+  state.followScenarioVehicles = false;
   map.fitBounds(bounds, {
-    padding: {top: 115, right: 90, bottom: 90, left: 90},
+    padding: {top: 60, right: 50, bottom: 45, left: 50},
     duration: 180,
     maxZoom: 18
   });
@@ -900,7 +895,6 @@ function fitNetwork(network) {
   }
   state.networkBounds = bounds;
   state.followScenarioVehicles = true;
-  state.lastScenarioFitAtMs = 0;
   resetView(0);
   state.followScenarioVehicles = true;
 }
