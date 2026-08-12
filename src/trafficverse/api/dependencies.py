@@ -9,12 +9,16 @@ from uuid import UUID
 
 from trafficverse.api.models import ExperimentView, ReadinessComponent
 from trafficverse.domain.enums import ExperimentStatus
-from trafficverse.domain.models import ControlCommand, SimulationFrame
+from trafficverse.domain.models import ControlCommand, SimulationFrame, SimulationRunInput
 
 if TYPE_CHECKING:
     from trafficverse.adapters.messaging.frame_broker import FrameBroker
     from trafficverse.api.command_bus import ExperimentCommandBus
     from trafficverse.api.map_catalog import MapCatalog
+    from trafficverse.application.simulation_configuration_service import (
+        SimulationConfigurationService,
+    )
+    from trafficverse.application.simulation_history_service import SimulationHistoryService
     from trafficverse.application.workspace_service import WorkspaceService
 
 
@@ -48,7 +52,10 @@ class SimulationControlPort(Protocol):
     async def control_vehicle(self, vehicle_id: str, command: ControlCommand) -> None: ...
 
 
-RuntimeFactory = Callable[[UUID, UUID, str | None], Awaitable[SimulationControlPort]]
+RuntimeFactory = Callable[
+    [UUID, UUID, str | None, SimulationRunInput | None],
+    Awaitable[SimulationControlPort],
+]
 ReadinessCheck = Callable[[], Awaitable[tuple[ReadinessComponent, ...]]]
 ShutdownHook = Callable[[], Awaitable[None]]
 _UNSCOPED_WORKSPACE_ID = UUID(int=0)
@@ -68,6 +75,7 @@ class RuntimeDirectory:
         workspace_id: UUID,
         scenario_id: UUID,
         map_id: str | None = None,
+        run_input: SimulationRunInput | None = None,
     ) -> ExperimentView:
         if self._factory is None:
             from trafficverse.domain.enums import ErrorCode
@@ -77,7 +85,7 @@ class RuntimeDirectory:
                 ErrorCode.COMPONENT_UNAVAILABLE,
                 "experiment runtime factory is not configured",
             )
-        manager = await self._factory(experiment_id, scenario_id, map_id)
+        manager = await self._factory(experiment_id, scenario_id, map_id, run_input)
         self._managers[experiment_id] = manager
         self._workspace_ids[experiment_id] = workspace_id
         return ExperimentView(
@@ -129,4 +137,6 @@ class ApiDependencies:
     broker: FrameBroker
     readiness: ReadinessCheck
     workspaces: WorkspaceService
+    configurations: SimulationConfigurationService | None = None
+    histories: SimulationHistoryService | None = None
     shutdown: ShutdownHook | None = None

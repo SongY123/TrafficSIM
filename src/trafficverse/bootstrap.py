@@ -10,10 +10,12 @@ from uuid import UUID
 from fastapi import FastAPI
 
 from trafficverse.adapters.carla import CarlaAdapter
-from trafficverse.adapters.messaging import DiscardDataLogger, FrameBroker
+from trafficverse.adapters.messaging import FrameBroker, ParquetReplayDataLogger
 from trafficverse.adapters.persistence import (
+    FileSimulationHistoryStore,
     InMemoryExperimentRepository,
     InMemoryWorkspaceRepository,
+    RunMetadataExperimentRepository,
 )
 from trafficverse.adapters.sumo import SumoTrafficEngineAdapter
 from trafficverse.api import ApiDependencies, RuntimeDirectory, create_app
@@ -21,6 +23,10 @@ from trafficverse.api.command_bus import ExperimentCommandBus
 from trafficverse.api.map_catalog import MapCatalog
 from trafficverse.api.models import ReadinessComponent
 from trafficverse.application.experiment_registry import ExperimentRegistry
+from trafficverse.application.simulation_configuration_service import (
+    SimulationConfigurationService,
+)
+from trafficverse.application.simulation_history_service import SimulationHistoryService
 from trafficverse.application.simulation_manager import SimulationManager
 from trafficverse.application.simulation_runner import SimulationRunner
 from trafficverse.application.workspace_service import WorkspaceService
@@ -28,7 +34,13 @@ from trafficverse.config.loader import load_scenario, validate_map_manifest
 from trafficverse.config.models import MapManifest, ScenarioConfig
 from trafficverse.controllers import controller_for_sumo_package
 from trafficverse.domain.enums import ComponentStatus, ExperimentStatus, RequirementMode
-from trafficverse.maps.sumo_package import SumoScenarioPackage, stage_sumo_package
+from trafficverse.domain.models import SimulationRunInput
+from trafficverse.maps.simulation_configuration import SumoSimulationConfigurationStore
+from trafficverse.maps.sumo_package import (
+    SumoScenarioPackage,
+    load_sumo_package,
+    stage_sumo_package,
+)
 from trafficverse.ports import (
     CarlaPort,
     DataLoggerPort,
@@ -77,19 +89,47 @@ class CoreRuntimeFactory:
         experiment_id: UUID,
         scenario_id: UUID,
         map_id: str | None,
+        run_input: SimulationRunInput | None,
     ) -> SimulationManager:
         del scenario_id
+        await self._repository.create(experiment_id)
+        run_directory = (
+            run_input.directory
+            if run_input is not None
+            else self._sumo_artifact_root / str(experiment_id)
+        )
+        experiments: ExperimentRepositoryPort = (
+            RunMetadataExperimentRepository(
+                self._repository,
+                experiment_id=experiment_id,
+                run_directory=run_input.directory,
+            )
+            if run_input is not None
+            else self._repository
+        )
         selected_map_id = map_id or self._scenario.scenario.map_id
-        package = self._maps.sumo_package(selected_map_id)
+        package = (
+            load_sumo_package(
+                run_input.sumo_config_path,
+                allowed_root=run_input.directory,
+                package_id=run_input.map_id,
+            )
+            if run_input is not None
+            else self._maps.sumo_package(selected_map_id)
+        )
         if package is not None:
-            scenario = self._scenario_for_sumo_package(package, experiment_id)
+            scenario = self._scenario_for_sumo_package(
+                package,
+                experiment_id,
+                run_input=run_input,
+            )
             manager = SimulationManager(
                 scenario=scenario,
                 carla_map_name="SUMO_2D",
                 traffic=SumoTrafficEngineAdapter(experiment_id),
                 carla=CarlaAdapter(),
-                experiments=self._repository,
-                data_logger=DiscardDataLogger(),
+                experiments=experiments,
+                data_logger=self._replay_logger(scenario, run_directory),
                 controller=controller_for_sumo_package(package.package_id),
                 frame_publisher=self._broker,
                 registry=self._registry,
@@ -110,8 +150,8 @@ class CoreRuntimeFactory:
                 carla_map_name=manifest.carla_map,
                 traffic=SumoTrafficEngineAdapter(experiment_id),
                 carla=CarlaAdapter(),
-                experiments=self._repository,
-                data_logger=DiscardDataLogger(),
+                experiments=experiments,
+                data_logger=self._replay_logger(scenario, run_directory),
                 roi_planner=RoiSynchronizer(
                     definition,
                     CoordinateTransformer.from_yaml(
@@ -128,7 +168,6 @@ class CoreRuntimeFactory:
                 frame_publisher=self._broker,
                 registry=self._registry,
             )
-        await self._repository.create(experiment_id)
         runner = SimulationRunner(manager)
         self._managers[experiment_id] = manager
         self._runners[experiment_id] = runner
@@ -136,18 +175,45 @@ class CoreRuntimeFactory:
         runner.start()
         return manager
 
+    @staticmethod
+    def _replay_logger(
+        scenario: ScenarioConfig,
+        run_directory: Path,
+    ) -> ParquetReplayDataLogger:
+        return ParquetReplayDataLogger(
+            run_directory,
+            trajectory_hz=scenario.logging.trajectory_hz,
+            parquet_batch_rows=scenario.logging.parquet_batch_rows,
+            snapshot_interval_ms=scenario.replay.snapshot_interval_ms,
+        )
+
     def _scenario_for_sumo_package(
         self,
         package: SumoScenarioPackage,
         experiment_id: UUID,
+        *,
+        run_input: SimulationRunInput | None = None,
     ) -> ScenarioConfig:
+        output_directory = (
+            run_input.directory
+            if run_input is not None
+            else self._sumo_artifact_root / str(experiment_id)
+        )
+        if run_input is None:
+            package_id = package.package_id
+            staged_config = stage_sumo_package(package, output_directory / "package")
+            package = load_sumo_package(
+                staged_config,
+                allowed_root=output_directory,
+                package_id=package_id,
+            )
+        else:
+            staged_config = run_input.sumo_config_path
         duration_ms = self._scenario.simulation.duration_ms
         if package.end_time_ms is not None:
             configured_duration_ms = package.end_time_ms - package.begin_time_ms
             steps = max(1, math.ceil(configured_duration_ms / package.step_ms))
             duration_ms = steps * package.step_ms
-        output_directory = self._sumo_artifact_root / str(experiment_id)
-        staged_config = stage_sumo_package(package, output_directory / "package")
         routes_path = package.route_paths[0] if package.route_paths else package.config_path
         signals_path = (
             package.additional_paths[0] if package.additional_paths else package.network_path
@@ -276,6 +342,9 @@ def build_core_api(
     carla_mode: RequirementMode | None = None,
     artifact_root: Path | None = None,
     sumo_artifact_root: Path | None = None,
+    configuration_root: Path | None = None,
+    simulation_artifact_root: Path | None = None,
+    test_artifact_root: Path | None = None,
 ) -> FastAPI:
     scenario = load_scenario(scenario_path)
     if carla_mode is not None:
@@ -310,6 +379,14 @@ def build_core_api(
         maps,
         sumo_artifact_root=sumo_artifact_root or repository_root / "artifacts/sumo",
     )
+    configuration_storage = SumoSimulationConfigurationStore(
+        package_resolver=maps.sumo_package,
+        configuration_root=configuration_root or repository_root / "configs/configs",
+        simulation_artifact_root=(
+            simulation_artifact_root or repository_root / "artifacts/simulations"
+        ),
+        test_artifact_root=test_artifact_root or repository_root / "artifacts/tests",
+    )
     runtimes = RuntimeDirectory(factory.create)
     dependencies = ApiDependencies(
         runtimes=runtimes,
@@ -318,6 +395,12 @@ def build_core_api(
         broker=broker,
         readiness=factory.readiness,
         workspaces=WorkspaceService(InMemoryWorkspaceRepository()),
+        configurations=SimulationConfigurationService(configuration_storage),
+        histories=SimulationHistoryService(
+            FileSimulationHistoryStore(
+                simulation_artifact_root or repository_root / "artifacts/simulations"
+            )
+        ),
         shutdown=factory.close,
     )
     return create_app(dependencies)

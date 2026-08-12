@@ -39,13 +39,13 @@ class ExperimentManagementPage(QWidget):
         root.addWidget(body, 1)
 
     def _experiment_table(self) -> QFrame:
-        table = QTableWidget(1, 4)
-        table.setHorizontalHeaderLabels(("实验", "状态", "仿真时间", "数据来源"))
+        table = QTableWidget(1, 3)
+        table.setHorizontalHeaderLabels(("实验", "状态", "仿真时间"))
         table.horizontalHeader().setStretchLastSection(True)
         table.verticalHeader().hide()
         table.setAlternatingRowColors(True)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        values = ("当前核心运行", "未创建", "0.00 秒", "实时会话")
+        values = ("当前核心运行", "未创建", "0.00 秒")
         for column, value in enumerate(values):
             table.setItem(0, column, QTableWidgetItem(value))
         self.table = table

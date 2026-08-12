@@ -68,6 +68,11 @@ class RequirementMode(str, Enum):
     DISABLED = "disabled"
 
 
+class SimulationRunKind(str, Enum):
+    SIMULATION = "simulation"
+    TEST = "test"
+
+
 class ErrorCode(str, Enum):
     INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION"
     SCENARIO_VALIDATION_FAILED = "SCENARIO_VALIDATION_FAILED"

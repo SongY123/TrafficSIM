@@ -58,7 +58,11 @@ uv run trafficverse ui --api-url http://127.0.0.1:8000
 - 启动 PATH 中的本机 `sumo` 并通过 TraCI 推进；
 - 使用实际 SUMO 版本，不要求等于 1.27.1；
 - 禁用 CARLA/ROI，只运行二维仿真；
-- 把运行副本和输出写入 `artifacts/sumo/<experiment-id>/`，不修改源场景。
+- 从桌面“仿真配置”启动的正式运行写入 `artifacts/simulations/<timestamp>/`，快速测试写入
+  `artifacts/tests/<timestamp>/`；未携带配置快照的兼容 API 才使用
+  `artifacts/sumo/<experiment-id>/`。三种入口都不修改源场景。
+- 正式运行会生成 SUMO summary/tripinfo/edgeData/laneData/queue 结果和 Parquet 快照/增量回放记录；
+  “历史仿真”读取正式目录，使用本次运行实际 `.net.xml` 展示道路，并可导出完整 ZIP。
 
 “场景配置”只列出这种由 `.sumocfg` 自动发现的二维 SUMO 包。Town04 Core Run manifest 仍可在
 “资产中心”查看，但不会再作为另一条二维场景实现混入该选择器。

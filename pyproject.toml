@@ -12,6 +12,7 @@ dependencies = [
   "alembic>=1.14,<2",
   "fastapi>=0.115,<0.116",
   "pydantic>=2.10,<3",
+  "pyarrow>=18,<19",
   "psycopg[binary]>=3.2,<4",
   "python-multipart>=0.0.20,<1",
   "PyYAML>=6.0.2,<7",

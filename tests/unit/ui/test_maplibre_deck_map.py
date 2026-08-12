@@ -248,8 +248,9 @@ def test_map_hud_shows_automation_and_special_vehicle_legends() -> None:
 def test_truck_model_is_local_and_checksum_documented() -> None:
     model_root = MAP_WEB_ROOT.parents[1] / "assets/models/truck"
     notice = (model_root / "README.md").read_text(encoding="utf-8")
+    gltf_bytes = (model_root / "truck.gltf").read_bytes().replace(b"\r\n", b"\n")
 
-    assert (model_root / "truck.gltf").stat().st_size == 58_706
+    assert len(gltf_bytes) == 58_706
     assert (model_root / "truck.bin").stat().st_size == 198_096
     assert "CC BY 4.0" in notice
     assert "fbd30d52ebef8079203e5e24bd963a75ffd060beb64bc1535cc2a05dd9e04da7" in notice

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -21,6 +22,11 @@ from ui.models import (
     MapManifest,
     MapSummary,
     ReadinessResponse,
+    ReplayRecord,
+    ReplaySummary,
+    ReplayWindow,
+    SimulationConfigurationDraft,
+    SimulationConfigurationView,
     Vehicle,
     WorkspaceOverview,
     WorkspaceSummary,
@@ -30,6 +36,7 @@ from ui.models import (
 _AUTOMATION_LEVELS = ("L0", "L1", "L2", "L3", "L4", "L5")
 _AUTOMATION_LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:_|$)")
 _SNAPSHOT_RECOVERY_INTERVAL_MS = 1_000
+_RunKind = Literal["simulation", "test"]
 
 
 class RunViewModel(QObject):
@@ -52,6 +59,10 @@ class RunViewModel(QObject):
     control_availability_changed = Signal(object)
     connection_changed = Signal(str)
     monitor_requested = Signal()
+    history_catalog_changed = Signal(object)
+    replay_record_changed = Signal(object)
+    replay_network_changed = Signal(str, object)
+    replay_window_changed = Signal(object)
     notification = Signal(str, str)
 
     def __init__(
@@ -71,7 +82,14 @@ class RunViewModel(QObject):
         self._enter_created_workspace_id: UUID | None = None
         self._agent_apis: tuple[AgentApiSummary, ...] = ()
         self._maps: tuple[MapSummary, ...] = ()
+        self._history: tuple[ReplaySummary, ...] = ()
         self._selected_map_id: str | None = None
+        self._saved_configuration_id: str | None = None
+        self._saved_configuration_draft: SimulationConfigurationDraft | None = None
+        self._configuration_save_inflight: SimulationConfigurationDraft | None = None
+        self._pending_run_kind: _RunKind | None = None
+        self._configuration_id_for_create: str | None = None
+        self._run_kind_for_create: _RunKind = "simulation"
         self._import_job_id: UUID | None = None
         self._experiment_id: UUID | None = None
         self._experiment_workspace_id: UUID | None = None
@@ -164,14 +182,31 @@ class RunViewModel(QObject):
         self._active_workspace_id = workspace.workspace_id
         self.workspace_context_changed.emit(workspace)
         self._rest.list_agent_assets(workspace.workspace_id)
+        self._rest.list_simulations(workspace.workspace_id)
         if not self._maps:
             self._rest.list_maps()
 
     def leave_workspace(self) -> None:
         self._active_workspace_id = None
         self._agent_apis = ()
+        self._reset_configuration_context()
         self.agent_catalog_changed.emit(())
+        self._history = ()
+        self.history_catalog_changed.emit(())
         self.workspace_context_changed.emit(None)
+
+    def load_simulation_result(self, run_id: str) -> None:
+        if run_id not in {item.run_id for item in self._history}:
+            self.notification.emit("error", "所选历史仿真记录不存在。")
+            return
+        self._rest.get_simulation(run_id)
+        self._rest.get_simulation_network(run_id)
+
+    def load_replay_window(self, run_id: str, from_time_ms: int = 0) -> None:
+        self._rest.get_simulation_replay(run_id, from_time_ms)
+
+    def export_simulation_result(self, run_id: str, target: Path) -> None:
+        self._rest.export_simulation(run_id, target)
 
     def select_map(self, map_id: str) -> None:
         selected = next((item for item in self._maps if item.map_id == map_id), None)
@@ -235,6 +270,85 @@ class RunViewModel(QObject):
             return
         self._rest.delete_agent_asset(self._active_workspace_id, agent_api_id)
 
+    def save_configuration(self, configuration: SimulationConfigurationDraft) -> None:
+        """Persist the current page configuration without starting a run."""
+        self._request_configuration_save(configuration, pending_run_kind=None)
+
+    def launch_configuration(self, configuration: SimulationConfigurationDraft) -> None:
+        """Save changed values when needed, then launch a formal simulation."""
+        self._save_then_launch(configuration, "simulation")
+
+    def test_configuration(self, configuration: SimulationConfigurationDraft) -> None:
+        """Save changed values when needed, then launch an isolated test run."""
+        self._save_then_launch(configuration, "test")
+
+    def _save_then_launch(
+        self,
+        configuration: SimulationConfigurationDraft,
+        run_kind: _RunKind,
+    ) -> None:
+        if not self._validate_configuration(configuration):
+            return
+        if (
+            self._saved_configuration_id is not None
+            and configuration == self._saved_configuration_draft
+        ):
+            self._launch_saved_configuration(self._saved_configuration_id, run_kind)
+            return
+        self._request_configuration_save(configuration, pending_run_kind=run_kind)
+
+    def _request_configuration_save(
+        self,
+        configuration: SimulationConfigurationDraft,
+        *,
+        pending_run_kind: _RunKind | None,
+    ) -> None:
+        if self._active_workspace_id is None:
+            self.notification.emit("error", "请先进入工作区，再保存仿真配置。")
+            return
+        if not self._validate_configuration(configuration):
+            return
+        self._configuration_save_inflight = configuration
+        self._pending_run_kind = pending_run_kind
+        self._rest.save_simulation_configuration(
+            self._active_workspace_id,
+            self._scenario_id,
+            configuration,
+        )
+
+    def _validate_configuration(self, configuration: SimulationConfigurationDraft) -> bool:
+        if not configuration.scene_name.strip():
+            self.notification.emit("error", "请输入场景名称。")
+            return False
+        if not configuration.map_id:
+            self.notification.emit("error", "请选择一份已验证的 SUMO 场景包。")
+            return False
+        selected = next(
+            (item for item in self._maps if item.map_id == configuration.map_id),
+            None,
+        )
+        if self._maps and (selected is None or selected.kind != "sumo" or not selected.validated):
+            self.notification.emit("error", "当前地图不是可运行的 SUMO 场景包。")
+            return False
+        if configuration.duration_ms <= 0:
+            self.notification.emit("error", "仿真时长必须大于 0。")
+            return False
+        levels = tuple(item.level for item in configuration.automation_demands)
+        if len(set(levels)) != len(levels):
+            self.notification.emit("error", "同一智驾等级只能配置一次。")
+            return False
+        self._selected_map_id = configuration.map_id
+        return True
+
+    def _launch_saved_configuration(
+        self,
+        configuration_id: str,
+        run_kind: _RunKind,
+    ) -> None:
+        self._configuration_id_for_create = configuration_id
+        self._run_kind_for_create = run_kind
+        self.launch_experiment()
+
     def create_experiment(self) -> bool:
         if self._active_workspace_id is None:
             self.notification.emit("error", "请先进入工作区，再创建仿真实验。")
@@ -246,6 +360,8 @@ class RunViewModel(QObject):
             self._active_workspace_id,
             self._scenario_id,
             self._selected_map_id,
+            self._configuration_id_for_create,
+            self._run_kind_for_create,
         )
         return True
 
@@ -396,6 +512,19 @@ class RunViewModel(QObject):
                 )
                 if first_valid is not None:
                     self.select_map(first_valid.map_id)
+        elif operation == "simulations.list":
+            self._history = tuple(ReplaySummary.model_validate(item) for item in _items(payload))
+            self.history_catalog_changed.emit(self._history)
+        elif operation.startswith("simulation.get:"):
+            record = ReplayRecord.model_validate(payload)
+            self.replay_record_changed.emit(record)
+        elif operation.startswith("simulation.network:"):
+            run_id = operation.removeprefix("simulation.network:")
+            self.replay_network_changed.emit(run_id, payload)
+        elif operation.startswith("simulation.replay:"):
+            self.replay_window_changed.emit(ReplayWindow.model_validate(payload))
+        elif operation.startswith("simulation.export:"):
+            self.notification.emit("success", f"结果已导出到：{Path(str(payload)).name}")
         elif operation.startswith("map.manifest:"):
             map_id = operation.removeprefix("map.manifest:")
             manifest = MapManifest.model_validate(payload)
@@ -409,6 +538,20 @@ class RunViewModel(QObject):
             self.network_changed.emit(payload)
         elif operation == "map.import.submit" or operation.startswith("map.import:"):
             self._handle_import_job(MapImportJob.model_validate(payload))
+        elif operation == "simulation-configuration.save":
+            saved = SimulationConfigurationView.model_validate(payload)
+            draft = self._configuration_save_inflight
+            pending_run_kind = self._pending_run_kind
+            self._configuration_save_inflight = None
+            self._pending_run_kind = None
+            if draft is None or saved.map_id != draft.map_id:
+                self.notification.emit("error", "服务器返回的配置与当前场景不匹配。")
+                return
+            self._saved_configuration_id = saved.configuration_id
+            self._saved_configuration_draft = draft
+            self.notification.emit("success", "配置已保存。")
+            if pending_run_kind is not None:
+                self._launch_saved_configuration(saved.configuration_id, pending_run_kind)
         elif operation == "experiment.create":
             self._set_experiment(ExperimentView.model_validate(payload))
             if self._launch_after_create:
@@ -423,6 +566,9 @@ class RunViewModel(QObject):
             self._import_timer.stop()
         if operation == "experiment.create":
             self._launch_after_create = False
+        if operation == "simulation-configuration.save":
+            self._configuration_save_inflight = None
+            self._pending_run_kind = None
         self.notification.emit("error", f"操作失败：{message}")
 
     def handle_envelope(self, payload: object) -> None:
@@ -500,6 +646,11 @@ class RunViewModel(QObject):
             and self._restart_after_stop
         ):
             self._begin_restart()
+        if (
+            status in {ExperimentStatus.COMPLETED, ExperimentStatus.FAILED}
+            and self._active_workspace_id is not None
+        ):
+            self._rest.list_simulations(self._active_workspace_id)
 
     def _begin_restart(self) -> None:
         self._restart_after_stop = False
@@ -508,6 +659,14 @@ class RunViewModel(QObject):
         self._launch_after_create = True
         if not self.create_experiment():
             self._launch_after_create = False
+
+    def _reset_configuration_context(self) -> None:
+        self._saved_configuration_id = None
+        self._saved_configuration_draft = None
+        self._configuration_save_inflight = None
+        self._pending_run_kind = None
+        self._configuration_id_for_create = None
+        self._run_kind_for_create = "simulation"
 
     def _update_live_metrics(
         self,

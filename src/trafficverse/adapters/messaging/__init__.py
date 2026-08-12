@@ -7,11 +7,13 @@ from trafficverse.adapters.messaging.frame_broker import (
     Subscription,
     make_envelope,
 )
+from trafficverse.adapters.messaging.parquet_replay_logger import ParquetReplayDataLogger
 
 __all__ = [
     "ClientMessageBuffer",
     "DiscardDataLogger",
     "FrameBroker",
+    "ParquetReplayDataLogger",
     "Subscription",
     "make_envelope",
 ]

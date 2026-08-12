@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QRectF, Qt, Signal
+from PySide6.QtCore import Property, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPalette
 from PySide6.QtWidgets import (
     QFrame,
@@ -190,7 +190,7 @@ class _CollisionBarChart(_AutomationLevelChart):
         baseline = self.height() - 22.0
         max_height = max(22.0, self.height() - 38.0)
         painter.setPen(muted)
-        painter.drawLine(chart_left, baseline, self.width(), baseline)
+        painter.drawLine(QPointF(chart_left, baseline), QPointF(float(self.width()), baseline))
         for index, level in enumerate(_LEVELS):
             value = self.values[level]
             height = max_height * value / maximum if value else 2.0

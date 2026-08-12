@@ -76,6 +76,7 @@ pnpm-debug.log*
 # TrafficVerse runtime outputs
 /artifacts/
 /logs/
+/configs/configs/
 *.log
 *.parquet
 *.sqlite

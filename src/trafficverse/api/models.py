@@ -12,8 +12,14 @@ from trafficverse.domain.enums import (
     ComponentStatus,
     ExperimentStatus,
     LaneChangeDirection,
+    SimulationRunKind,
 )
-from trafficverse.domain.models import StrictModel, WebSocketEnvelope
+from trafficverse.domain.models import (
+    SimulationConfigurationDraft,
+    SimulationConfigurationSnapshot,
+    StrictModel,
+    WebSocketEnvelope,
+)
 
 WorkspaceName = Annotated[
     str,
@@ -83,6 +89,22 @@ class ExperimentCreateRequest(StrictModel):
     workspace_id: UUID
     scenario_id: UUID
     map_id: str | None = Field(default=None, min_length=1)
+    configuration_id: str | None = Field(default=None, pattern=r"^\d{4}(?:-\d{2}){5}$")
+    run_kind: SimulationRunKind = SimulationRunKind.SIMULATION
+
+    @model_validator(mode="after")
+    def test_run_requires_configuration(self) -> ExperimentCreateRequest:
+        if self.run_kind is SimulationRunKind.TEST and self.configuration_id is None:
+            raise ValueError("test runs require a saved simulation configuration")
+        return self
+
+
+class SimulationConfigurationSaveRequest(SimulationConfigurationDraft):
+    """Named REST request for persisting a configuration-page snapshot."""
+
+
+class SimulationConfigurationView(SimulationConfigurationSnapshot):
+    """REST view of a saved configuration snapshot."""
 
 
 class ExperimentView(StrictModel):

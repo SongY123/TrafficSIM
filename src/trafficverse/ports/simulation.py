@@ -2,14 +2,19 @@
 
 from collections.abc import Mapping, Sequence
 from typing import Protocol
+from uuid import UUID
 
 from trafficverse.config.models import CarlaConfig, SumoConfig, WeatherConfig
+from trafficverse.domain.enums import SimulationRunKind
 from trafficverse.domain.models import (
     ActorSpawnResult,
     CarlaFrame,
     CarlaTrafficLight,
     ComponentHealth,
     ControlCommand,
+    SimulationConfigurationDraft,
+    SimulationConfigurationSnapshot,
+    SimulationRunInput,
     TrafficLightUpdate,
     TrafficSnapshot,
     Vector3,
@@ -79,3 +84,18 @@ class CarlaPort(Protocol):
     def health(self) -> ComponentHealth: ...
 
     def close(self) -> None: ...
+
+
+class SimulationConfigurationStoragePort(Protocol):
+    """Persists configuration snapshots and creates isolated run inputs."""
+
+    def save(self, draft: SimulationConfigurationDraft) -> SimulationConfigurationSnapshot: ...
+
+    def prepare_run(
+        self,
+        configuration_id: str,
+        run_kind: SimulationRunKind,
+        workspace_id: UUID,
+        scenario_id: UUID,
+        map_id: str | None,
+    ) -> SimulationRunInput: ...

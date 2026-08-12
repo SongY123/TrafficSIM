@@ -1,8 +1,11 @@
-"""Read-only data replay page for a completed simulation record."""
+"""Read-only result analysis page backed by one formal simulation artifact."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from collections.abc import Callable, Mapping
+from datetime import datetime
+
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -17,15 +20,32 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models.replay import ReplayMetric, ReplayRecord, ReplayTrend
+from ui.models import ReplayMetric, ReplayRecord, ReplayRoadResult, ReplayTrend
 from ui.views.components import PAGE_CONTENT_MARGIN
 
 _MAP_MODES = (
     ("average_speed", "道路平均速度分布"),
     ("congestion", "道路拥堵分布"),
     ("traffic_flow", "道路交通流量分布"),
-    ("queue", "排队情况分布"),
+    ("queue", "道路排队长度分布"),
 )
+_TREND_KEYS = (
+    ("vehicle_count", "车辆数量变化", "veh"),
+    ("average_speed_mps", "平均速度变化", "m/s"),
+    ("queue_length_veh", "排队车辆数量变化", "veh"),
+    ("average_waiting_time_s", "平均等待时间变化", "s"),
+    ("completed_total", "完成行程车辆数变化", "veh"),
+)
+_STATUS_LABELS = {
+    "CREATED": "已创建",
+    "PREPARING": "准备中",
+    "READY": "已就绪",
+    "RUNNING": "运行中",
+    "PAUSED": "已暂停",
+    "STOPPING": "停止中",
+    "COMPLETED": "已完成",
+    "FAILED": "失败",
+}
 
 
 def _accent_color(index: int) -> QColor:
@@ -34,13 +54,19 @@ def _accent_color(index: int) -> QColor:
 
 
 class _TrendChart(QFrame):
-    """Render a small normalized series without introducing a chart dependency."""
+    """Render source-aligned trend values with local visual normalization."""
 
-    def __init__(self, trend: ReplayTrend, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        trend: ReplayTrend,
+        color_index: int,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("replayTrendChart")
         self.setMinimumHeight(120)
         self._trend = trend
+        self._color_index = color_index
 
     def set_trend(self, trend: ReplayTrend) -> None:
         self._trend = trend
@@ -48,9 +74,9 @@ class _TrendChart(QFrame):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
-        if len(self._trend.values) < 2:
+        samples = self._trend.samples
+        if len(samples) < 2:
             return
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         plot = QRectF(self.rect()).adjusted(42.0, 10.0, -18.0, -24.0)
@@ -63,17 +89,21 @@ class _TrendChart(QFrame):
         painter.drawLine(plot.bottomLeft(), plot.bottomRight())
         painter.drawLine(plot.bottomLeft(), plot.topLeft())
 
-        values = self._trend.values
+        values = tuple(sample.value for sample in samples)
+        minimum = min(values)
+        span = max(values) - minimum
+        first_time_ms = samples[0].simulation_time_ms
+        time_span_ms = max(1, samples[-1].simulation_time_ms - first_time_ms)
         path = QPainterPath()
-        for index, value in enumerate(values):
-            x = plot.left() + plot.width() * index / (len(values) - 1)
-            y = plot.bottom() - plot.height() * value
-            if index == 0:
-                path.moveTo(x, y)
-            else:
-                path.lineTo(x, y)
+        for index, sample in enumerate(samples):
+            x = plot.left() + plot.width() * (
+                (sample.simulation_time_ms - first_time_ms) / time_span_ms
+            )
+            ratio = 0.5 if span == 0.0 else (sample.value - minimum) / span
+            y = plot.bottom() - plot.height() * ratio
+            path.moveTo(x, y) if index == 0 else path.lineTo(x, y)
 
-        color = _accent_color(self._trend.color_index)
+        color = _accent_color(self._color_index)
         fill = QColor(color)
         fill.setAlpha(42)
         area = QPainterPath(path)
@@ -86,13 +116,15 @@ class _TrendChart(QFrame):
 
 
 class _RoadResultCanvas(QFrame):
-    """Draw an illustrative road result layer for the selected distribution mode."""
+    """Draw actual SUMO lane geometry colored by parsed edge results."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("replayRoadCanvas")
         self.setMinimumHeight(360)
         self._mode = _MAP_MODES[0][0]
+        self._roads: tuple[tuple[str, tuple[tuple[float, float], ...]], ...] = ()
+        self._results: dict[str, ReplayRoadResult] = {}
 
     @property
     def mode(self) -> str:
@@ -102,113 +134,122 @@ class _RoadResultCanvas(QFrame):
         self._mode = mode
         self.update()
 
+    def set_network(self, geojson: object) -> None:
+        roads: list[tuple[str, tuple[tuple[float, float], ...]]] = []
+        if isinstance(geojson, Mapping):
+            features = geojson.get("features")
+            if isinstance(features, list):
+                for feature in features:
+                    road = self._road_feature(feature)
+                    if road is not None:
+                        roads.append(road)
+        self._roads = tuple(roads)
+        self.update()
+
+    def set_results(self, results: tuple[ReplayRoadResult, ...]) -> None:
+        self._results = {result.edge_id: result for result in results}
+        self.update()
+
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        canvas = QRectF(self.rect()).adjusted(16.0, 14.0, -16.0, -14.0)
-        self._draw_grid(painter, canvas)
-        self._draw_roads(painter, canvas)
-        self._draw_legend(painter, canvas)
-
-    def _draw_grid(self, painter: QPainter, canvas: QRectF) -> None:
-        dot_color = self.palette().mid().color()
-        dot_color.setAlpha(85)
-        painter.setPen(QPen(dot_color, 1.0))
-        x = canvas.left()
-        while x <= canvas.right():
-            y = canvas.top()
-            while y <= canvas.bottom():
-                painter.drawPoint(QPointF(x, y))
-                y += 20.0
-            x += 20.0
-
-    def _draw_roads(self, painter: QPainter, canvas: QRectF) -> None:
-        def point(x_ratio: float, y_ratio: float) -> QPointF:
-            return QPointF(
-                canvas.left() + canvas.width() * x_ratio,
-                canvas.top() + canvas.height() * y_ratio,
-            )
-
-        roads: tuple[tuple[QPointF, ...], ...] = (
-            (
-                point(0.18, 0.16),
-                point(0.37, 0.39),
-                point(0.52, 0.57),
-                point(0.72, 0.77),
-                point(0.87, 0.90),
-            ),
-            (
-                point(0.15, 0.79),
-                point(0.34, 0.62),
-                point(0.49, 0.48),
-                point(0.68, 0.29),
-                point(0.88, 0.20),
-            ),
-            (point(0.50, 0.05), point(0.50, 0.31), point(0.51, 0.55)),
-            (point(0.51, 0.55), point(0.51, 0.73), point(0.52, 0.95)),
-            (
-                point(0.50, 0.50),
-                point(0.46, 0.55),
-                point(0.47, 0.64),
-                point(0.54, 0.67),
-                point(0.58, 0.60),
-                point(0.56, 0.52),
-                point(0.50, 0.50),
-            ),
-        )
-        mode_offset = next(
-            (index for index, (mode, _) in enumerate(_MAP_MODES) if mode == self._mode),
-            0,
-        )
-        outline = self.palette().shadow().color()
-        outline.setAlpha(210)
-        for index, road in enumerate(roads):
-            path = QPainterPath(road[0])
-            for current in road[1:]:
-                path.lineTo(current)
-            painter.setPen(QPen(outline, 15.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            painter.drawPath(path)
+        canvas = QRectF(self.rect()).adjusted(18.0, 18.0, -18.0, -38.0)
+        if not self._roads:
+            painter.setPen(self.palette().mid().color())
+            painter.drawText(canvas, Qt.AlignmentFlag.AlignCenter, "暂无可用的实际路网结果")
+            return
+        values = {
+            edge_id: value
+            for edge_id in {road[0] for road in self._roads}
+            if (value := self._result_value(edge_id)) is not None
+        }
+        minimum = min(values.values(), default=0.0)
+        maximum = max(values.values(), default=1.0)
+        span = max(maximum - minimum, 1e-9)
+        transform = self._transform(canvas)
+        for edge_id, points in self._roads:
+            path = QPainterPath(transform(points[0]))
+            for point in points[1:]:
+                path.lineTo(transform(point))
+            value = values.get(edge_id)
+            ratio = 0.0 if value is None else (value - minimum) / span
+            if self._mode == "average_speed":
+                ratio = 1.0 - ratio
             painter.setPen(
                 QPen(
-                    _accent_color(index + mode_offset),
-                    7.0,
+                    QColor.fromHsvF(0.33 * (1.0 - ratio), 0.82, 0.96),
+                    3.0,
                     Qt.PenStyle.SolidLine,
                     Qt.PenCapStyle.RoundCap,
                 )
             )
             painter.drawPath(path)
-
-    def _draw_legend(self, painter: QPainter, canvas: QRectF) -> None:
-        labels_by_mode = {
-            "average_speed": ("畅通", "较快", "一般", "缓行", "拥堵"),
-            "congestion": ("低", "较低", "中等", "较高", "严重"),
-            "traffic_flow": ("稀疏", "较少", "适中", "较多", "饱和"),
-            "queue": ("无排队", "短队列", "一般", "较长", "严重"),
-        }
-        legend = QRectF(canvas.left() + 2.0, canvas.top() + 2.0, 82.0, 150.0)
-        background = self.palette().window().color()
-        background.setAlpha(232)
-        painter.setPen(QPen(self.palette().mid().color(), 1.0))
-        painter.setBrush(background)
-        painter.drawRoundedRect(legend, 5.0, 5.0)
         painter.setPen(self.palette().text().color())
+        label = next(label for mode, label in _MAP_MODES if mode == self._mode)
         painter.drawText(
-            legend.adjusted(12.0, 8.0, -8.0, -8.0),
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
-            "图例",
+            QRectF(canvas.left(), canvas.bottom() + 8.0, canvas.width(), 22.0),
+            Qt.AlignmentFlag.AlignLeft,
+            label,
         )
-        for index, label in enumerate(labels_by_mode[self._mode]):
-            y = legend.top() + 38.0 + index * 21.0
-            painter.setBrush(_accent_color(index))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(QPointF(legend.left() + 17.0, y), 5.0, 5.0)
-            painter.setPen(self.palette().text().color())
-            painter.drawText(
-                QRectF(legend.left() + 30.0, y - 8.0, 48.0, 16.0),
-                Qt.AlignmentFlag.AlignVCenter,
-                label,
+
+    def _transform(self, canvas: QRectF) -> Callable[[tuple[float, float]], QPointF]:
+        points = tuple(point for _, road in self._roads for point in road)
+        minimum_x = min(point[0] for point in points)
+        maximum_x = max(point[0] for point in points)
+        minimum_y = min(point[1] for point in points)
+        maximum_y = max(point[1] for point in points)
+        width = max(maximum_x - minimum_x, 1.0)
+        height = max(maximum_y - minimum_y, 1.0)
+        scale = min(canvas.width() / width, canvas.height() / height)
+        offset_x = canvas.left() + (canvas.width() - width * scale) / 2.0
+        offset_y = canvas.top() + (canvas.height() - height * scale) / 2.0
+
+        def apply(point: tuple[float, float]) -> QPointF:
+            return QPointF(
+                offset_x + (point[0] - minimum_x) * scale,
+                offset_y + (maximum_y - point[1]) * scale,
             )
+
+        return apply
+
+    def _result_value(self, edge_id: str) -> float | None:
+        result = self._results.get(edge_id)
+        if result is None:
+            return None
+        return {
+            "average_speed": result.average_speed_mps,
+            "congestion": result.congestion_ratio,
+            "traffic_flow": result.traffic_flow_veh_per_hour,
+            "queue": result.queue_length_m,
+        }[self._mode]
+
+    @staticmethod
+    def _road_feature(
+        feature: object,
+    ) -> tuple[str, tuple[tuple[float, float], ...]] | None:
+        if not isinstance(feature, Mapping):
+            return None
+        properties = feature.get("properties")
+        geometry = feature.get("geometry")
+        if not isinstance(properties, Mapping) or not isinstance(geometry, Mapping):
+            return None
+        edge_id = properties.get("sumo_edge_id")
+        coordinates = geometry.get("coordinates")
+        if geometry.get("type") != "LineString" or not isinstance(edge_id, str):
+            return None
+        if not isinstance(coordinates, list):
+            return None
+        points: list[tuple[float, float]] = []
+        for coordinate in coordinates:
+            if (
+                isinstance(coordinate, list)
+                and len(coordinate) >= 2
+                and isinstance(coordinate[0], (int, float))
+                and isinstance(coordinate[1], (int, float))
+            ):
+                points.append((float(coordinate[0]), float(coordinate[1])))
+        return (edge_id, tuple(points)) if len(points) >= 2 else None
 
 
 class _ReplayMetricCard(QFrame):
@@ -222,7 +263,7 @@ class _ReplayMetricCard(QFrame):
         layout.setSpacing(3)
         self.label = QLabel()
         self.label.setObjectName("replayMetricLabel")
-        self.value = QLabel()
+        self.value = QLabel("—")
         self.value.setObjectName("replayMetricValue")
         self.unit = QLabel()
         self.unit.setObjectName("replayMetricUnit")
@@ -231,33 +272,50 @@ class _ReplayMetricCard(QFrame):
         layout.addWidget(self.unit)
 
     def set_metric(self, metric: ReplayMetric) -> None:
+        value, unit = self._display(metric)
         self.label.setText(metric.label)
-        self.value.setText(metric.value)
-        self.value.setProperty("tone", metric.tone)
-        self.value.style().unpolish(self.value)
-        self.value.style().polish(self.value)
-        self.unit.setText(metric.unit)
+        self.value.setText(value)
+        self.unit.setText(unit)
+
+    @staticmethod
+    def _display(metric: ReplayMetric) -> tuple[str, str]:
+        if metric.value is None:
+            return "—", metric.unit
+        if metric.key in {"vehicle_total", "completed_total", "maximum_queue_length_veh"}:
+            return f"{metric.value:.0f}", metric.unit
+        if metric.key == "average_speed_mps":
+            return f"{metric.value * 3.6:.1f}", "km/h"
+        if metric.key == "average_travel_time_s":
+            return f"{metric.value / 60.0:.1f}", "min"
+        return f"{metric.value:.1f}", metric.unit
 
 
 class DataReplayPage(QWidget):
-    """Present one immutable replay record with fabricated aggregate data."""
+    """Present actual SUMO output, export, and structured replay availability."""
 
     back_requested = Signal()
+    playback_requested = Signal(str)
+    export_requested = Signal(str)
 
-    def __init__(self, record: ReplayRecord, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        record: ReplayRecord | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("dataReplayPage")
-        self._record = record
+        self._record: ReplayRecord | None = None
         self._summary_values: dict[str, QLabel] = {}
         self._metric_cards: list[_ReplayMetricCard] = []
         self._trend_charts: list[_TrendChart] = []
+        self._trend_titles: list[QLabel] = []
+        self._trend_ranges: list[QLabel] = []
         self._mode_buttons: dict[str, QPushButton] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self._header())
-
         scroll = QScrollArea()
         scroll.setObjectName("replayScrollArea")
         scroll.setWidgetResizable(True)
@@ -266,16 +324,10 @@ class DataReplayPage(QWidget):
         body.setObjectName("replayBody")
         body.setMinimumWidth(980)
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(
-            PAGE_CONTENT_MARGIN,
-            14,
-            PAGE_CONTENT_MARGIN,
-            PAGE_CONTENT_MARGIN,
-        )
+        body_layout.setContentsMargins(PAGE_CONTENT_MARGIN, 14, PAGE_CONTENT_MARGIN, 16)
         body_layout.setSpacing(12)
         body_layout.addWidget(self._summary_bar())
         body_layout.addWidget(self._metrics_section())
-
         results = QHBoxLayout()
         results.setSpacing(12)
         results.addWidget(self._trends_section(), 3)
@@ -283,33 +335,57 @@ class DataReplayPage(QWidget):
         body_layout.addLayout(results, 1)
         scroll.setWidget(body)
         root.addWidget(scroll, 1)
-        self.set_record(record)
+        if record is not None:
+            self.set_record(record)
 
     @property
     def record_id(self) -> str:
-        return self._record.record_id
+        return self._record.run_id if self._record is not None else ""
 
     def set_record(self, record: ReplayRecord) -> None:
         self._record = record
-        self.timestamp_badge.setText(record.occurred_at)
+        self.timestamp_badge.setText(self._datetime_text(record.created_at))
+        status = _STATUS_LABELS[record.status.value]
+        self.status_badge.setText(f"●  {status}")
+        self.status_badge.setProperty("status", record.status.value)
+        self.status_badge.style().unpolish(self.status_badge)
+        self.status_badge.style().polish(self.status_badge)
+        actual_duration_ms = record.simulation_time_ms
         summary = {
             "map": record.map_name,
-            "scenario": record.scenario_name,
-            "started": record.started_at,
-            "ended": record.ended_at,
-            "duration": record.duration,
-            "status": f"●  {record.status}",
+            "scenario": record.scene_name,
+            "started": self._datetime_text(record.started_at),
+            "ended": self._datetime_text(record.ended_at),
+            "duration": self._duration_text(actual_duration_ms),
+            "status": status,
         }
         for key, value in summary.items():
             self._summary_values[key].setText(value)
-        for card, metric in zip(self._metric_cards, record.metrics, strict=True):
-            card.set_metric(metric)
-        for chart, trend in zip(self._trend_charts, record.trends, strict=True):
-            chart.set_trend(trend)
-            parent = chart.parentWidget()
-            title = parent.findChild(QLabel, "replayChartTitle") if parent is not None else None
-            if title is not None:
-                title.setText(trend.title)
+        for index, card in enumerate(self._metric_cards):
+            if index < len(record.metrics):
+                card.set_metric(record.metrics[index])
+        trends = {trend.key: trend for trend in record.trends}
+        for index, (key, label, unit) in enumerate(_TREND_KEYS):
+            trend = trends.get(
+                key,
+                ReplayTrend(key=key, label=label, unit=unit, samples=()),
+            )
+            self._trend_charts[index].set_trend(trend)
+            self._trend_titles[index].setText(trend.label)
+            maximum_ms = trend.samples[-1].simulation_time_ms if trend.samples else 0
+            self._trend_ranges[index].setText(f"0 – {self._duration_text(maximum_ms)}")
+        self.map_canvas.set_results(record.road_results)
+        self.playback_button.setEnabled(record.replay_available)
+        self.playback_button.setToolTip(
+            "读取结构化快照与增量，不会重新运行 SUMO"
+            if record.replay_available
+            else "该历史记录未包含结构化回放数据"
+        )
+        self.export_button.setEnabled(record.export_available)
+
+    @Slot(object)
+    def set_network(self, geojson: object) -> None:
+        self.map_canvas.set_network(geojson)
 
     def _header(self) -> QFrame:
         frame = QFrame()
@@ -317,25 +393,29 @@ class DataReplayPage(QWidget):
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(PAGE_CONTENT_MARGIN, 12, PAGE_CONTENT_MARGIN, 12)
         layout.setSpacing(12)
-        title = QLabel("数据回放")
+        title = QLabel("历史仿真结果")
         title.setObjectName("pageTitle")
-        self.timestamp_badge = QLabel()
+        self.timestamp_badge = QLabel("等待选择记录")
         self.timestamp_badge.setObjectName("replayTimestamp")
+        self.status_badge = QLabel("●  未加载")
+        self.status_badge.setObjectName("replayStatusBadge")
         layout.addWidget(title)
         layout.addWidget(self.timestamp_badge)
+        layout.addWidget(self.status_badge)
         layout.addStretch(1)
-
-        self.restart_button = QPushButton("↻  重新仿真")
-        self.restart_button.setObjectName("replayRestartButton")
-        self.restart_button.setToolTip("占位按钮，暂未关联重新仿真逻辑")
+        self.playback_button = QPushButton("▶  仿真回放")
+        self.playback_button.setObjectName("replayPlaybackButton")
+        self.playback_button.setEnabled(False)
+        self.playback_button.clicked.connect(self._request_playback)
         self.back_button = QPushButton("←  返回项目")
         self.back_button.setObjectName("replayBackButton")
         self.back_button.clicked.connect(self.back_requested)
         self.export_button = QPushButton("⇩  导出结果")
         self.export_button.setObjectName("replayExportButton")
         self.export_button.setProperty("role", "primaryAction")
-        self.export_button.setToolTip("占位按钮，导出能力待接入")
-        layout.addWidget(self.restart_button)
+        self.export_button.setEnabled(False)
+        self.export_button.clicked.connect(self._request_export)
+        layout.addWidget(self.playback_button)
         layout.addWidget(self.back_button)
         layout.addWidget(self.export_button)
         return frame
@@ -347,12 +427,12 @@ class DataReplayPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         items = (
-            ("map", "使用的地图"),
-            ("scenario", "使用的场景"),
+            ("map", "实际使用地图"),
+            ("scenario", "仿真场景"),
             ("started", "开始时间"),
             ("ended", "结束时间"),
-            ("duration", "仿真时长"),
-            ("status", "结束状态"),
+            ("duration", "实际仿真时长"),
+            ("status", "当前状态"),
         )
         for key, label in items:
             item = QWidget()
@@ -362,7 +442,7 @@ class DataReplayPage(QWidget):
             item_layout.setSpacing(3)
             name = QLabel(label)
             name.setObjectName("replaySummaryLabel")
-            value = QLabel()
+            value = QLabel("—")
             value.setObjectName("replaySummaryValue")
             value.setProperty("summaryKey", key)
             self._summary_values[key] = value
@@ -388,21 +468,23 @@ class DataReplayPage(QWidget):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(10)
-        for index, trend in enumerate(self._record.trends):
+        for index, (key, label, unit) in enumerate(_TREND_KEYS):
+            trend = ReplayTrend(key=key, label=label, unit=unit, samples=())
             card = QFrame()
             card.setObjectName("replayChartCard")
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(12, 10, 12, 10)
-            card_layout.setSpacing(6)
             heading = QHBoxLayout()
-            title = QLabel(trend.title)
+            title = QLabel(label)
             title.setObjectName("replayChartTitle")
-            range_label = QLabel("0  –  40 min")
+            range_label = QLabel("0 – 00:00:00")
             range_label.setObjectName("replayChartRange")
             heading.addWidget(title)
             heading.addStretch(1)
             heading.addWidget(range_label)
-            chart = _TrendChart(trend, card)
+            chart = _TrendChart(trend, index, card)
+            self._trend_titles.append(title)
+            self._trend_ranges.append(range_label)
             self._trend_charts.append(chart)
             card_layout.addLayout(heading)
             card_layout.addWidget(chart, 1)
@@ -434,8 +516,27 @@ class DataReplayPage(QWidget):
         layout.addWidget(self.map_canvas, 1)
         return section
 
+    def _request_playback(self) -> None:
+        if self._record is not None and self._record.replay_available:
+            self.playback_requested.emit(self._record.run_id)
+
+    def _request_export(self) -> None:
+        if self._record is not None and self._record.export_available:
+            self.export_requested.emit(self._record.run_id)
+
     def _set_map_mode(self, mode: str) -> None:
         self.map_canvas.set_mode(mode)
+
+    @staticmethod
+    def _datetime_text(value: datetime | None) -> str:
+        return value.astimezone().strftime("%Y-%m-%d %H:%M:%S") if value is not None else "—"
+
+    @staticmethod
+    def _duration_text(duration_ms: int) -> str:
+        hours, remainder = divmod(duration_ms, 3_600_000)
+        minutes, remainder = divmod(remainder, 60_000)
+        seconds = remainder // 1_000
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
     @staticmethod
     def _section(

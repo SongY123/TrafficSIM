@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Slot
+from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -17,16 +17,18 @@ from PySide6.QtWidgets import (
 )
 
 from ui.models import (
-    MOCK_REPLAY_RECORDS,
     TRAFFIC_SCENARIO_PRESETS,
     ControlAvailability,
     ExperimentStatus,
     MapSummary,
+    ReplayRecord,
+    ReplaySummary,
+    ReplayWindow,
     TrafficScenarioPreset,
     WorkspaceOverview,
     WorkspaceSummary,
 )
-from ui.viewmodels import RunViewModel
+from ui.viewmodels import ReplayPlaybackViewModel, RunViewModel
 from ui.views.agent_asset_page import AgentAssetPage
 from ui.views.data_replay_page import DataReplayPage
 from ui.views.experiment_management_page import ExperimentManagementPage
@@ -46,6 +48,7 @@ from ui.views.workspace_page import (
 )
 
 _WINDOW_ICON_PATH = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg"
+_SUCCESS_NOTICE_TIMEOUT_MS = 3_000
 
 
 class MainWindow(QMainWindow):
@@ -55,6 +58,8 @@ class MainWindow(QMainWindow):
         configure_application_font()
         super().__init__()
         self._viewmodel = viewmodel
+        self._replay_viewmodel = ReplayPlaybackViewModel(self)
+        self._replay_networks: dict[str, object] = {}
         self.setWindowIcon(QIcon(str(_WINDOW_ICON_PATH)))
         self.setWindowTitle("TrafficVerse · 交互式交通仿真系统")
         self.resize(1600, 960)
@@ -72,11 +77,15 @@ class MainWindow(QMainWindow):
         self.notice.setObjectName("notice")
         self.notice.setWordWrap(True)
         self.notice.hide()
+        self._notice_timer = QTimer(self)
+        self._notice_timer.setSingleShot(True)
+        self._notice_timer.setInterval(_SUCCESS_NOTICE_TIMEOUT_MS)
+        self._notice_timer.timeout.connect(self._hide_notice)
 
         self.live_page = LiveMonitorPage(load_web_map=load_web_map)
         self.scene_page = SceneConfigurationPage(load_web_map=load_web_map)
         self.experiments_page = ExperimentManagementPage()
-        self.replay_page = DataReplayPage(MOCK_REPLAY_RECORDS[0])
+        self.replay_page = DataReplayPage()
         self.traffic_scenes_page = TrafficScenePage(load_web_map=load_web_map)
         self.maps_page = MapAssetPage(load_web_map=load_web_map)
         self.agents_page = AgentAssetPage()
@@ -144,14 +153,18 @@ class MainWindow(QMainWindow):
             self._handle_project_simulation_action
         )
         self.replay_page.back_requested.connect(lambda: self._show_page("project"))
-        self.live_page.start_requested.connect(vm.start)
-        self.live_page.pause_requested.connect(vm.pause)
-        self.live_page.resume_requested.connect(vm.resume)
-        self.live_page.stop_requested.connect(vm.stop)
-        self.live_page.restart_requested.connect(vm.restart)
-        self.live_page.speed_changed.connect(vm.set_speed)
+        self.replay_page.playback_requested.connect(self._open_replay)
+        self.replay_page.export_requested.connect(self._export_replay)
+        self.live_page.start_requested.connect(self._start_or_play)
+        self.live_page.pause_requested.connect(self._pause_live_or_replay)
+        self.live_page.resume_requested.connect(self._resume_live_or_replay)
+        self.live_page.stop_requested.connect(self._stop_live_or_replay)
+        self.live_page.restart_requested.connect(self._restart_live_or_replay)
+        self.live_page.speed_changed.connect(self._set_live_or_replay_speed)
         self.scene_page.map_selected.connect(vm.select_map)
-        self.scene_page.launch_requested.connect(vm.launch_experiment)
+        self.scene_page.configuration_save_requested.connect(vm.save_configuration)
+        self.scene_page.launch_requested.connect(vm.launch_configuration)
+        self.scene_page.test_requested.connect(vm.test_configuration)
         self.traffic_scenes_page.scene_selected.connect(self._launch_traffic_scenario)
         self.traffic_scenes_page.configuration_requested.connect(self._configure_traffic_scenario)
         self.traffic_scenes_page.preview_requested.connect(vm.preview_map_asset)
@@ -172,17 +185,26 @@ class MainWindow(QMainWindow):
         vm.map_manifest_changed.connect(self.maps_page.set_manifest)
         vm.asset_network_changed.connect(self.maps_page.set_preview_network)
         vm.asset_network_changed.connect(self.traffic_scenes_page.set_preview_network)
-        vm.network_changed.connect(self.live_page.map_widget.set_network)
+        vm.network_changed.connect(self._set_live_network)
         vm.network_changed.connect(self.scene_page.set_preview_network)
         vm.vehicles_changed.connect(self._set_vehicles)
-        vm.traffic_lights_changed.connect(self.live_page.map_widget.set_traffic_lights)
-        vm.live_metrics_changed.connect(self.live_page.set_metrics)
+        vm.traffic_lights_changed.connect(self._set_traffic_lights)
+        vm.live_metrics_changed.connect(self._set_live_metrics)
         vm.experiment_status_changed.connect(self._set_status)
         vm.simulation_time_changed.connect(self._set_time)
         vm.control_availability_changed.connect(self._set_controls)
         vm.connection_changed.connect(self.live_page.set_connection)
         vm.monitor_requested.connect(lambda: self._show_page("live"))
+        vm.history_catalog_changed.connect(self._set_history)
+        vm.replay_record_changed.connect(self._set_replay_record)
+        vm.replay_network_changed.connect(self._set_replay_network)
+        vm.replay_window_changed.connect(self._set_replay_window)
         vm.notification.connect(self._show_notice)
+        playback = self._replay_viewmodel
+        playback.frame_changed.connect(self.live_page.set_replay_frame)
+        playback.state_changed.connect(self.live_page.set_replay_state)
+        playback.more_requested.connect(vm.load_replay_window)
+        playback.exited.connect(self._replay_exited)
 
     @Slot(str)
     def _show_page(self, key: str) -> None:
@@ -205,16 +227,126 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _show_replay(self, record_id: str) -> None:
-        record = next(
-            (item for item in MOCK_REPLAY_RECORDS if item.record_id == record_id),
-            None,
-        )
-        if record is None:
-            return
-        self.replay_page.set_record(record)
         self.page_stack.setCurrentWidget(self.replay_page)
         self.navigation.set_active("replay")
         self.navigation.set_history_selection(record_id)
+        self._viewmodel.load_simulation_result(record_id)
+
+    @Slot(object)
+    def _set_history(self, value: object) -> None:
+        records = (
+            tuple(item for item in value if isinstance(item, ReplaySummary))
+            if isinstance(value, tuple)
+            else ()
+        )
+        self.navigation.set_history(records)
+
+    @Slot(object)
+    def _set_replay_record(self, value: object) -> None:
+        if not isinstance(value, ReplayRecord):
+            return
+        self.replay_page.set_record(value)
+        self.page_stack.setCurrentWidget(self.replay_page)
+        self.navigation.set_active("replay")
+        self.navigation.set_history_selection(value.run_id)
+        network = self._replay_networks.get(value.run_id)
+        if network is not None:
+            self.replay_page.set_network(network)
+
+    @Slot(str, object)
+    def _set_replay_network(self, run_id: str, network: object) -> None:
+        self._replay_networks[run_id] = network
+        if self.replay_page.record_id == run_id:
+            self.replay_page.set_network(network)
+        if self._replay_viewmodel.run_id == run_id:
+            self.live_page.map_widget.set_network(network)
+
+    @Slot(object)
+    def _set_replay_window(self, value: object) -> None:
+        if not isinstance(value, ReplayWindow):
+            return
+        first_window = self._replay_viewmodel.run_id != value.run_id
+        self._replay_viewmodel.load_window(value)
+        if not first_window:
+            return
+        self.live_page.set_replay_mode(True)
+        network = self._replay_networks.get(value.run_id)
+        if network is not None:
+            self.live_page.map_widget.set_network(network)
+        self.page_stack.setCurrentWidget(self.live_page)
+        self.navigation.set_active("replay")
+        self.navigation.set_history_selection(value.run_id)
+
+    @Slot(str)
+    def _open_replay(self, run_id: str) -> None:
+        self._viewmodel.load_replay_window(run_id)
+
+    @Slot(str)
+    def _replay_exited(self, run_id: str) -> None:
+        self.live_page.set_replay_mode(False)
+        self.page_stack.setCurrentWidget(self.replay_page)
+        self.navigation.set_active("replay")
+        self.navigation.set_history_selection(run_id)
+
+    @Slot(str)
+    def _export_replay(self, run_id: str) -> None:
+        default_name = str(Path.home() / f"trafficverse-simulation-{run_id}.zip")
+        target, _ = QFileDialog.getSaveFileName(
+            self,
+            "导出仿真结果",
+            default_name,
+            "ZIP 压缩包 (*.zip)",
+        )
+        if not target:
+            return
+        path = Path(target)
+        if path.suffix.lower() != ".zip":
+            path = path.with_suffix(".zip")
+        self._viewmodel.export_simulation_result(run_id, path)
+
+    @Slot()
+    def _start_or_play(self) -> None:
+        if self._replay_viewmodel.active:
+            self._replay_viewmodel.start()
+        else:
+            self._viewmodel.start()
+
+    @Slot()
+    def _pause_live_or_replay(self) -> None:
+        if self._replay_viewmodel.active:
+            self._replay_viewmodel.pause()
+        else:
+            self._viewmodel.pause()
+
+    @Slot()
+    def _resume_live_or_replay(self) -> None:
+        self._start_or_play()
+
+    @Slot()
+    def _stop_live_or_replay(self) -> None:
+        if self._replay_viewmodel.active:
+            self._replay_viewmodel.exit()
+        else:
+            self._viewmodel.stop()
+
+    @Slot()
+    def _restart_live_or_replay(self) -> None:
+        if self._replay_viewmodel.active:
+            self._replay_viewmodel.restart()
+        else:
+            self._viewmodel.restart()
+
+    @Slot(float)
+    def _set_live_or_replay_speed(self, multiplier: float) -> None:
+        if self._replay_viewmodel.active:
+            self._replay_viewmodel.set_speed(multiplier)
+        else:
+            self._viewmodel.set_speed(multiplier)
+
+    @Slot(object)
+    def _set_live_network(self, network: object) -> None:
+        if not self._replay_viewmodel.active:
+            self.live_page.map_widget.set_network(network)
 
     @Slot(str)
     def _show_traffic_scene(self, scenario_id: str) -> None:
@@ -309,7 +441,7 @@ class MainWindow(QMainWindow):
             else f"正在准备“{value.name}”并进入仿真运行……"
         )
         self._show_notice("info", message)
-        self._viewmodel.launch_experiment()
+        self._viewmodel.launch_configuration(self.scene_page.current_configuration())
 
     @Slot(object)
     def _configure_traffic_scenario(self, value: object) -> None:
@@ -323,7 +455,18 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _set_vehicles(self, vehicles: object) -> None:
-        self.live_page.map_widget.set_vehicles(vehicles)
+        if not self._replay_viewmodel.active:
+            self.live_page.map_widget.set_vehicles(vehicles)
+
+    @Slot(object)
+    def _set_traffic_lights(self, lights: object) -> None:
+        if not self._replay_viewmodel.active:
+            self.live_page.map_widget.set_traffic_lights(lights)
+
+    @Slot(object)
+    def _set_live_metrics(self, metrics: object) -> None:
+        if not self._replay_viewmodel.active:
+            self.live_page.set_metrics(metrics)
 
     @Slot(str)
     def _set_status(self, status: str) -> None:
@@ -339,7 +482,8 @@ class MainWindow(QMainWindow):
             "FAILED": "失败",
         }
         display_status = labels.get(status, status)
-        self.live_page.set_status(display_status)
+        if not self._replay_viewmodel.active:
+            self.live_page.set_status(display_status)
         self.experiments_page.set_status(display_status)
         if status == "RUNNING" and self.notice.property("level") == "info":
             self.notice.clear()
@@ -347,23 +491,33 @@ class MainWindow(QMainWindow):
 
     @Slot(int)
     def _set_time(self, simulation_time_ms: int) -> None:
-        self.live_page.set_time(simulation_time_ms)
+        if not self._replay_viewmodel.active:
+            self.live_page.set_time(simulation_time_ms)
         self.experiments_page.set_time(simulation_time_ms)
 
     @Slot(object)
     def _set_controls(self, availability: object) -> None:
         if not isinstance(availability, ControlAvailability):
             return
-        self.live_page.set_controls(availability)
+        if not self._replay_viewmodel.active:
+            self.live_page.set_controls(availability)
         self.scene_page.set_create_enabled(availability.can_create)
 
     @Slot(str, str)
     def _show_notice(self, level: str, message: str) -> None:
+        self._notice_timer.stop()
         self.notice.setProperty("level", level)
         self.notice.setText(message)
         self.notice.show()
         self.notice.style().unpolish(self.notice)
         self.notice.style().polish(self.notice)
+        if level == "success":
+            self._notice_timer.start()
+
+    @Slot()
+    def _hide_notice(self) -> None:
+        self.notice.clear()
+        self.notice.hide()
 
     def _choose_map(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

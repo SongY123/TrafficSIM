@@ -19,6 +19,7 @@ from trafficverse.domain.errors import TrafficVerseError
 
 _STATUS_BY_CODE = {
     ErrorCode.RESOURCE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    ErrorCode.CONFIGURATION_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.INVALID_STATE_TRANSITION: status.HTTP_409_CONFLICT,
     ErrorCode.RESOURCE_CONFLICT: status.HTTP_409_CONFLICT,
     ErrorCode.MAP_ASSET_INVALID: status.HTTP_422_UNPROCESSABLE_ENTITY,
