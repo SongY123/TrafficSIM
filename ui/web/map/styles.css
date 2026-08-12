@@ -14,12 +14,12 @@
   --error: #f56c6c;
   --separator: #363637;
   --legend-text: #909399;
-  --l0: #f56c6c;
-  --l1: #e6a23c;
-  --l2: #f5cd50;
-  --l3: #409eff;
-  --l4: #67c23a;
-  --l5: #a78bfa;
+  --l0: #f5f7fa;
+  --l1: #ffe899;
+  --l2: #f5be42;
+  --l3: #69beff;
+  --l4: #2f70db;
+  --l5: #c43434;
   --emergency: #ff2d91;
   --obstacle: #ffbe28;
   --ai: #e6a23c;
@@ -51,12 +51,12 @@
   --error: #f56c6c;
   --separator: #ebeef5;
   --legend-text: #909399;
-  --l0: #e05151;
-  --l1: #d57f1c;
-  --l2: #d3aa19;
-  --l3: #247bd8;
-  --l4: #4ea624;
-  --l5: #8563e0;
+  --l0: #eef1f5;
+  --l1: #f8db80;
+  --l2: #e0a620;
+  --l3: #4f9ee0;
+  --l4: #1e56ad;
+  --l5: #a62424;
   --emergency: #e01476;
   --obstacle: #e09912;
   --ai: #e6a23c;
@@ -125,10 +125,11 @@ button { font: inherit; }
 .legend-icon.l3,
 .legend-icon.l4,
 .legend-icon.l5 {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 8px;
   border: 1px solid currentcolor;
-  border-radius: 50%;
+  border-radius: 2px;
+  background: currentcolor;
 }
 .legend-icon.l0 { color: var(--l0); }
 .legend-icon.l1 { color: var(--l1); }
@@ -162,9 +163,9 @@ button { font: inherit; }
 .legend-icon.l4::before,
 .legend-icon.l5::before {
   position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: currentcolor;
+  inset: 1px 4px;
+  border-radius: 1px;
+  background: rgb(20 34 45 / 78%);
   content: "";
 }
 .legend-icon.ai {

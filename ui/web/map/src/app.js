@@ -653,33 +653,6 @@ function vehicleLayers() {
       pickable: false,
       parameters: FLAT_LAYER_PARAMETERS
     }),
-    new ScatterplotLayer({
-      ...common,
-      id: "trafficverse-vehicle-halo",
-      getPosition: (vehicle) => toMapPosition(vehicle.position),
-      getFillColor: (vehicle) =>
-        vehicle.vehicle_id === state.selectedVehicleId
-          ? vehicleColor(vehicle, 105)
-          : vehicleColor(vehicle, 150),
-      getLineColor: (vehicle) => vehicleColor(vehicle),
-      getRadius: (vehicle) =>
-        isAmbulance(vehicle)
-          ? LAYER_STYLE.vehicleHaloRadiusM * 1.35
-          : vehicle.vehicle_id === state.selectedVehicleId
-          ? LAYER_STYLE.vehicleHaloRadiusM
-          : LAYER_STYLE.vehicleHaloRadiusM * 0.72,
-      radiusUnits: "meters",
-      radiusMinPixels: 4,
-      radiusMaxPixels: 11,
-      stroked: true,
-      lineWidthMinPixels: 1,
-      parameters: FLAT_LAYER_PARAMETERS,
-      updateTriggers: {
-        getFillColor: [state.theme, state.selectedVehicleId],
-        getLineColor: state.theme,
-        getRadius: state.selectedVehicleId
-      }
-    }),
     new PolygonLayer({
       ...common,
       id: "trafficverse-vehicle-bodies",

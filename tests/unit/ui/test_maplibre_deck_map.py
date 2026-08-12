@@ -57,7 +57,7 @@ def test_map_source_uses_interleaved_meter_offset_layers_with_snapshot_interpola
     assert "lineCapRounded: true" in source
     assert "lineJointRounded: true" in source
     assert source.count("new GeoJsonLayer") == 6
-    assert source.count("new ScatterplotLayer") == 6
+    assert source.count("new ScatterplotLayer") == 5
     assert source.count("new PolygonLayer") == 4
     assert "new ScenegraphLayer" not in source
     assert "new LightingEffect" in source
@@ -211,6 +211,7 @@ def test_map_renders_oriented_top_down_cars_without_sideways_truck_overlay() -> 
     assert "function vehicleDetailParts()" in source
     assert "function vehiclePartColor(part)" in source
     assert 'id: "trafficverse-vehicle-shadows"' in source
+    assert 'id: "trafficverse-vehicle-halo"' not in source
     assert 'id: "trafficverse-vehicle-bodies"' in source
     assert 'id: "trafficverse-vehicle-details"' in source
     assert 'id: "trafficverse-vehicle-headlights"' in source
@@ -220,7 +221,9 @@ def test_map_renders_oriented_top_down_cars_without_sideways_truck_overlay() -> 
     assert "vehicle.heading_rad" in source
     assert "LAYER_STYLE.vehicleLengthM * 0.5" in source
     assert "LAYER_STYLE.vehicleWidthM * 0.5" in source
+    assert "getFillColor: vehicleColor" in source
     assert "trafficverse-vehicle-bodies" in bundle
+    assert "trafficverse-vehicle-halo" not in bundle
     assert "trafficverse-vehicle-details" in bundle
     assert "trafficverse-vehicle-headlights" in bundle
     assert "trafficverse-emergency-highlight" in bundle
@@ -259,6 +262,51 @@ def test_map_hud_shows_automation_and_special_vehicle_legends() -> None:
     assert ".legend-icon.emergency" in css
     assert ".legend-icon.obstacle" in css
     assert ".legend-icon.signal" in css
+
+
+def test_automation_levels_color_vehicle_bodies_from_light_to_dark() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    style = (MAP_WEB_ROOT / "src/style.js").read_text(encoding="utf-8")
+    css = (MAP_WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+    palette = {
+        "L0": (245, 247, 250),
+        "L1": (255, 232, 153),
+        "L2": (245, 190, 66),
+        "L3": (105, 190, 255),
+        "L4": (47, 112, 219),
+        "L5": (196, 52, 52),
+    }
+
+    assert "getFillColor: vehicleColor" in source
+    assert "vehicleHaloRadiusM" not in style
+    assert all(
+        f"{level}: [{', '.join(str(channel) for channel in color)}]" in style
+        for level, color in palette.items()
+    )
+    perceived_brightness = [
+        0.2126 * red + 0.7152 * green + 0.0722 * blue for red, green, blue in palette.values()
+    ]
+    assert all(
+        lighter > darker
+        for lighter, darker in zip(perceived_brightness[:-1], perceived_brightness[1:], strict=True)
+    )
+    assert all(channel >= 245 for channel in palette["L0"])
+    assert palette["L1"][0] > palette["L1"][1] > palette["L1"][2]
+    assert palette["L3"][2] > palette["L3"][1] > palette["L3"][0]
+    assert palette["L5"][0] > max(palette["L5"][1:])
+    assert all(
+        color in css
+        for color in (
+            "--l0: #f5f7fa;",
+            "--l1: #ffe899;",
+            "--l2: #f5be42;",
+            "--l3: #69beff;",
+            "--l4: #2f70db;",
+            "--l5: #c43434;",
+        )
+    )
+    assert "vehicle-halo" not in bundle
 
 
 def test_truck_model_is_local_and_checksum_documented() -> None:
