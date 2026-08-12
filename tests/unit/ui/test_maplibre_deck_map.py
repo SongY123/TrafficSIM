@@ -48,7 +48,7 @@ def test_map_dependencies_and_server_build_engines_are_pinned() -> None:
     assert lock["lockfileVersion"] == 2
 
 
-def test_map_source_uses_interleaved_meter_offset_layers_without_polling() -> None:
+def test_map_source_uses_interleaved_meter_offset_layers_with_snapshot_interpolation() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
 
     assert "new MapboxOverlay" in source
@@ -70,7 +70,10 @@ def test_map_source_uses_interleaved_meter_offset_layers_without_polling() -> No
     assert "state.roadCasings = externalLanes" in source
     assert "focusVehicle(vehicleId)" in source
     assert "setInterval" not in source
-    assert "requestAnimationFrame" not in source
+    assert "requestAnimationFrame" in source
+    assert "VehicleSnapshotPlayback" in source
+    assert "bufferFrames: 2" in source
+    assert "cancelAnimationFrame" in source
     assert "function isAmbulance(vehicle)" in source
     assert "function isStaticObstacle(vehicle)" in source
     assert "trafficverse-obstacle-bodies" in source

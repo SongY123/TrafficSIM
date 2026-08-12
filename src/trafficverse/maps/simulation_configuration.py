@@ -199,9 +199,6 @@ class SumoSimulationConfigurationStore:
         vehicle_index = 0
         for demand in sorted(draft.automation_demands, key=lambda item: item.level.value):
             for level_index in range(demand.vehicle_count):
-                depart_ms = package.begin_time_ms + (
-                    vehicle_index * draft.duration_ms // total_vehicles
-                )
                 ElementTree.SubElement(
                     generated_root,
                     "vehicle",
@@ -209,7 +206,7 @@ class SumoSimulationConfigurationStore:
                         "id": f"generated_{demand.level.value}_{level_index:06d}",
                         "type": demand.level.value,
                         "route": route_ids[vehicle_index % len(route_ids)],
-                        "depart": _seconds_text(depart_ms),
+                        "depart": _seconds_text(package.begin_time_ms),
                         "departLane": "best",
                         "departSpeed": "max",
                     },

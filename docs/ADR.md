@@ -1132,6 +1132,10 @@ Web 构建基线固定为服务器现有 Node.js 16.20.2 和 npm 8.19.4。MapLib
 - 必须先在目标 PySide6/QWebEngine 中加载本地 MapLibre、deck overlay 和仓库 Box GLB；
 - 必须与 windowed CARLA 同时运行，完成 resize、DPI、焦点和 10 分钟稳定性 Gate；
 - 必须证明二维行为与当前 Leaflet 等价，且位置仍只来自同 tick SUMO snapshot；
+- 允许展示层在 sequence 连续的相邻 SUMO snapshot 端点之间插值，但不得外推、写回权威状态或在
+  sequence gap 后继续动画；
+- 实时地图可以使用2帧已接收 snapshot 缓冲吸收到达抖动；该缓冲只增加展示延迟，不改变消息、
+  指标或控制使用的权威时间；
 - 必须用控制点验证 Web meter-offset 配准误差不超过 0.5 m；
 - 必须证明至少 50 辆三维实例在目标机器按当前 20 Hz snapshot 稳定显示；
 - 同步 PRD、System Design、Agent Guide、UI 测试、依赖 lockfile 和离线构建流程；

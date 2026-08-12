@@ -10,6 +10,7 @@ import maplibregl from "maplibre-gl";
 
 import blankStyle from "../styles/blank-style.json";
 import {LAYER_STYLE, MAP_THEMES} from "./style.js";
+import {VehicleSnapshotPlayback} from "./vehicle_interpolation.mjs";
 
 const EARTH_RADIUS_M = 6378137;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -39,7 +40,10 @@ const state = {
   junctionSurfaces: EMPTY_NETWORK,
   signalPoints: [],
   trafficLights: new Map(),
-  vehicles: [],
+  vehicles: [], // Transient render models; authoritative state remains in the latest snapshot.
+  authoritativeVehicles: [],
+  vehicleAnimationFrame: null,
+  vehiclePlayback: new VehicleSnapshotPlayback({bufferFrames: 2}),
   networkBounds: null,
   viewMode: "2d",
   selectedVehicleId: null,
@@ -82,6 +86,7 @@ const overlay = new MapboxOverlay({
   layers: [],
   getTooltip: ({object}) => vehicleTooltip(object)
 });
+let cachedStaticLayers = [];
 
 function activeTheme() {
   return MAP_THEMES[state.theme];
@@ -726,15 +731,61 @@ function vehicleLayers() {
   ];
 }
 
-function renderLayers() {
+function refreshStaticLayers() {
   const phaseTrigger = [state.theme, ...Array.from(state.trafficLights.entries()).flat()];
+  cachedStaticLayers = [...roadLayers(), ...signalLayers(phaseTrigger)];
+}
+
+function renderVehicleLayers() {
+  if (cachedStaticLayers.length === 0) {
+    refreshStaticLayers();
+  }
   overlay.setProps({
     effects: [state.lightingEffect],
-    layers: [...roadLayers(), ...signalLayers(phaseTrigger), ...vehicleLayers()]
+    layers: [...cachedStaticLayers, ...vehicleLayers()]
   });
+}
+
+function updateMapStatus() {
   const roadCount = state.roadNetwork.features.length;
   const signalCount = state.signalPoints.length;
-  setStatus(`车道 ${roadCount} · 信号 ${signalCount} · 车辆 ${state.vehicles.length}`);
+  const vehicleCount = state.authoritativeVehicles.length;
+  setStatus(`车道 ${roadCount} · 信号 ${signalCount} · 车辆 ${vehicleCount}`);
+}
+
+function renderLayers() {
+  refreshStaticLayers();
+  renderVehicleLayers();
+  updateMapStatus();
+}
+
+function cancelVehicleAnimation() {
+  if (state.vehicleAnimationFrame !== null) {
+    cancelAnimationFrame(state.vehicleAnimationFrame);
+    state.vehicleAnimationFrame = null;
+  }
+}
+
+function animateVehicles(timestampMs) {
+  state.vehicles = state.vehiclePlayback.sample(timestampMs);
+  renderVehicleLayers();
+  if (state.vehiclePlayback.isActive()) {
+    state.vehicleAnimationFrame = requestAnimationFrame(animateVehicles);
+    return;
+  }
+  state.vehicleAnimationFrame = null;
+}
+
+function setVehicleSnapshot(vehicles) {
+  const receivedAtMs = performance.now();
+  state.authoritativeVehicles = vehicles;
+  state.vehiclePlayback.push(vehicles, receivedAtMs);
+  state.vehicles = state.vehiclePlayback.sample(receivedAtMs);
+  renderVehicleLayers();
+  if (state.vehiclePlayback.isActive() && state.vehicleAnimationFrame === null) {
+    state.vehicleAnimationFrame = requestAnimationFrame(animateVehicles);
+  }
+  updateMapStatus();
 }
 
 function signalPointFromFeature(feature) {
@@ -939,8 +990,7 @@ window.TrafficVerseMap = {
     renderLayers();
   },
   setVehicles(vehicles) {
-    state.vehicles = Array.isArray(vehicles) ? vehicles : [];
-    renderLayers();
+    setVehicleSnapshot(Array.isArray(vehicles) ? vehicles : []);
     fitScenarioVehicles();
   },
   setTrafficLights(trafficLights) {
@@ -988,3 +1038,4 @@ map.on("error", (event) => {
   const message = event?.error?.message ?? "未知错误";
   setStatus(`地图资源加载失败：${message}`, true);
 });
+map.once("remove", cancelVehicleAnimation);

@@ -107,7 +107,7 @@ def test_save_copies_package_and_generates_exact_automation_counts(tmp_path: Pat
     vehicles = routes.findall("vehicle")
     assert [vehicle.attrib["type"] for vehicle in vehicles].count("L0") == 2
     assert [vehicle.attrib["type"] for vehicle in vehicles].count("L3") == 1
-    assert all(float(vehicle.attrib["depart"]) < 60.0 for vehicle in vehicles)
+    assert {vehicle.attrib["depart"] for vehicle in vehicles} == {"0"}
     assert routes.find("flow") is None
     assert routes.find("route[@id='route-east']") is not None
     assert routes.find("vType[@id='L3']") is not None

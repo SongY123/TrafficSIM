@@ -150,8 +150,9 @@ Town04 manifest 必须追踪：
 快照，将 `launch_mode` 设为 `managed`、`expected_version` 设为空、CARLA 设为 disabled，并使用
 stage 后的 `.sumocfg` 绝对路径。该内部快照仍满足类型校验并交给同一个 `SimulationManager`。
 
-桌面端的保存用例先把场景包复制到配置快照；交通需求非空时用显式 `vehicle` 替换原需求，
-为空时原样保留已有 `.rou.xml`。两种情况都修改 `.sumocfg` end time。`configuration.json` 保存
+桌面端的保存用例先把场景包复制到配置快照；交通需求非空时用显式 `vehicle` 替换原需求，所有
+生成车辆的 `depart` 使用场景 begin time；为空时原样保留已有 `.rou.xml`。两种情况都修改
+`.sumocfg` end time。`configuration.json` 保存
 场景、地图、时长和已配置的智驾等级车辆数；运行时再将整个快照复制到正式或测试 artifact，
 内部 resolved snapshot 只引用 artifact 内的网络、route 和 `.sumocfg`。兼容 API 未提供配置 ID
 时仍使用 ADR-027 的 `artifacts/sumo` 路径。
@@ -271,7 +272,11 @@ settings。任何 CARLA 物理或 Traffic Manager 结果都不反写 SUMO。
 MapLibre 管理相机、交互和空白本地 style，deck.gl 使用 meter-offset layer 绘制局部米制
 `network.geojson`、车辆和信号灯。页面通过 WebSocket `world.snapshot`、`vehicle.delta` 和
 `traffic_light.delta` 更新，不使用 SUMO GUI，不调用 TraCI，不按墙上时间积分权威位置。
-sequence gap 时请求完整 snapshot。二维和后续三维模式共用同一 `WorldState`。
+显示层可以使用 `requestAnimationFrame` 在 sequence 连续的两个已接收快照之间插值，但不得越过
+最新快照外推，也不得把瞬时展示坐标写回 `WorldState`。实时地图默认缓冲2个快照，以平滑后的
+接收速率推进统一的 `simulation_time_ms` 播放时钟；这只增加展示延迟，不改变权威仿真时间。
+sequence gap 时终止插值、吸附最新状态并请求完整 snapshot。二维和后续三维模式共用同一
+`WorldState`。
 
 ### 9.2 CARLA 原生窗口
 

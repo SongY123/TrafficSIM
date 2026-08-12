@@ -137,7 +137,11 @@ Box GLB 只证明最小 glTF 2.0 core path。正式车辆模型首次引入纹�
 - 不在 Qt UI thread 解析大型地图或 GLB；
 - Qt bridge 只缓存一份 latest state；
 - map 未 READY 时只缓存一份最新 network/state，不累计每个 tick；
-- JS 渲染使用 `requestAnimationFrame`，但不在帧之间自行积分车辆位置；
+- JS 渲染使用 `requestAnimationFrame`，只在 sequence 连续的两个已接收快照端点之间插值；
+- 实时车辆使用2帧快照缓冲和统一仿真时间播放时钟，快照到达间隔只用于平滑估计播放倍率，不为
+  每个快照单独启动一段动画；
+- 不按速度积分、不越过最新快照外推，sequence gap 时取消动画并吸附到最新状态；
+- 插值坐标只供 deck.gl 当帧绘制，不写回 `WorldState`、控制、指标或协议；
 - 页面销毁时依次 `overlay.finalize()`、`map.remove()` 并移除自身事件监听。
 
 ### 4.5 像素密度、性能和 CARLA 资源竞争
@@ -364,7 +368,8 @@ Gate：连续运行 10 分钟，无 WebGL context loss，Box picking 和 resize 
 - 保持车辆点击、筛选、sequence gap 请求 snapshot 和错误提示；
 - 为新 JS 层写单元测试和 PySide6 bridge 测试。
 
-Gate：二维行为与当前 Leaflet 等价，位置与同 tick snapshot 一致，不存在前端运动定时器。
+Gate：二维行为与当前 Leaflet 等价，插值端点与同 tick snapshot 一致，不存在自主推进车辆的前端
+运动定时器，动画不会越过最新 snapshot。
 
 ### 阶段 3：坐标配准
 

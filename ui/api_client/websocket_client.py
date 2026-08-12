@@ -79,7 +79,7 @@ class RealtimeClient(QObject):
             "subscribe",
             {
                 "topics": ["vehicles", "traffic_lights", "health", "events"],
-                "max_hz": 10,
+                "max_hz": 20,
             },
         )
 

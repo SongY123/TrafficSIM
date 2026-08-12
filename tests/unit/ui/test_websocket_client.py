@@ -93,6 +93,9 @@ def test_switch_resets_sequence_before_subscribing_to_new_experiment() -> None:
     assert subscribe["type"] == "subscribe"
     assert subscribe["experiment_id"] == str(SECOND_EXPERIMENT_ID)
     assert subscribe["sequence"] == 0
+    subscribe_payload = subscribe["payload"]
+    assert isinstance(subscribe_payload, dict)
+    assert subscribe_payload["max_hz"] == 20
 
 
 def test_manual_close_cancels_pending_experiment_switch() -> None:

@@ -93,8 +93,8 @@ CARLA 原生渲染窗口。
 - 纯二维场景使用 `.sumocfg` 自带 begin、end 和 step-length，步长必须可表示为整数毫秒；
 - 从配置引用的同一 `.net.xml` 生成道路、路口和通用 TLS Point，车辆与灯色仍只来自 TraCI；
 - 保存仿真配置时在 `configs/configs/<timestamp>/` 创建场景包快照，记录场景/地图元数据；
-  智驾数量非空时按 L0–L5 数量生成精确车辆需求，为空时原样保留已有 `.rou.xml`，并在两种
-  情况下都使仿真时长写入 `.sumocfg`；
+  智驾数量非空时按 L0–L5 数量生成精确车辆需求，并让全部生成车辆在场景起始时刻发车；为空时
+  原样保留已有 `.rou.xml`，并在两种情况下都使仿真时长写入 `.sumocfg`；
 - 正式运行在 `artifacts/simulations/<timestamp>/`、快速测试在 `artifacts/tests/<timestamp>/`
   创建隔离副本，输入和输出都留在对应 artifact 树，不修改场景源文件或复用历史 outputs；
 - 单个损坏场景不得阻止其他场景被发现，但损坏场景必须给出缺失文件、非法路径或 XML 错误。
@@ -115,9 +115,14 @@ CARLA 原生渲染窗口。
 - 显示道路、车道、路口、信号灯和全部 SUMO 车辆；
 - 首个 Gate 实现二维模式；后续三维模式复用同一 `WorldState`，不建立第二份车辆状态；
 - 车辆和信号灯只消费后端发布的版本化 WebSocket snapshot/delta；
-- 页面不得使用墙上时间插值生成权威位置，不得在前端维护第二套车辆运动状态；
+- 权威位置始终取最新 SUMO 快照。前端不得按速度或墙上时间积分，也不得越过最新快照预测；
+  可以使用 `requestAnimationFrame` 在 sequence 连续的相邻快照端点之间生成瞬时展示坐标，但该
+  坐标不得写回 `WorldState`、控制、指标或协议；
+- 实时地图保留2个已接收快照作为展示缓冲，并按 `simulation_time_ms` 的连续时间轴播放，避免消息
+  到达抖动在相邻插值段之间形成停顿；
 - 支持缩放、拖拽、点击车辆、筛选及将控制命令提交到 TrafficVerse API；
-- sequence gap 时必须请求完整 snapshot，不能继续基于缺帧状态推演。
+- sequence gap 时必须终止展示插值、立即吸附到最新状态并请求完整 snapshot，不能基于缺帧状态
+  推演。
 - 不包装、嵌入或自动化 SUMO GUI 窗口；二维道路、车辆和信号灯全部由 TrafficVerse 自有页面绘制。
 
 #### 工作区控制中心与资产目录
@@ -383,7 +388,8 @@ TrafficVerse 争用相同 `8813` 连接或 CARLA tick；官方脚本仅作为同
 
 ### 7.3 二维、联仿与原生窗口
 
-- 左侧显示路网、全部 SUMO 车辆和信号灯，前端不存在车辆运动定时器；
+- 左侧显示路网、全部 SUMO 车辆和信号灯，前端不存在自主推进车辆的运动定时器；展示插值必须
+  止于最新快照，sequence gap 时立即停止；
 - 至少 10 辆车进入 ROI 并在 CARLA 中创建、更新和销毁；
 - CARLA 与同 tick SUMO 转换坐标的平面误差不超过 0.5 m；
 - CARLA 信号灯与 SUMO 在同一 tick 一致；
