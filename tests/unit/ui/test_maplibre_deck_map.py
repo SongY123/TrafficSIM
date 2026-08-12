@@ -80,6 +80,19 @@ def test_map_source_uses_interleaved_meter_offset_layers_with_snapshot_interpola
     assert "救护车" in (MAP_WEB_ROOT / "index.html").read_text(encoding="utf-8")
 
 
+def test_signal_layers_remain_legible_and_render_above_vehicles() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    signal_source = source.split("function signalLayers", maxsplit=1)[1].split(
+        "function vehicleLayers", maxsplit=1
+    )[0]
+
+    assert "radiusMinPixels: 8" in signal_source
+    assert "radiusMinPixels: 5" in signal_source
+    assert "radiusMaxPixels" not in signal_source
+    assert "lineWidthMinPixels: 2" in signal_source
+    assert "layers: [...cachedRoadLayers, ...vehicleLayers(), ...cachedSignalLayers]" in source
+
+
 def test_flat_map_layers_disable_depth_test_to_prevent_zoom_z_fighting() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")

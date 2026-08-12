@@ -86,7 +86,8 @@ const overlay = new MapboxOverlay({
   layers: [],
   getTooltip: ({object}) => vehicleTooltip(object)
 });
-let cachedStaticLayers = [];
+let cachedRoadLayers = [];
+let cachedSignalLayers = [];
 
 function activeTheme() {
   return MAP_THEMES[state.theme];
@@ -564,19 +565,17 @@ function signalLayers(phaseTrigger) {
       id: "trafficverse-signal-halo",
       getFillColor: (signal) => phaseColor(signal.signalId, 45),
       getRadius: LAYER_STYLE.signalHaloRadiusM,
-      radiusMinPixels: 5,
-      radiusMaxPixels: 12
+      radiusMinPixels: 8
     }),
     new ScatterplotLayer({
       ...common,
       id: "trafficverse-signals",
       getFillColor: (signal) => phaseColor(signal.signalId),
       getRadius: LAYER_STYLE.signalRadiusM,
-      radiusMinPixels: 3,
-      radiusMaxPixels: 7,
+      radiusMinPixels: 5,
       stroked: true,
       getLineColor: theme.signalOutline,
-      lineWidthMinPixels: 1
+      lineWidthMinPixels: 2
     })
   ];
 }
@@ -733,16 +732,17 @@ function vehicleLayers() {
 
 function refreshStaticLayers() {
   const phaseTrigger = [state.theme, ...Array.from(state.trafficLights.entries()).flat()];
-  cachedStaticLayers = [...roadLayers(), ...signalLayers(phaseTrigger)];
+  cachedRoadLayers = roadLayers();
+  cachedSignalLayers = signalLayers(phaseTrigger);
 }
 
 function renderVehicleLayers() {
-  if (cachedStaticLayers.length === 0) {
+  if (cachedRoadLayers.length === 0) {
     refreshStaticLayers();
   }
   overlay.setProps({
     effects: [state.lightingEffect],
-    layers: [...cachedStaticLayers, ...vehicleLayers()]
+    layers: [...cachedRoadLayers, ...vehicleLayers(), ...cachedSignalLayers]
   });
 }
 

@@ -39,6 +39,8 @@ MapLibre 的核心能力是 WebGL 地图和 style layer。它可以渲染 GeoJSO
 更适合 deck.gl：
 
 - deck.gl 的 layer 是 GPU 批量渲染抽象，避免为每辆车创建 DOM marker；
+- 二维合成顺序固定为道路、车辆、信号灯；信号灯不设置最大像素半径，使灯芯在地图放大时保持
+  可辨识并始终覆盖经过路口的车辆；
 - `ScenegraphLayer` 可对同一 GLB 做多实例渲染；
 - `MapboxOverlay` 同样支持 MapLibre，可选择 overlay 或共享 WebGL2 的 interleaved 模式；
 - 以后可加入 `TripsLayer`、`HeatmapLayer`、`PolygonLayer` 和 `Tile3DLayer`，不用改变 MapLibre
