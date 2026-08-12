@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLayout,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -43,7 +44,7 @@ class LiveMonitorPage(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(
-            page_header("仿真运行", "SUMO 二维交通态势与实时运行控制", self._header_actions())
+            page_header("仿真运行", "二维交通态势与实时运行控制", self._header_actions())
         )
 
         body = QWidget()
@@ -52,8 +53,6 @@ class LiveMonitorPage(QWidget):
         body_layout.setContentsMargins(PAGE_CONTENT_MARGIN, 14, PAGE_CONTENT_MARGIN, 16)
         body_layout.setSpacing(12)
         body_layout.addWidget(self._workspace(), 1)
-        body_layout.addWidget(self._level_metrics_panel())
-        body_layout.addWidget(self._simulation_controls())
         scroll = QScrollArea()
         scroll.setObjectName("liveMonitorScroll")
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -65,26 +64,41 @@ class LiveMonitorPage(QWidget):
         self.map_panel = panel(
             "二维仿真场景",
             self.map_widget,
-            kicker="SUMO 实时路网",
+            kicker="实时路网",
         )
-        self.map_widget.setMinimumHeight(300)
-        self.map_panel.setFixedHeight(400)
-        stats_panel = self._statistics_panel()
+        self.map_widget.setMinimumHeight(520)
+        self.map_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+
+        self.details_sidebar = QWidget()
+        self.details_sidebar.setObjectName("liveMonitorSidebar")
+        self.details_sidebar.setMinimumWidth(320)
+        self.details_sidebar.setMaximumWidth(360)
+        self.details_sidebar.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
+        sidebar_layout = QVBoxLayout(self.details_sidebar)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(12)
+        sidebar_layout.addWidget(self._statistics_panel())
+        sidebar_layout.addWidget(self._simulation_controls())
+        sidebar_layout.addWidget(self._level_metrics_panel(), 1)
 
         workspace = QWidget()
         layout = QHBoxLayout(workspace)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
         layout.addWidget(self.map_panel, 1)
-        layout.addWidget(stats_panel)
+        layout.addWidget(self.details_sidebar)
         return workspace
 
     def _statistics_panel(self) -> QFrame:
         frame = QFrame()
         frame.setObjectName("panel")
         frame.setProperty("role", "liveMetrics")
-        frame.setMinimumWidth(340)
-        frame.setMaximumWidth(390)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(9)
@@ -117,9 +131,9 @@ class LiveMonitorPage(QWidget):
 
     def _simulation_controls(self) -> QFrame:
         content = QWidget()
-        row = QHBoxLayout(content)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         self.start_button = QPushButton("启动")
         self.start_button.setObjectName("primaryButton")
@@ -136,40 +150,41 @@ class LiveMonitorPage(QWidget):
         self.stop_button.clicked.connect(self.stop_requested)
         self.restart_button.clicked.connect(self.restart_requested)
 
-        for button in (
-            self.start_button,
-            self.pause_button,
-            self.resume_button,
-            self.stop_button,
-            self.restart_button,
-        ):
-            row.addWidget(button)
-        row.addStretch(1)
-        row.addWidget(self._speed_controls())
+        button_grid = QGridLayout()
+        button_grid.setContentsMargins(0, 0, 0, 0)
+        button_grid.setHorizontalSpacing(6)
+        button_grid.setVerticalSpacing(6)
+        button_grid.addWidget(self.start_button, 0, 0)
+        button_grid.addWidget(self.pause_button, 0, 1)
+        button_grid.addWidget(self.resume_button, 0, 2)
+        button_grid.addWidget(self.stop_button, 1, 0)
+        button_grid.addWidget(self.restart_button, 1, 1, 1, 2)
+        for column in range(3):
+            button_grid.setColumnStretch(column, 1)
+        layout.addLayout(button_grid)
+        layout.addWidget(self._speed_controls())
         return panel("运行控制", content, kicker="仿真生命周期")
 
     def _level_metrics_panel(self) -> QFrame:
         content = QWidget()
-        row = QHBoxLayout(content)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(18)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
         self.level_speed_chart = AutomationLevelBarChart(unit="km/h")
         self.level_collision_chart = AutomationLevelBarChart(
             unit="辆",
             integer_values=True,
         )
-        row.addWidget(
+        layout.addWidget(
             self._chart_group("各智驾等级车辆平均速度", self.level_speed_chart),
             1,
         )
-        row.addWidget(
+        layout.addWidget(
             self._chart_group("各智驾等级碰撞车辆数", self.level_collision_chart),
             1,
         )
-        frame = panel("分级实时指标", content, kicker="L0-L5")
-        frame.setMaximumHeight(210)
-        return frame
+        return panel("分级实时指标", content, kicker="L0-L5")
 
     @staticmethod
     def _chart_group(title: str, chart: AutomationLevelBarChart) -> QWidget:

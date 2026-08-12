@@ -4,7 +4,7 @@ from uuid import UUID
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
-from ui.models import ExperimentStatus, LiveMetrics
+from ui.models import ControlAvailability, ExperimentStatus, LiveMetrics
 from ui.viewmodels import RunViewModel
 
 EXPERIMENT_ID = UUID("00000000-0000-0000-0000-000000000010")
@@ -555,6 +555,72 @@ def test_launching_another_map_stops_active_experiment_then_launches_selected_ma
 
     assert realtime.closed is True
     assert rest.calls[-1] == ("create", (WORKSPACE_ID, SCENARIO_ID, "scene-b"))
+
+
+def test_returning_to_running_workspace_allows_launching_a_new_experiment() -> None:
+    viewmodel, rest, realtime = _viewmodel()
+    _enter_workspace(viewmodel)
+    viewmodel.handle_rest_success(
+        "maps.list",
+        [
+            {
+                "map_id": "image2road",
+                "kind": "sumo",
+                "display_name": "image2road",
+                "validated": True,
+                "network_schema_version": "sumo-net/display-1.0",
+                "manifest_available": False,
+                "sumo_config_file": "image2road.sumocfg",
+                "sumo_step_ms": 1000,
+            }
+        ],
+    )
+    availability: list[ControlAvailability] = []
+    viewmodel.control_availability_changed.connect(availability.append)
+    viewmodel.handle_rest_success(
+        "experiment.create",
+        {
+            "experiment_id": str(EXPERIMENT_ID),
+            "workspace_id": str(WORKSPACE_ID),
+            "status": "RUNNING",
+            "simulation_time_ms": 0,
+            "speed_multiplier": 1.0,
+        },
+    )
+
+    viewmodel.leave_workspace()
+    viewmodel.enter_selected_workspace()
+
+    assert viewmodel.active_workspace is not None
+    assert availability[-1].can_create
+
+    viewmodel.launch_experiment()
+    assert realtime.sent[-1] == ("experiment.stop", {"reason": "SCENARIO_SWITCH"})
+
+    viewmodel.handle_envelope(_envelope("experiment.state.changed", 1, {"status": "COMPLETED"}))
+    assert rest.calls[-1] == ("create", (WORKSPACE_ID, SCENARIO_ID, "image2road"))
+
+
+def test_old_experiment_messages_are_ignored_after_relaunch() -> None:
+    viewmodel, _, _ = _viewmodel()
+    _enter_workspace(viewmodel)
+    viewmodel.handle_rest_success(
+        "experiment.create",
+        {
+            "experiment_id": str(RESTARTED_EXPERIMENT_ID),
+            "workspace_id": str(WORKSPACE_ID),
+            "status": "CREATED",
+            "simulation_time_ms": 0,
+            "speed_multiplier": 1.0,
+        },
+    )
+    notifications: list[tuple[str, str]] = []
+    viewmodel.notification.connect(lambda level, message: notifications.append((level, message)))
+
+    viewmodel.handle_envelope(_envelope("experiment.state.changed", 1, {"status": "COMPLETED"}))
+
+    assert viewmodel.status is ExperimentStatus.CREATED
+    assert notifications == []
 
 
 def test_vehicle_sequence_gap_requests_world_snapshot() -> None:
