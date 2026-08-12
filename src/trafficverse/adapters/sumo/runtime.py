@@ -37,7 +37,7 @@ class PythonSumoRuntime:
             label = f"trafficverse-{uuid4()}"
             traci.start(
                 command,
-                port=config.port,
+                port=None,
                 numRetries=config.connect_retries,
                 label=label,
                 stdout=None,
@@ -149,7 +149,9 @@ class PythonSumoRuntime:
         if self._connection is None:
             return
         try:
-            self._connection.close(True)
+            # CMD_CLOSE already asks managed SUMO to exit. Waiting without a timeout here can
+            # freeze the API control plane and prevent a replacement scenario from starting.
+            self._connection.close(False)
         finally:
             self._connection = None
             self._connection_label = None

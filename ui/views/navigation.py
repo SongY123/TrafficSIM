@@ -10,16 +10,18 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from ui.models import MOCK_REPLAY_RECORDS, WorkspaceSummary
+from ui.models import MOCK_REPLAY_RECORDS, TRAFFIC_SCENARIO_PRESETS, WorkspaceSummary
 from ui.views.element_plus_icons import ICON_SIZE, render_element_plus_icon, render_svg_pixmap
 from ui.views.theme import ThemeMode, load_icon_colors
 
@@ -44,6 +46,7 @@ _SETTINGS_NAVIGATION = ("settings", "setting.svg", "系统设置")
 _ICON_ROOT = Path(__file__).resolve().parents[1] / "assets/icons/element-plus"
 _BRAND_LOGO = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg"
 _HISTORY_ENTRY_HEIGHT = 32
+_SCENARIO_ENTRY_HEIGHT = 32
 
 
 class _ExpandableNavigationRow(QWidget):
@@ -79,6 +82,7 @@ class _ExpandableNavigationRow(QWidget):
 class NavigationRail(QWidget):
     page_selected = Signal(str)
     replay_requested = Signal(str)
+    traffic_scene_requested = Signal(str)
     project_detail_requested = Signal()
     workspace_exit_requested = Signal()
 
@@ -92,6 +96,7 @@ class NavigationRail(QWidget):
         self._child_containers: dict[str, QWidget] = {}
         self._expandable_rows: dict[str, _ExpandableNavigationRow] = {}
         self._history_buttons: dict[str, QPushButton] = {}
+        self._traffic_scene_buttons: dict[str, QPushButton] = {}
         self._icon_paths: dict[str, Path] = {}
         self._theme = ThemeMode.DARK
 
@@ -112,24 +117,39 @@ class NavigationRail(QWidget):
         self.workspace_name.setCursor(Qt.CursorShape.PointingHandCursor)
         self.workspace_name.clicked.connect(self.project_detail_requested)
         layout.addWidget(self.workspace_name)
-        layout.addSpacing(18)
+        layout.addSpacing(12)
+
+        self.navigation_scroll = QScrollArea()
+        self.navigation_scroll.setObjectName("navigationScroll")
+        self.navigation_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.navigation_scroll.setWidgetResizable(True)
+        self.navigation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.navigation_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._navigation_content = QWidget()
+        self._navigation_content.setObjectName("navigationScrollContent")
+        navigation_layout = QVBoxLayout(self._navigation_content)
+        navigation_layout.setContentsMargins(0, 0, 2, 0)
+        navigation_layout.setSpacing(6)
+        navigation_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
 
         section = QLabel("控制中心")
         section.setObjectName("sectionLabel")
-        layout.addWidget(section)
-        layout.addSpacing(8)
+        navigation_layout.addWidget(section)
+        navigation_layout.addSpacing(8)
         for group_name, items in _NAVIGATION_GROUPS:
             group = QLabel(group_name)
             group.setObjectName("navigationGroupLabel")
-            layout.addWidget(group)
+            navigation_layout.addWidget(group)
             for key, icon, label, child_label in items:
                 if child_label is None:
-                    layout.addWidget(self._nav_button(key, icon, label))
+                    navigation_layout.addWidget(self._nav_button(key, icon, label))
                     continue
-                layout.addWidget(self._expandable_nav(key, icon, label, child_label))
-            layout.addSpacing(8)
+                navigation_layout.addWidget(self._expandable_nav(key, icon, label, child_label))
+            navigation_layout.addSpacing(8)
 
-        layout.addStretch(1)
+        navigation_layout.addStretch(1)
+        self.navigation_scroll.setWidget(self._navigation_content)
+        layout.addWidget(self.navigation_scroll, 1)
         layout.addWidget(self._nav_button(*_SETTINGS_NAVIGATION))
 
         divider = QFrame()
@@ -172,6 +192,21 @@ class NavigationRail(QWidget):
             children = self._child_containers["experiments"]
             children.show()
             self._expand_buttons["experiments"].setText("⌄")
+            button = self._history_buttons[record_id]
+            QTimer.singleShot(0, lambda: self.navigation_scroll.ensureWidgetVisible(button, 0, 12))
+
+    def set_traffic_scene_selection(self, scenario_id: str | None) -> None:
+        """Highlight a traffic-scene entry and keep its navigation group expanded."""
+        for button_id, button in self._traffic_scene_buttons.items():
+            button.setProperty("active", button_id == scenario_id)
+            button.style().unpolish(button)
+            button.style().polish(button)
+        if scenario_id is not None:
+            children = self._child_containers["traffic_scenes"]
+            children.show()
+            self._expand_buttons["traffic_scenes"].setText("⌄")
+            button = self._traffic_scene_buttons[scenario_id]
+            QTimer.singleShot(0, lambda: self.navigation_scroll.ensureWidgetVisible(button, 0, 12))
 
     def refresh_icons(self, theme: ThemeMode | None = None) -> None:
         if theme is not None:
@@ -251,10 +286,10 @@ class NavigationRail(QWidget):
             key,
             icon_file,
             label,
-            emits_page=key != "experiments",
+            emits_page=key not in {"experiments", "traffic_scenes"},
         )
         main_button.setProperty("role", "navigationRowMain")
-        if key == "experiments":
+        if key in {"experiments", "traffic_scenes"}:
             main_button.clicked.connect(lambda checked=False, page=key: self._toggle_children(page))
         row_layout.addWidget(main_button, 1)
         expand_button = QPushButton("›")
@@ -295,6 +330,30 @@ class NavigationRail(QWidget):
                 children_layout.addWidget(history_button)
                 self._history_buttons[record.record_id] = history_button
             children.setMinimumHeight(_HISTORY_ENTRY_HEIGHT * len(MOCK_REPLAY_RECORDS))
+        elif key == "traffic_scenes":
+            for index, preset in enumerate(TRAFFIC_SCENARIO_PRESETS):
+                scene_button = QPushButton(preset.name)
+                scene_button.setObjectName(f"nav_traffic_scene_{index}")
+                scene_button.setProperty("role", "scenarioEntry")
+                scene_button.setProperty("scenarioId", preset.scenario_id)
+                scene_button.setProperty("active", False)
+                scene_button.setToolTip(preset.incident)
+                scene_button.setAccessibleName(f"打开交通场景：{preset.name}")
+                scene_button.setCursor(Qt.CursorShape.PointingHandCursor)
+                scene_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                scene_button.setFixedHeight(_SCENARIO_ENTRY_HEIGHT)
+                scene_button.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Fixed,
+                )
+                scene_button.clicked.connect(
+                    lambda checked=False, scenario_id=preset.scenario_id: (
+                        self.traffic_scene_requested.emit(scenario_id)
+                    )
+                )
+                children_layout.addWidget(scene_button)
+                self._traffic_scene_buttons[preset.scenario_id] = scene_button
+            children.setMinimumHeight(_SCENARIO_ENTRY_HEIGHT * len(TRAFFIC_SCENARIO_PRESETS))
         else:
             child_button = QPushButton(child_label)
             child_button.setObjectName(f"nav_child_{key}")
@@ -317,6 +376,7 @@ class NavigationRail(QWidget):
         children = self._child_containers[key]
         expanded = children.isHidden()
         children.setVisible(expanded)
+        self._navigation_content.updateGeometry()
         button = self._expand_buttons[key]
         button.setText("⌄" if expanded else "›")
         label = self._buttons[key].text()

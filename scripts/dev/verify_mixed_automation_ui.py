@@ -1,4 +1,4 @@
-"""Exercise the mixed-automation catalog through the real Qt UI and API."""
+"""Exercise the mixed-automation scenario details through the real Qt UI and API."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
-from PySide6.QtCore import QObject, Qt, QTimer, Slot
-from PySide6.QtTest import QTest
+from PySide6.QtCore import QObject, QTimer, Slot
 from PySide6.QtWidgets import QApplication, QScrollArea
 from ui.api_client import RealtimeClient, RestApiClient
 from ui.models import TRAFFIC_SCENARIO_PRESETS, ExperimentStatus, WorkspaceSummary
@@ -20,7 +19,7 @@ CAPTURE_TIME_MS = (32_000, 15_000, 28_000)
 
 
 class MixedAutomationUiVerifier(QObject):
-    """Drive every catalog row and capture the corresponding live scene."""
+    """Drive every scenario detail and capture the corresponding live scene."""
 
     def __init__(
         self,
@@ -61,32 +60,27 @@ class MixedAutomationUiVerifier(QObject):
     def _catalog_ready(self, _payload: object) -> None:
         if self._started:
             return
-        missing: list[str] = []
-        for row, preset in enumerate(TRAFFIC_SCENARIO_PRESETS):
-            status = self._window.traffic_scenes_page.table.item(row, 3)
-            if status is None or status.text() != "可运行":
-                missing.append(preset.map_id)
+        missing = [
+            preset.map_id
+            for preset in TRAFFIC_SCENARIO_PRESETS
+            if not self._window.traffic_scenes_page.is_available(preset.scenario_id)
+        ]
         if missing:
             self._fail(f"场景资源不可运行: {', '.join(missing)}")
             return
         self._started = True
-        self._window._show_page("traffic_scenes")
-        self._capture("00-traffic-scene-catalog.png")
-        QTimer.singleShot(300, self._click_current_row)
+        self._window._show_traffic_scene(TRAFFIC_SCENARIO_PRESETS[0].scenario_id)
+        self._capture("00-traffic-scene-detail.png")
+        QTimer.singleShot(300, self._launch_current_scenario)
 
-    def _click_current_row(self) -> None:
+    def _launch_current_scenario(self) -> None:
         preset = TRAFFIC_SCENARIO_PRESETS[self._row]
-        table = self._window.traffic_scenes_page.table
-        cell = table.item(self._row, 0)
-        if cell is None:
-            self._fail(f"找不到场景表格第 {self._row + 1} 行")
+        page = self._window.traffic_scenes_page
+        self._window._show_traffic_scene(preset.scenario_id)
+        if page.selected_scenario != preset:
+            self._fail(f"场景详情未切换: {preset.scenario_id}")
             return
-        table.scrollToItem(cell)
-        QTest.mouseClick(
-            table.viewport(),
-            Qt.MouseButton.LeftButton,
-            pos=table.visualItemRect(cell).center(),
-        )
+        page.launch_button.click()
         QTimer.singleShot(100, lambda: self._verify_applied_preset(preset.map_id))
 
     def _verify_applied_preset(self, map_id: str) -> None:
@@ -137,8 +131,8 @@ class MixedAutomationUiVerifier(QObject):
         self._switch_in_progress = True
         self._row += 1
         self._captured = False
-        self._window._show_page("traffic_scenes")
-        QTimer.singleShot(250, self._click_current_row)
+        self._window._show_traffic_scene(TRAFFIC_SCENARIO_PRESETS[self._row].scenario_id)
+        QTimer.singleShot(250, self._launch_current_scenario)
 
     def _capture_metrics_view(self, filename: str) -> bool:
         scroll = self._window.live_page.findChild(QScrollArea, "liveMonitorScroll")

@@ -135,6 +135,18 @@ def test_map_reset_uses_one_camera_transition_for_bounds_and_orientation() -> No
     assert "maxZoom:18,pitch:0,bearing:0" in bundle
 
 
+def test_scenario_camera_fit_runs_only_once_after_vehicle_bounds_are_available() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    scenario_fit = source.split("function fitScenarioVehicles", maxsplit=1)[1].split(
+        "function enableCommandDragRotation", maxsplit=1
+    )[0]
+
+    disable_follow = scenario_fit.index("state.followScenarioVehicles = false;")
+    fit_bounds = scenario_fit.index("map.fitBounds(bounds")
+    assert disable_follow < fit_bounds
+    assert "performance.now()" not in scenario_fit
+
+
 def test_map_visuals_are_externalized_and_support_light_theme() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     style = (MAP_WEB_ROOT / "src/style.js").read_text(encoding="utf-8")
