@@ -42,7 +42,6 @@ class LiveMonitorPage(QWidget):
         self._replay_seen_vehicle_ids: set[str] = set()
         self._replay_active_vehicle_ids: set[str] = set()
         self._replay_entered_at_ms: dict[str, int] = {}
-        self._replay_vehicle_levels: dict[str, str] = {}
         self._replay_completed_time_total_ms = 0
         self._replay_completed_vehicle_count = 0
         self._replay_last_time_ms: int | None = None
@@ -185,7 +184,7 @@ class LiveMonitorPage(QWidget):
         layout.setSpacing(10)
 
         self.level_speed_chart = AutomationLevelBarChart(unit="km/h")
-        self.level_collision_chart = AutomationLevelBarChart(
+        self.level_vehicle_chart = AutomationLevelBarChart(
             unit="辆",
             integer_values=True,
         )
@@ -194,7 +193,7 @@ class LiveMonitorPage(QWidget):
             1,
         )
         layout.addWidget(
-            self._chart_group("各智驾等级碰撞车辆数", self.level_collision_chart),
+            self._chart_group("各智驾等级车辆数", self.level_vehicle_chart),
             1,
         )
         return panel("分级实时指标", content, kicker="L0-L5")
@@ -265,7 +264,7 @@ class LiveMonitorPage(QWidget):
         self.level_speed_chart.set_values(
             {level: speed_mps * 3.6 for level, speed_mps in metrics.level_average_speed_mps}
         )
-        self.level_collision_chart.set_values(dict(metrics.level_collision_counts))
+        self.level_vehicle_chart.set_values(dict(metrics.level_vehicle_counts))
         travel_time = (
             "—"
             if metrics.average_travel_time_ms is None
@@ -312,7 +311,6 @@ class LiveMonitorPage(QWidget):
         speeds_by_level: dict[str, list[float]] = {}
         for vehicle in value.vehicles:
             speeds_by_level.setdefault(vehicle.automation_level, []).append(vehicle.speed_mps)
-            self._replay_vehicle_levels[vehicle.vehicle_id] = vehicle.automation_level
             self._replay_entered_at_ms.setdefault(vehicle.vehicle_id, value.simulation_time_ms)
         current_vehicle_ids = {vehicle.vehicle_id for vehicle in value.vehicles}
         self._replay_seen_vehicle_ids.update(current_vehicle_ids)
@@ -349,7 +347,10 @@ class LiveMonitorPage(QWidget):
                     )
                     for level in ("L0", "L1", "L2", "L3", "L4", "L5")
                 ),
-                level_collision_counts=self._replay_collision_counts(value.collision_vehicle_ids),
+                level_vehicle_counts=tuple(
+                    (level, len(speeds_by_level.get(level, ())))
+                    for level in ("L0", "L1", "L2", "L3", "L4", "L5")
+                ),
             )
         )
 
@@ -409,21 +410,9 @@ class LiveMonitorPage(QWidget):
         self._replay_seen_vehicle_ids.clear()
         self._replay_active_vehicle_ids.clear()
         self._replay_entered_at_ms.clear()
-        self._replay_vehicle_levels.clear()
         self._replay_completed_time_total_ms = 0
         self._replay_completed_vehicle_count = 0
         self._replay_last_time_ms = None
-
-    def _replay_collision_counts(
-        self, collision_vehicle_ids: tuple[str, ...]
-    ) -> tuple[tuple[str, int], ...]:
-        levels = ("L0", "L1", "L2", "L3", "L4", "L5")
-        counts = dict.fromkeys(levels, 0)
-        for vehicle_id in collision_vehicle_ids:
-            level = self._replay_vehicle_levels.get(vehicle_id)
-            if level in counts:
-                counts[level] += 1
-        return tuple((level, counts[level]) for level in levels)
 
     @staticmethod
     def _metric_value(card: QFrame) -> QLabel:

@@ -49,7 +49,7 @@ def test_live_monitor_is_two_dimensional_and_exposes_requested_controls_and_metr
     assert {"启动", "暂停", "继续", "停止", "重新开始"} <= buttons
     assert {"0.5×", "1×", "2×"} <= buttons
     assert {"当前车辆数", "车辆总数", "平均速度", "平均通过时间"} <= labels
-    assert {"分级实时指标", "各智驾等级车辆平均速度", "各智驾等级碰撞车辆数"} <= labels
+    assert {"分级实时指标", "各智驾等级车辆平均速度", "各智驾等级车辆数"} <= labels
     assert page.map_panel.maximumHeight() > 400
     assert page.map_widget.minimumHeight() == 520
     assert page.details_sidebar.minimumWidth() == 320
@@ -88,7 +88,7 @@ def test_live_monitor_formats_metrics_and_enables_controls_from_experiment_state
                 ("L4", 8.0),
                 ("L5", 9.0),
             ),
-            level_collision_counts=(
+            level_vehicle_counts=(
                 ("L0", 3),
                 ("L1", 2),
                 ("L2", 1),
@@ -109,6 +109,6 @@ def test_live_monitor_formats_metrics_and_enables_controls_from_experiment_state
     assert page.restart_button.isEnabled()
     assert all(button.isEnabled() for button in page.speed_group.buttons())
     assert page.level_speed_chart.values["L5"] == 32.4
-    assert page.level_collision_chart.values["L0"] == 3.0
+    assert page.level_vehicle_chart.values["L0"] == 3.0
 
     page.close()

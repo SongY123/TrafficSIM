@@ -1032,9 +1032,9 @@ def test_live_metrics_track_active_total_speed_and_completed_travel_time() -> No
             ("L4", 0.0),
             ("L5", 0.0),
         ),
-        level_collision_counts=(
-            ("L0", 1),
-            ("L1", 0),
+        level_vehicle_counts=(
+            ("L0", 0),
+            ("L1", 1),
             ("L2", 0),
             ("L3", 0),
             ("L4", 0),

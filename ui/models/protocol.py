@@ -262,7 +262,7 @@ class LiveMetrics:
     average_speed_mps: float
     average_travel_time_ms: float | None
     level_average_speed_mps: tuple[tuple[str, float], ...] = ()
-    level_collision_counts: tuple[tuple[str, int], ...] = ()
+    level_vehicle_counts: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

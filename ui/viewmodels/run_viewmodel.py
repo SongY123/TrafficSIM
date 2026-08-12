@@ -34,7 +34,6 @@ from ui.models import (
 )
 
 _AUTOMATION_LEVELS = ("L0", "L1", "L2", "L3", "L4", "L5")
-_AUTOMATION_LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:_|$)")
 _SNAPSHOT_RECOVERY_INTERVAL_MS = 1_000
 _RunKind = Literal["simulation", "test"]
 
@@ -103,7 +102,6 @@ class RunViewModel(QObject):
         self._seen_vehicle_ids: set[str] = set()
         self._active_vehicle_ids: set[str] = set()
         self._vehicle_entered_at_ms: dict[str, int] = {}
-        self._vehicle_automation_levels: dict[str, str] = {}
         self._completed_travel_time_total_ms = 0
         self._completed_vehicle_count = 0
         self._realtime_connected = False
@@ -595,7 +593,6 @@ class RunViewModel(QObject):
                 vehicles = tuple(self._world.vehicles.values())
                 self._update_live_metrics(
                     vehicles,
-                    self._world.collision_vehicle_ids,
                     self._world.simulation_time_ms,
                 )
                 self.vehicles_changed.emit(vehicles)
@@ -671,13 +668,11 @@ class RunViewModel(QObject):
     def _update_live_metrics(
         self,
         vehicles: tuple[Vehicle, ...],
-        collision_vehicle_ids: set[str],
         simulation_time_ms: int,
     ) -> None:
         current_ids = {vehicle.vehicle_id for vehicle in vehicles}
         self._seen_vehicle_ids.update(current_ids)
         for vehicle in vehicles:
-            self._vehicle_automation_levels[vehicle.vehicle_id] = vehicle.automation_level
             self._vehicle_entered_at_ms.setdefault(
                 vehicle.vehicle_id,
                 min(vehicle.simulation_time_ms, simulation_time_ms),
@@ -713,11 +708,6 @@ class RunViewModel(QObject):
             )
             for level in _AUTOMATION_LEVELS
         )
-        collision_counts = dict.fromkeys(_AUTOMATION_LEVELS, 0)
-        for vehicle_id in collision_vehicle_ids:
-            level = self._vehicle_automation_levels.get(vehicle_id) or _vehicle_level(vehicle_id)
-            if level in collision_counts:
-                collision_counts[level] += 1
         self.live_metrics_changed.emit(
             LiveMetrics(
                 current_vehicle_count=len(vehicles),
@@ -725,8 +715,8 @@ class RunViewModel(QObject):
                 average_speed_mps=average_speed_mps,
                 average_travel_time_ms=average_travel_time_ms,
                 level_average_speed_mps=level_average_speed_mps,
-                level_collision_counts=tuple(
-                    (level, collision_counts[level]) for level in _AUTOMATION_LEVELS
+                level_vehicle_counts=tuple(
+                    (level, len(level_speed_samples[level])) for level in _AUTOMATION_LEVELS
                 ),
             )
         )
@@ -735,7 +725,6 @@ class RunViewModel(QObject):
         self._seen_vehicle_ids.clear()
         self._active_vehicle_ids.clear()
         self._vehicle_entered_at_ms.clear()
-        self._vehicle_automation_levels.clear()
         self._completed_travel_time_total_ms = 0
         self._completed_vehicle_count = 0
         self.live_metrics_changed.emit(
@@ -745,7 +734,7 @@ class RunViewModel(QObject):
                 average_speed_mps=0.0,
                 average_travel_time_ms=None,
                 level_average_speed_mps=tuple((level, 0.0) for level in _AUTOMATION_LEVELS),
-                level_collision_counts=tuple((level, 0) for level in _AUTOMATION_LEVELS),
+                level_vehicle_counts=tuple((level, 0) for level in _AUTOMATION_LEVELS),
             )
         )
 
@@ -816,11 +805,6 @@ class RunViewModel(QObject):
             (item for item in self._workspaces if item.workspace_id == workspace_id),
             None,
         )
-
-
-def _vehicle_level(vehicle_id: str) -> str | None:
-    match = _AUTOMATION_LEVEL_PATTERN.search(vehicle_id)
-    return f"L{match.group(1)}" if match is not None else None
 
 
 def _items(payload: object) -> list[object]:
