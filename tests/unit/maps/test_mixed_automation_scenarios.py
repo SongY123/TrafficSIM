@@ -197,6 +197,16 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         "accident_follow_L1_0",
         "accident_follow_L3_0",
         "accident_follow_L5_0",
+        "accident_background_L0_0",
+        "accident_background_L0_1",
+        "accident_background_L1_0",
+        "accident_background_L1_1",
+        "accident_background_L3_0",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+        "accident_background_L5_0",
+        "accident_background_L5_1",
+        "accident_background_L5_2",
     }
     assert vehicles["accident_actor_L0_0"]["departLane"] == "0"
     assert vehicles["accident_parked_L0_0"]["departLane"] == "0"
@@ -207,6 +217,62 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     assert routes[vehicles["accident_follow_L1_0"]["route"]] == "road_curve"
     assert routes[vehicles["accident_follow_L5_0"]["route"]].endswith("right_exit")
     assert routes[vehicles["accident_follow_L3_0"]["route"]] == "road_curve"
+    background_ids_by_level = {
+        level: sorted(
+            vehicle_id
+            for vehicle_id in vehicles
+            if vehicle_id.startswith(f"accident_background_L{level}_")
+        )
+        for level in (0, 1, 3, 5)
+    }
+    assert {level: len(ids) for level, ids in background_ids_by_level.items()} == {
+        0: 2,
+        1: 2,
+        3: 3,
+        5: 3,
+    }
+    straight_background_ids = {
+        vehicle_id for level in (0, 1, 3) for vehicle_id in background_ids_by_level[level]
+    }
+    assert all(
+        routes[vehicles[vehicle_id]["route"]] == "road_approach road_curve"
+        for vehicle_id in straight_background_ids
+    )
+    expected_straight_lanes = {
+        "accident_background_L0_0": "1",
+        "accident_background_L1_0": "1",
+        "accident_background_L3_0": "1",
+        "accident_background_L0_1": "0",
+        "accident_background_L1_1": "0",
+        "accident_background_L3_1": "0",
+        "accident_background_L3_2": "0",
+    }
+    assert {
+        vehicle_id: vehicles[vehicle_id]["departLane"] for vehicle_id in straight_background_ids
+    } == expected_straight_lanes
+    assert {
+        vehicle_id: float(vehicles[vehicle_id]["departPos"])
+        for vehicle_id in straight_background_ids
+        if expected_straight_lanes[vehicle_id] == "0"
+    } == {
+        "accident_background_L0_1": 385.0,
+        "accident_background_L1_1": 370.0,
+        "accident_background_L3_1": 355.0,
+        "accident_background_L3_2": 340.0,
+    }
+    assert all(
+        routes[vehicles[vehicle_id]["route"]] == "road_approach right_exit"
+        and vehicles[vehicle_id]["departLane"] == "0"
+        for vehicle_id in background_ids_by_level[5]
+    )
+    assert all(
+        vehicles[vehicle_id]["departSpeed"] == "0"
+        for vehicle_id in straight_background_ids.union(background_ids_by_level[5])
+    )
+    assert {
+        vehicles[vehicle_id]["departLane"]
+        for vehicle_id in straight_background_ids.union(background_ids_by_level[5])
+    } == {"0", "1"}
     assert vehicle_types["L0"]["length"] == "4.55"
     assert vehicle_types["L0"]["color"] == "168,162,158"
     assert vehicle_types["L5"]["color"] == "0,0,0"

@@ -45,13 +45,17 @@ class LiveMonitorPage(QWidget):
         self._replay_completed_time_total_ms = 0
         self._replay_completed_vehicle_count = 0
         self._replay_last_time_ms: int | None = None
-        self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map)
+        self._map_maximized = False
+        self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map, show_maximize=True)
         self.map_widget.setObjectName("liveMap")
+        self.map_widget.maximize_requested.connect(self._toggle_map_maximized)
 
         root = QVBoxLayout(self)
+        self.root_layout = root
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         header = page_header("仿真运行", "二维交通态势与实时运行控制", self._header_actions())
+        self.page_header = header
         page_title = header.findChild(QLabel, "pageTitle")
         page_subtitle = header.findChild(QLabel, "pageSubtitle")
         if page_title is None or page_subtitle is None:
@@ -65,13 +69,49 @@ class LiveMonitorPage(QWidget):
         body_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         body_layout.setContentsMargins(PAGE_CONTENT_MARGIN, 14, PAGE_CONTENT_MARGIN, 16)
         body_layout.setSpacing(12)
-        body_layout.addWidget(self._workspace(), 1)
+        self.workspace = self._workspace()
+        body_layout.addWidget(self.workspace, 1)
         scroll = QScrollArea()
+        self.live_scroll = scroll
         scroll.setObjectName("liveMonitorScroll")
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidgetResizable(True)
         scroll.setWidget(body)
         root.addWidget(scroll, 1)
+
+    @property
+    def map_maximized(self) -> bool:
+        """Whether the live map currently occupies the complete simulation page."""
+        return self._map_maximized
+
+    @Slot()
+    def _toggle_map_maximized(self) -> None:
+        self._set_map_maximized(not self._map_maximized)
+
+    def _set_map_maximized(self, maximized: bool) -> None:
+        if maximized == self._map_maximized:
+            return
+        self._map_maximized = maximized
+        if maximized:
+            self.workspace_layout.removeWidget(self.map_panel)
+            self.root_layout.addWidget(self.map_panel, 1)
+            self.page_header.hide()
+            self.live_scroll.hide()
+            self.map_panel_kicker.hide()
+            self.map_panel_title.hide()
+            self.map_panel_layout.setContentsMargins(0, 0, 0, 0)
+            self.map_panel_layout.setSpacing(0)
+        else:
+            self.root_layout.removeWidget(self.map_panel)
+            self.workspace_layout.insertWidget(0, self.map_panel, 1)
+            self.page_header.show()
+            self.live_scroll.show()
+            self.map_panel_kicker.show()
+            self.map_panel_title.show()
+            self.map_panel_layout.setContentsMargins(self._map_panel_margins)
+            self.map_panel_layout.setSpacing(self._map_panel_spacing)
+        self.map_panel.setProperty("maximized", maximized)
+        self.map_widget.set_maximized(maximized)
 
     def _workspace(self) -> QWidget:
         self.map_panel = panel(
@@ -79,6 +119,18 @@ class LiveMonitorPage(QWidget):
             self.map_widget,
             kicker="实时路网",
         )
+        map_panel_kicker = self.map_panel.findChild(QLabel, "panelKicker")
+        map_panel_title = self.map_panel.findChild(QLabel, "panelTitle")
+        if map_panel_kicker is None or map_panel_title is None:
+            raise RuntimeError("live map panel labels were not created")
+        self.map_panel_kicker: QLabel = map_panel_kicker
+        self.map_panel_title: QLabel = map_panel_title
+        map_panel_layout = self.map_panel.layout()
+        if map_panel_layout is None:
+            raise RuntimeError("live map panel layout was not created")
+        self.map_panel_layout = map_panel_layout
+        self._map_panel_margins = map_panel_layout.contentsMargins()
+        self._map_panel_spacing = map_panel_layout.spacing()
         self.map_widget.setMinimumHeight(520)
         self.map_panel.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -102,6 +154,7 @@ class LiveMonitorPage(QWidget):
 
         workspace = QWidget()
         layout = QHBoxLayout(workspace)
+        self.workspace_layout = layout
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
         layout.addWidget(self.map_panel, 1)

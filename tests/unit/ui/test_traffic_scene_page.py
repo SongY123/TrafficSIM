@@ -207,6 +207,14 @@ def test_occasional_accident_preview_shows_a_lane_aligned_three_car_two_impact_s
         "accident_victim_L0_0",
         "accident_follow_L0_0",
     }
+    background_ids_by_level = {
+        level: {
+            vehicle_id
+            for vehicle_id in vehicles
+            if vehicle_id.startswith(f"accident_background_{level}_")
+        }
+        for level in ("L0", "L1", "L3", "L5")
+    }
 
     assert "accident_parked_L0_0" in vehicles
     assert vehicles["accident_parked_L0_0"].speed_mps == 0.0
@@ -214,6 +222,16 @@ def test_occasional_accident_preview_shows_a_lane_aligned_three_car_two_impact_s
     assert all(vehicles[vehicle_id].speed_mps == 0.0 for vehicle_id in collision_ids)
     assert vehicles["accident_follow_L5_0"].lane_id == "right_exit_0"
     assert vehicles["accident_follow_L5_0"].speed_mps > 0.0
+    assert {level: len(ids) for level, ids in background_ids_by_level.items()} == {
+        "L0": 2,
+        "L1": 2,
+        "L3": 3,
+        "L5": 3,
+    }
+    assert all(
+        vehicles[vehicle_id].lane_id == "right_exit_0"
+        for vehicle_id in background_ids_by_level["L5"]
+    )
     network_path = (
         REPOSITORY_ROOT
         / "configs/maps/mixed-automation-occasional-accident"

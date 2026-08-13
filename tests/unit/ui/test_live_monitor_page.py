@@ -22,10 +22,16 @@ def _application() -> QApplication:
 
 class _MapWidgetStub(QWidget):
     vehicle_selected = Signal(str)
+    maximize_requested = Signal()
 
-    def __init__(self, *, load_page: bool) -> None:
+    def __init__(self, *, load_page: bool, show_maximize: bool = False) -> None:
         super().__init__()
         self.load_page = load_page
+        self.show_maximize = show_maximize
+        self.maximized_values: list[bool] = []
+
+    def set_maximized(self, maximized: bool) -> None:
+        self.maximized_values.append(maximized)
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +49,7 @@ def test_live_monitor_is_two_dimensional_and_exposes_requested_controls_and_metr
 
     assert not hasattr(page, "carla_window")
     assert page.map_widget.objectName() == "liveMap"
+    assert page.map_widget.show_maximize
     assert "二维仿真场景" in labels
     assert "ROI 局部三维" not in labels
     assert "CARLA" not in labels
@@ -67,6 +74,39 @@ def test_live_monitor_is_two_dimensional_and_exposes_requested_controls_and_metr
     assert "车辆控制" not in labels
     assert {"应用车速", "左换道", "右换道", "单车停车"}.isdisjoint(buttons)
     assert not hasattr(page, "vehicle_id")
+
+    page.close()
+
+
+def test_live_monitor_map_can_maximize_and_restore_without_recreating_the_web_map() -> None:
+    _application()
+    page = LiveMonitorPage(load_web_map=False)
+    original_map_widget = page.map_widget
+
+    page.map_widget.maximize_requested.emit()
+
+    assert page.map_maximized
+    assert page.page_header.isHidden()
+    assert page.live_scroll.isHidden()
+    assert page.map_panel_kicker.isHidden()
+    assert page.map_panel_title.isHidden()
+    assert page.map_panel_layout.contentsMargins().isNull()
+    assert page.map_panel_layout.spacing() == 0
+    assert page.layout().indexOf(page.map_panel) >= 0
+    assert page.map_widget is original_map_widget
+    assert page.map_widget.maximized_values == [True]
+
+    page.map_widget.maximize_requested.emit()
+
+    assert not page.map_maximized
+    assert not page.page_header.isHidden()
+    assert not page.live_scroll.isHidden()
+    assert not page.map_panel_kicker.isHidden()
+    assert not page.map_panel_title.isHidden()
+    assert not page.map_panel_layout.contentsMargins().isNull()
+    assert page.workspace_layout.indexOf(page.map_panel) == 0
+    assert page.map_widget is original_map_widget
+    assert page.map_widget.maximized_values == [True, False]
 
     page.close()
 

@@ -16,6 +16,7 @@ from ui.models import TrafficLight, Vehicle
 class _MapBridge(QObject):
     ready = Signal()
     vehicle_selected = Signal(str)
+    maximize_requested = Signal()
 
     @Slot()
     def mapReady(self) -> None:  # noqa: N802 - Qt/JS protocol name
@@ -25,11 +26,16 @@ class _MapBridge(QObject):
     def selectVehicle(self, vehicle_id: str) -> None:  # noqa: N802 - Qt/JS protocol name
         self.vehicle_selected.emit(vehicle_id)
 
+    @Slot()
+    def toggleMapMaximize(self) -> None:  # noqa: N802 - Qt/JS protocol name
+        self.maximize_requested.emit()
+
 
 class MapLibreDeckMapWidget(QWebEngineView):
     """Host the offline map bundle and forward versioned UI model snapshots."""
 
     vehicle_selected = Signal(str)
+    maximize_requested = Signal()
 
     def __init__(
         self,
@@ -37,6 +43,7 @@ class MapLibreDeckMapWidget(QWebEngineView):
         *,
         load_page: bool = True,
         show_legend: bool = True,
+        show_maximize: bool = False,
     ) -> None:
         super().__init__(parent)
         self._ready = False
@@ -44,12 +51,14 @@ class MapLibreDeckMapWidget(QWebEngineView):
         self._bridge = _MapBridge(self)
         self._bridge.ready.connect(self._map_ready)
         self._bridge.vehicle_selected.connect(self.vehicle_selected)
+        self._bridge.maximize_requested.connect(self.maximize_requested)
         channel = QWebChannel(self.page())
         channel.registerObject("trafficVerseBridge", self._bridge)
         self.page().setWebChannel(channel)
         self.loadStarted.connect(self._loading)
         self.loadFinished.connect(self._loaded)
         self._dispatch("setLegendVisible", show_legend)
+        self._dispatch("setMaximizeEnabled", show_maximize)
         if load_page:
             page = Path(__file__).resolve().parents[1] / "web/map/index.html"
             self.load(QUrl.fromLocalFile(str(page)))
@@ -84,6 +93,10 @@ class MapLibreDeckMapWidget(QWebEngineView):
     def set_theme(self, theme: str) -> None:
         if theme in {"dark", "light"}:
             self._dispatch("setTheme", theme)
+
+    @Slot(bool)
+    def set_maximized(self, maximized: bool) -> None:
+        self._dispatch("setMaximized", maximized)
 
     def _dispatch(self, method: str, payload: object) -> None:
         self._pending[method] = payload

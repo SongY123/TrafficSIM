@@ -267,6 +267,8 @@ def test_all_scenes_hold_vehicles_during_initial_layout() -> None:
         _vehicle("ambulance_L5_0", x_m=50.0),
         _vehicle("accident_follow_L1_0", x_m=420.0),
         _vehicle("accident_follow_L5_0", x_m=370.0),
+        _vehicle("accident_background_L0_0", x_m=340.0),
+        _vehicle("accident_background_L5_0", x_m=320.0, lane_index=0),
     )
 
     obstacle = MixedAutomationScenarioController("mixed-automation-obstacle").step(
@@ -282,7 +284,7 @@ def test_all_scenes_hold_vehicles_during_initial_layout() -> None:
         0.05,
     )
     accident = MixedAutomationScenarioController("mixed-automation-occasional-accident").step(
-        _snapshot(vehicles[4], vehicles[5], time_ms=1_000),
+        _snapshot(vehicles[4], vehicles[5], vehicles[6], vehicles[7], time_ms=1_000),
         0.05,
     )
 
@@ -292,6 +294,83 @@ def test_all_scenes_hold_vehicles_during_initial_layout() -> None:
     assert emergency[vehicles[3].vehicle_id].desired_speed_mps == 0.0
     assert accident[vehicles[4].vehicle_id].desired_speed_mps == 0.0
     assert accident[vehicles[5].vehicle_id].desired_speed_mps == 0.0
+    assert accident[vehicles[6].vehicle_id].desired_speed_mps == 0.0
+    assert accident[vehicles[7].vehicle_id].desired_speed_mps == 0.0
+
+
+def test_occasional_accident_background_traffic_cruises_then_brakes_into_queue_slots() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    l0 = _vehicle("accident_background_L0_0", x_m=500.0, lane_index=1, speed_mps=8.0)
+    l1 = _vehicle("accident_background_L1_0", x_m=440.0, lane_index=1, speed_mps=8.0)
+    l3 = _vehicle("accident_background_L3_1", x_m=355.0, lane_index=0, speed_mps=8.0)
+
+    cruising = controller.step(_snapshot(l0, l1, l3, time_ms=4_000), 0.05)
+    post_incident_cruising = controller.step(
+        _snapshot(
+            l0,
+            l1,
+            l3,
+            time_ms=5_000,
+            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
+        ),
+        0.05,
+    )
+    near_l0 = l0.model_copy(update={"position": Vector3(x=518.0, y=138.84)})
+    near_l3 = l3.model_copy(update={"position": Vector3(x=522.0, y=137.16)})
+    braking = controller.step(
+        _snapshot(
+            near_l0,
+            near_l3,
+            time_ms=9_000,
+            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
+        ),
+        0.05,
+    )
+    almost_stopped_l0 = near_l0.model_copy(
+        update={"position": Vector3(x=538.0, y=138.84), "speed_mps": 0.04}
+    )
+    stopped = controller.step(
+        _snapshot(
+            almost_stopped_l0,
+            time_ms=8_000,
+            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
+        ),
+        0.05,
+    )
+
+    assert all(command.desired_speed_mps == 8.0 for command in cruising.values())
+    assert all(command.lane_change is LaneChangeDirection.NONE for command in cruising.values())
+    assert all(command.desired_speed_mps == 8.0 for command in post_incident_cruising.values())
+    assert all(
+        command.lane_change is LaneChangeDirection.NONE
+        for command in post_incident_cruising.values()
+    )
+    assert all(command.desired_acceleration_mps2 == -1.5 for command in braking.values())
+    assert all(command.lane_change is LaneChangeDirection.NONE for command in braking.values())
+    assert stopped[l0.vehicle_id].desired_speed_mps == 0.0
+
+
+def test_occasional_accident_background_l5_keeps_constant_speed_on_right_turn_route() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    l5 = _vehicle(
+        "accident_background_L5_0",
+        x_m=490.0,
+        lane_index=0,
+        speed_mps=12.0,
+    ).model_copy(update={"lane_id": "road_approach_0"})
+
+    command = controller.step(
+        _snapshot(
+            l5,
+            time_ms=5_000,
+            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
+        ),
+        0.05,
+    )[l5.vehicle_id]
+
+    assert command.desired_speed_mps == 12.0
+    assert command.lane_change is LaneChangeDirection.NONE
+    assert command.safety_checks_override
 
 
 def test_occasional_accident_scripts_right_to_left_collision_then_stops_both_cars() -> None:

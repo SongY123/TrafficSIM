@@ -135,10 +135,10 @@ def test_occasional_accident_click_path_streams_lane_change_and_frozen_collision
                 "map_id": "mixed-automation-occasional-accident",
                 "duration_ms": 60_000,
                 "automation_demands": [
-                    {"level": "L0", "vehicle_count": 4},
-                    {"level": "L1", "vehicle_count": 1},
-                    {"level": "L3", "vehicle_count": 1},
-                    {"level": "L5", "vehicle_count": 1},
+                    {"level": "L0", "vehicle_count": 6},
+                    {"level": "L1", "vehicle_count": 3},
+                    {"level": "L3", "vehicle_count": 4},
+                    {"level": "L5", "vehicle_count": 4},
                 ],
             },
         )
@@ -206,7 +206,7 @@ def test_occasional_accident_click_path_streams_lane_change_and_frozen_collision
         "accident_actor_L0_0",
         "accident_victim_L0_0",
         "accident_follow_L0_0",
-    } <= collision_ids
+    } == collision_ids
     assert all(
         float(latest_vehicles[vehicle_id]["speed_mps"]) < 0.5 for vehicle_id in collision_ids
     )
@@ -214,3 +214,4 @@ def test_occasional_accident_click_path_streams_lane_change_and_frozen_collision
     assert "accident_follow_L1_0" not in collision_ids
     assert "accident_follow_L3_0" not in collision_ids
     assert "accident_follow_L5_0" not in collision_ids
+    assert not any(vehicle_id.startswith("accident_background_") for vehicle_id in collision_ids)

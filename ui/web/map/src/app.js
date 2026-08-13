@@ -62,6 +62,8 @@ const state = {
   selectedVehicleId: null,
   followScenarioVehicles: true,
   legendVisible: true,
+  maximizeEnabled: false,
+  maximized: false,
   theme: "light",
   lightingEffect: createLightingEffect(MAP_THEMES.light)
 };
@@ -73,6 +75,43 @@ const statusElement = document.getElementById("map-status");
 function setStatus(message, isError = false) {
   statusElement.textContent = message;
   statusElement.dataset.state = isError ? "error" : "ready";
+}
+
+class MapMaximizeControl {
+  onAdd() {
+    this.container = document.createElement("div");
+    this.container.className =
+      "maplibregl-ctrl maplibregl-ctrl-group trafficverse-maximize-control";
+    this.container.hidden = true;
+    this.button = document.createElement("button");
+    this.button.type = "button";
+    this.button.setAttribute("aria-label", "最大化地图");
+    this.button.title = "最大化地图";
+    this.icon = document.createElement("span");
+    this.icon.className = "trafficverse-maximize-icon";
+    this.icon.setAttribute("aria-hidden", "true");
+    this.button.append(this.icon);
+    this.button.addEventListener("click", requestMapMaximizeToggle);
+    this.container.append(this.button);
+    this.update();
+    return this.container;
+  }
+
+  onRemove() {
+    this.button?.removeEventListener("click", requestMapMaximizeToggle);
+    this.container?.remove();
+  }
+
+  update() {
+    if (!this.container || !this.button) {
+      return;
+    }
+    this.container.hidden = !state.maximizeEnabled;
+    const label = state.maximized ? "还原地图" : "最大化地图";
+    this.button.setAttribute("aria-label", label);
+    this.button.title = label;
+    this.button.classList.toggle("is-maximized", state.maximized);
+  }
 }
 
 let map;
@@ -100,6 +139,7 @@ const overlay = new MapboxOverlay({
   layers: [],
   getTooltip: ({object}) => vehicleTooltip(object)
 });
+const maximizeControl = new MapMaximizeControl();
 let cachedRoadLayers = [];
 let cachedSignalLayers = [];
 
@@ -160,12 +200,6 @@ function isStaticObstacle(vehicle) {
 
 function isScriptedAccidentVehicle(vehicle) {
   return (vehicle?.vehicle_id ?? "").startsWith("accident_");
-}
-
-function hasScriptedAccidentCollision(vehicleIds) {
-  return Array.from(vehicleIds).some(
-    (vehicleId) => typeof vehicleId === "string" && vehicleId.startsWith("accident_")
-  );
 }
 
 function vehicleTooltip(vehicle) {
@@ -880,6 +914,19 @@ function resetView(duration = 500) {
   });
 }
 
+function resizeMapAfterLayout() {
+  requestAnimationFrame(() => {
+    map.resize();
+    renderLayers();
+  });
+}
+
+function requestMapMaximizeToggle() {
+  if (state.bridge?.toggleMapMaximize) {
+    state.bridge.toggleMapMaximize();
+  }
+}
+
 function scenarioVehicles() {
   const ids = state.vehicles.map((vehicle) => vehicle.vehicle_id ?? "");
   if (ids.some((vehicleId) => vehicleId.startsWith("static_obstacle_"))) {
@@ -1005,6 +1052,15 @@ window.TrafficVerseMap = {
     state.legendVisible = Boolean(visible);
     document.getElementById("map-hud").hidden = !visible;
   },
+  setMaximizeEnabled(enabled) {
+    state.maximizeEnabled = Boolean(enabled);
+    maximizeControl.update();
+  },
+  setMaximized(maximized) {
+    state.maximized = Boolean(maximized);
+    maximizeControl.update();
+    resizeMapAfterLayout();
+  },
   setNetwork(network) {
     state.network = network?.type === "FeatureCollection" ? network : EMPTY_NETWORK;
     const lineFeatures = state.network.features.filter(
@@ -1046,19 +1102,13 @@ window.TrafficVerseMap = {
     fitScenarioVehicles();
   },
   setCollisionVehicleIds(vehicleIds) {
-    const hadScriptedCollisions = hasScriptedAccidentCollision(state.collisionVehicleIds);
     state.collisionVehicleIds = new Set(
       (Array.isArray(vehicleIds) ? vehicleIds : []).filter((vehicleId) =>
         typeof vehicleId === "string"
       )
     );
-    const hasScriptedCollisions = hasScriptedAccidentCollision(state.collisionVehicleIds);
     renderVehicleLayers();
     updateMapStatus();
-    if (!hadScriptedCollisions && hasScriptedCollisions) {
-      state.followScenarioVehicles = true;
-      fitScenarioVehicles();
-    }
   },
   setTrafficLights(trafficLights) {
     state.trafficLights = new Map(
@@ -1091,6 +1141,7 @@ function connectQtBridge() {
 
 map.once("load", () => {
   map.addControl(overlay);
+  map.addControl(maximizeControl, "top-right");
   map.addControl(new maplibregl.NavigationControl({visualizePitch: false}), "top-right");
   enableCommandDragRotation();
   applyTheme(state.theme);
@@ -1101,6 +1152,11 @@ map.once("load", () => {
     }
   });
   map.on("zoomend", renderLayers);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.maximized) {
+    requestMapMaximizeToggle();
+  }
 });
 map.on("error", (event) => {
   const message = event?.error?.message ?? "未知错误";

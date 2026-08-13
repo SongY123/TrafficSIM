@@ -91,7 +91,9 @@ def test_signal_layers_remain_legible_and_render_above_vehicles() -> None:
     assert "radiusMinPixels: 5" in signal_source
     assert "radiusMaxPixels" not in signal_source
     assert "lineWidthMinPixels: 2" in signal_source
-    assert "const showSignalHalo = map.getZoom() < LAYER_STYLE.detailedVehicleMinZoom" in signal_source
+    assert (
+        "const showSignalHalo = map.getZoom() < LAYER_STYLE.detailedVehicleMinZoom" in signal_source
+    )
     assert "data: showSignalHalo ? state.signalPoints : []" in signal_source
     assert "layers: [...cachedRoadLayers, ...vehicleLayers(), ...cachedSignalLayers]" in source
 
@@ -152,6 +154,35 @@ def test_map_reset_uses_one_camera_transition_for_bounds_and_orientation() -> No
     assert "bearing: 0" in reset_view
     assert "map.easeTo" not in reset_view
     assert "maxZoom:18,pitch:0,bearing:0" in bundle
+
+
+def test_live_map_exposes_a_maximize_control_above_navigation_and_resizes_in_place() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    css = (MAP_WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+    host = (MAP_WEB_ROOT.parents[1] / "widgets/maplibre_deck_map.py").read_text(encoding="utf-8")
+
+    assert "class MapMaximizeControl" in source
+    assert 'aria-label", "最大化地图"' in source
+    assert 'title = "最大化地图"' in source
+    assert "state.bridge.toggleMapMaximize()" in source
+    assert "setMaximizeEnabled(enabled)" in source
+    assert "setMaximized(maximized)" in source
+    assert "map.resize();" in source
+    maximize_control = source.index('map.addControl(maximizeControl, "top-right")')
+    navigation_control = source.index(
+        'map.addControl(new maplibregl.NavigationControl({visualizePitch: false}), "top-right")'
+    )
+    assert maximize_control < navigation_control
+    assert ".trafficverse-maximize-control" in css
+    assert ".trafficverse-maximize-icon::before" in css
+    assert ".trafficverse-maximize-icon::after" in css
+    assert "\\u6700\\u5927\\u5316\\u5730\\u56FE" in bundle
+    assert "\\u8FD8\\u539F\\u5730\\u56FE" in bundle
+    assert "maximize_requested = Signal()" in host
+    assert "show_maximize: bool = False" in host
+    assert 'self._dispatch("setMaximizeEnabled", show_maximize)' in host
+    assert "def set_maximized(self, maximized: bool)" in host
 
 
 def test_scenario_camera_fit_runs_only_once_after_vehicle_bounds_are_available() -> None:
@@ -272,7 +303,7 @@ def test_map_fits_the_complete_occasional_accident_vehicle_group() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
 
-    assert 'vehicleId.startsWith("accident_")' in source
+    assert '(vehicle?.vehicle_id ?? "").startsWith("accident_")' in source
     assert '.startsWith("accident_")' in source
     assert "accident_" in bundle
 
@@ -334,9 +365,12 @@ def test_legend_free_preview_uses_symmetric_padding_to_center_the_network() -> N
     assert "bottom: 46" in source
 
 
-def test_map_only_renders_scripted_accident_collisions_as_one_rectangular_zone() -> None:
+def test_map_renders_scripted_accident_zone_without_moving_the_collision_keyframe() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     host = (MAP_WEB_ROOT.parents[1] / "widgets/maplibre_deck_map.py").read_text(encoding="utf-8")
+    collision_handler = source.split("setCollisionVehicleIds(vehicleIds) {", maxsplit=1)[1].split(
+        "setTrafficLights(trafficLights)", maxsplit=1
+    )[0]
 
     assert "collisionVehicleIds: new Set()" in source
     assert "function isScriptedAccidentVehicle(vehicle)" in source
@@ -352,11 +386,14 @@ def test_map_only_renders_scripted_accident_collisions_as_one_rectangular_zone()
     assert "trafficverse-collision-halos" not in source
     assert "trafficverse-collision-markers" not in source
     assert "setCollisionVehicleIds(vehicleIds)" in source
-    assert "const hadScriptedCollisions = hasScriptedAccidentCollision" in source
-    assert "const hasScriptedCollisions = hasScriptedAccidentCollision" in source
-    assert "if (!hadScriptedCollisions && hasScriptedCollisions)" in source
-    assert "state.followScenarioVehicles = true" in source
-    assert "fitScenarioVehicles();" in source
+    assert "state.collisionVehicleIds = new Set" in collision_handler
+    assert "renderVehicleLayers();" in collision_handler
+    assert "updateMapStatus();" in collision_handler
+    assert "fitScenarioVehicles" not in collision_handler
+    assert "fitBounds" not in collision_handler
+    assert "easeTo" not in collision_handler
+    assert "jumpTo" not in collision_handler
+    assert "followScenarioVehicles" not in collision_handler
     assert "def set_collision_vehicle_ids" in host
     assert 'self._dispatch("setCollisionVehicleIds", payload)' in host
 

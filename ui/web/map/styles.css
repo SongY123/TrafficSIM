@@ -255,3 +255,55 @@ button { font: inherit; }
 }
 .maplibregl-ctrl-group button + button { border-top-color: var(--separator); }
 .maplibregl-ctrl button .maplibregl-ctrl-icon { filter: var(--navigation-icon-filter); }
+
+.trafficverse-maximize-control[hidden] { display: none; }
+
+.trafficverse-maximize-control button {
+  display: grid;
+  place-items: center;
+  color: var(--control-text);
+}
+
+.trafficverse-maximize-control button:hover {
+  color: var(--hud-text);
+  background: var(--control-hover);
+}
+
+.trafficverse-maximize-icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.trafficverse-maximize-icon::before,
+.trafficverse-maximize-icon::after {
+  position: absolute;
+  box-sizing: border-box;
+  content: "";
+}
+
+.trafficverse-maximize-icon::before {
+  inset: 3px;
+  border: 1.75px solid currentcolor;
+}
+
+.trafficverse-maximize-icon::after { display: none; }
+
+.trafficverse-maximize-control button.is-maximized .trafficverse-maximize-icon::before {
+  top: 6px;
+  right: 3px;
+  bottom: 2px;
+  left: 5px;
+}
+
+.trafficverse-maximize-control button.is-maximized .trafficverse-maximize-icon::after {
+  top: 2px;
+  right: 5px;
+  bottom: 6px;
+  left: 3px;
+  display: block;
+  border: 1.75px solid currentcolor;
+  border-right-width: 0;
+  border-bottom-width: 0;
+}

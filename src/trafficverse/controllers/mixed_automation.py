@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Mapping
 
@@ -15,6 +16,7 @@ _CUTIN_TARGET_PATTERN = re.compile(r"^cutin_target_L([0-5])_(\d+)$")
 _CUTIN_FOLLOWER_PATTERN = re.compile(r"^cutin_follower_L([0-5])_(\d+)$")
 _YIELD_PATTERN = re.compile(r"^yield_L([0-5])_(\d+)$")
 _ACCIDENT_FOLLOWER_PATTERN = re.compile(r"^accident_follow_L([0135])_(\d+)$")
+_ACCIDENT_BACKGROUND_PATTERN = re.compile(r"^accident_background_L([0135])_(\d+)$")
 _AUTOMATION_LEVEL_COUNT = 6
 _UNSAFE_CUTIN_PAIRS_BY_LEVEL = (4, 3, 2, 1, 0, 0)
 _UNSAFE_OBSTACLE_TARGETS_BY_LEVEL = (4, 3, 2, 1, 0, 0)
@@ -35,6 +37,19 @@ _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M = 475.0
 _ACCIDENT_L5_LANE_CHANGE_DURATION_S = 1.0
 _ACCIDENT_L1_GAP_OPENING_DECEL_MPS2 = 0.65
 _ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 1.75
+_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS = 8.0
+_ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2 = 1.5
+_ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS = 0.05
+_ACCIDENT_BACKGROUND_BRAKING_BUFFER_M = 0.25
+_ACCIDENT_BACKGROUND_QUEUE_TARGET_XY_M = {
+    "accident_background_L0_0": (538.0, 138.84),
+    "accident_background_L1_0": (531.0, 134.64),
+    "accident_background_L3_0": (524.0, 130.44),
+    "accident_background_L0_1": (556.0, 145.56),
+    "accident_background_L1_1": (549.0, 141.36),
+    "accident_background_L3_1": (542.0, 137.16),
+    "accident_background_L3_2": (535.0, 132.96),
+}
 _SCENARIO_IDS = frozenset(
     {
         "mixed-automation-obstacle",
@@ -54,6 +69,7 @@ class MixedAutomationScenarioController:
         self._scenario_id = scenario_id
         self._accident_l1_emergency_observed = False
         self._accident_l5_lane_change_started = False
+        self._accident_background_braking_ids: set[str] = set()
 
     def step(self, previous: TrafficSnapshot | None, dt_s: float) -> Mapping[str, ControlCommand]:
         if previous is None:
@@ -296,6 +312,7 @@ class MixedAutomationScenarioController:
             "accident_actor_",
             "accident_victim_",
             "accident_follow_",
+            "accident_background_",
         )
         if snapshot.simulation_time_ms < _INITIAL_LAYOUT_DURATION_MS:
             return _hold_vehicles(snapshot, prefixes)
@@ -372,6 +389,23 @@ class MixedAutomationScenarioController:
                     desired_speed_mps=(0.0 if vehicle.vehicle_id in collision_ids else 9.0),
                     safety_checks_override=True,
                 )
+                continue
+
+            background_match = _ACCIDENT_BACKGROUND_PATTERN.match(vehicle.vehicle_id)
+            if background_match is not None:
+                level = int(background_match.group(1))
+                if level == 5:
+                    commands[vehicle.vehicle_id] = ControlCommand(
+                        desired_speed_mps=_ACCIDENT_L5_CRUISE_SPEED_MPS,
+                        safety_checks_override=True,
+                    )
+                elif not incident_active:
+                    commands[vehicle.vehicle_id] = ControlCommand(
+                        desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+                        safety_checks_override=True,
+                    )
+                else:
+                    commands[vehicle.vehicle_id] = self._accident_background_queue_command(vehicle)
                 continue
 
             match = _ACCIDENT_FOLLOWER_PATTERN.match(vehicle.vehicle_id)
@@ -459,6 +493,36 @@ class MixedAutomationScenarioController:
                     desired_speed_mps={1: 15.2, 3: 13.0}.get(level, 16.0)
                 )
         return _lock_lane_changes(commands, snapshot, prefixes, mode=0)
+
+    def _accident_background_queue_command(self, vehicle: VehicleState) -> ControlCommand:
+        target_xy_m = _ACCIDENT_BACKGROUND_QUEUE_TARGET_XY_M.get(vehicle.vehicle_id)
+        if target_xy_m is None:
+            return ControlCommand(
+                desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+                safety_checks_override=True,
+            )
+        distance_to_target_m = math.hypot(
+            target_xy_m[0] - vehicle.position.x,
+            target_xy_m[1] - vehicle.position.y,
+        )
+        if vehicle.speed_mps <= _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS:
+            return ControlCommand(desired_speed_mps=0.0, safety_checks_override=True)
+        braking_distance_m = vehicle.speed_mps**2 / (2.0 * _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2)
+        braking_started = (
+            vehicle.vehicle_id in self._accident_background_braking_ids
+            or vehicle.speed_mps < _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS - 0.05
+            or distance_to_target_m <= braking_distance_m + _ACCIDENT_BACKGROUND_BRAKING_BUFFER_M
+        )
+        if braking_started:
+            self._accident_background_braking_ids.add(vehicle.vehicle_id)
+            return ControlCommand(
+                desired_acceleration_mps2=-_ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2,
+                safety_checks_override=True,
+            )
+        return ControlCommand(
+            desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+            safety_checks_override=True,
+        )
 
 
 def controller_for_sumo_package(

@@ -191,10 +191,10 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
         map_id=ACCIDENT_PACKAGE_ID,
         duration_ms=60_000,
         automation_demands=(
-            AutomationDemand(level=AutomationLevel.L0, vehicle_count=3),
-            AutomationDemand(level=AutomationLevel.L1, vehicle_count=1),
-            AutomationDemand(level=AutomationLevel.L3, vehicle_count=1),
-            AutomationDemand(level=AutomationLevel.L5, vehicle_count=1),
+            AutomationDemand(level=AutomationLevel.L0, vehicle_count=6),
+            AutomationDemand(level=AutomationLevel.L1, vehicle_count=3),
+            AutomationDemand(level=AutomationLevel.L3, vehicle_count=4),
+            AutomationDemand(level=AutomationLevel.L5, vehicle_count=4),
         ),
     )
 
@@ -217,6 +217,16 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
         "accident_follow_L1_0",
         "accident_follow_L3_0",
         "accident_follow_L5_0",
+        "accident_background_L0_0",
+        "accident_background_L0_1",
+        "accident_background_L1_0",
+        "accident_background_L1_1",
+        "accident_background_L3_0",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+        "accident_background_L5_0",
+        "accident_background_L5_1",
+        "accident_background_L5_2",
     }
 
 

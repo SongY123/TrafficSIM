@@ -120,6 +120,31 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     l5_initial_max_speed_mps = 0.0
     l5_running_min_speed_mps = float("inf")
     l5_running_max_speed_mps = 0.0
+    background_straight_ids = {
+        "accident_background_L0_0",
+        "accident_background_L0_1",
+        "accident_background_L1_0",
+        "accident_background_L1_1",
+        "accident_background_L3_0",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+    }
+    background_l5_ids = {
+        "accident_background_L5_0",
+        "accident_background_L5_1",
+        "accident_background_L5_2",
+    }
+    background_ids = background_straight_ids | background_l5_ids
+    observed_background_ids: set[str] = set()
+    background_initial_max_speed_mps = dict.fromkeys(background_ids, 0.0)
+    background_minimum_acceleration_mps2 = dict.fromkeys(background_straight_ids, 0.0)
+    background_straight_lane_ids = {vehicle_id: set() for vehicle_id in background_straight_ids}
+    background_post_incident_cruise_ids: set[str] = set()
+    background_l5_initial_lane_ids: dict[str, str] = {}
+    background_l5_right_turn_ids: set[str] = set()
+    background_l5_running_speed_range_mps = {
+        vehicle_id: [float("inf"), 0.0] for vehicle_id in background_l5_ids
+    }
     front_vehicle_ids = {
         "accident_parked_L0_0",
         "accident_actor_L0_0",
@@ -142,7 +167,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 freeze_collisions=True,
             )
         )
-        for target_time_ms in range(package.step_ms, 25_001, package.step_ms):
+        for target_time_ms in range(package.step_ms, 35_001, package.step_ms):
             controls = controller.step(previous, package.step_ms / 1000.0)
             l5_command = controls.get("accident_follow_L5_0")
             if (
@@ -194,6 +219,36 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
             if actor is not None:
                 actor_lane_ids.add(actor.lane_id)
             for vehicle in previous.vehicles:
+                if vehicle.vehicle_id in background_ids:
+                    observed_background_ids.add(vehicle.vehicle_id)
+                    if target_time_ms <= 3_000:
+                        background_initial_max_speed_mps[vehicle.vehicle_id] = max(
+                            background_initial_max_speed_mps[vehicle.vehicle_id],
+                            vehicle.speed_mps,
+                        )
+                if vehicle.vehicle_id in background_straight_ids:
+                    background_minimum_acceleration_mps2[vehicle.vehicle_id] = min(
+                        background_minimum_acceleration_mps2[vehicle.vehicle_id],
+                        vehicle.acceleration_mps2,
+                    )
+                    background_straight_lane_ids[vehicle.vehicle_id].add(vehicle.lane_id)
+                    if (
+                        first_collision_time_ms is not None
+                        and vehicle.speed_mps == pytest.approx(8.0, abs=0.05)
+                        and abs(vehicle.acceleration_mps2) <= 0.05
+                    ):
+                        background_post_incident_cruise_ids.add(vehicle.vehicle_id)
+                if vehicle.vehicle_id in background_l5_ids:
+                    background_l5_initial_lane_ids.setdefault(
+                        vehicle.vehicle_id,
+                        vehicle.lane_id,
+                    )
+                    if target_time_ms > 3_000:
+                        speed_range_mps = background_l5_running_speed_range_mps[vehicle.vehicle_id]
+                        speed_range_mps[0] = min(speed_range_mps[0], vehicle.speed_mps)
+                        speed_range_mps[1] = max(speed_range_mps[1], vehicle.speed_mps)
+                    if vehicle.lane_id == "right_exit_0":
+                        background_l5_right_turn_ids.add(vehicle.vehicle_id)
                 if vehicle.vehicle_id == "accident_parked_L0_0":
                     parked_max_speed_mps = max(parked_max_speed_mps, vehicle.speed_mps)
                 if vehicle.vehicle_id in minimum_acceleration_mps2:
@@ -236,8 +291,11 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
 
     assert previous is not None
     collision_ids = set(previous.collision_vehicle_ids)
-    assert {"accident_actor_L0_0", "accident_victim_L0_0"} <= collision_ids
-    assert "accident_follow_L0_0" in collision_ids
+    assert collision_ids == {
+        "accident_actor_L0_0",
+        "accident_victim_L0_0",
+        "accident_follow_L0_0",
+    }
     assert first_collision_time_ms is not None
     assert front_post_collision_speeds_mps is not None
     assert max(front_post_collision_speeds_mps) < 0.5
@@ -336,3 +394,94 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert l5_running_min_speed_mps == pytest.approx(12.0, abs=0.05)
     assert l5_running_max_speed_mps == pytest.approx(12.0, abs=0.05)
     assert l5_right_turn_speed_mps == pytest.approx(12.0, abs=0.05)
+    assert observed_background_ids == background_ids
+    assert max(background_initial_max_speed_mps.values()) < 0.5
+    assert background_straight_ids <= vehicles.keys()
+    assert all(vehicles[vehicle_id].speed_mps < 0.5 for vehicle_id in background_straight_ids), {
+        vehicle_id: vehicles[vehicle_id].speed_mps for vehicle_id in background_straight_ids
+    }
+    assert background_post_incident_cruise_ids == background_straight_ids
+    assert all(
+        -1.6 <= acceleration_mps2 <= -1.4
+        for acceleration_mps2 in background_minimum_acceleration_mps2.values()
+    )
+    background_lane_0_ids = {
+        "accident_background_L0_1",
+        "accident_background_L1_1",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+    }
+    background_lane_1_ids = background_straight_ids - background_lane_0_ids
+    assert all(
+        background_straight_lane_ids[vehicle_id] <= {"road_approach_0", ":turn_1_0", "road_curve_0"}
+        for vehicle_id in background_lane_0_ids
+    )
+    assert all(
+        background_straight_lane_ids[vehicle_id] <= {"road_approach_1", ":turn_1_1", "road_curve_1"}
+        for vehicle_id in background_lane_1_ids
+    )
+    assert all(
+        vehicles[vehicle_id].lane_id == "road_curve_0" for vehicle_id in background_lane_0_ids
+    )
+    assert all(
+        vehicles[vehicle_id].lane_id == "road_curve_1" for vehicle_id in background_lane_1_ids
+    )
+    queue_target_xy_m = {
+        "accident_background_L0_0": (538.0, 138.84),
+        "accident_background_L1_0": (531.0, 134.64),
+        "accident_background_L3_0": (524.0, 130.44),
+        "accident_background_L0_1": (556.0, 145.56),
+        "accident_background_L1_1": (549.0, 141.36),
+        "accident_background_L3_1": (542.0, 137.16),
+        "accident_background_L3_2": (535.0, 132.96),
+    }
+    queue_target_errors_m = {
+        vehicle_id: math.hypot(
+            vehicles[vehicle_id].position.x - target_xy_m[0],
+            vehicles[vehicle_id].position.y - target_xy_m[1],
+        )
+        for vehicle_id, target_xy_m in queue_target_xy_m.items()
+    }
+    assert max(queue_target_errors_m.values()) <= 1.2, queue_target_errors_m
+    vehicle_lengths_m = {
+        "accident_follow_L3_0": 5.0,
+        "accident_background_L0_0": 4.55,
+        "accident_background_L0_1": 4.55,
+        "accident_background_L1_0": 5.0,
+        "accident_background_L1_1": 5.0,
+        "accident_background_L3_0": 5.0,
+        "accident_background_L3_1": 5.0,
+        "accident_background_L3_2": 5.0,
+    }
+    queue_ids_by_lane = (
+        (
+            "accident_background_L0_1",
+            "accident_background_L1_1",
+            "accident_background_L3_1",
+            "accident_background_L3_2",
+        ),
+        (
+            "accident_follow_L3_0",
+            "accident_background_L0_0",
+            "accident_background_L1_0",
+            "accident_background_L3_0",
+        ),
+    )
+    queue_body_gaps_m = [
+        _body_gap_m(
+            vehicles[front_id],
+            vehicle_lengths_m[front_id],
+            vehicles[rear_id],
+            vehicle_lengths_m[rear_id],
+        )
+        for queue_ids in queue_ids_by_lane
+        for front_id, rear_id in zip(queue_ids, queue_ids[1:], strict=False)
+    ]
+    assert all(1.5 <= gap_m <= 5.5 for gap_m in queue_body_gaps_m), queue_body_gaps_m
+    assert set(background_l5_initial_lane_ids.values()) == {"road_approach_0"}
+    assert background_l5_right_turn_ids == background_l5_ids
+    assert all(
+        minimum_speed_mps == pytest.approx(12.0, abs=0.05)
+        and maximum_speed_mps == pytest.approx(12.0, abs=0.05)
+        for minimum_speed_mps, maximum_speed_mps in background_l5_running_speed_range_mps.values()
+    )
