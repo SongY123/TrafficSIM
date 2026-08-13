@@ -5,7 +5,9 @@ from pathlib import Path
 
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import QApplication
+from ui.views.system_settings_page import SystemSettingsPage
 from ui.views.theme import (
+    DEFAULT_THEME,
     ThemeMode,
     configure_application_font,
     load_icon_colors,
@@ -19,6 +21,71 @@ UI_ROOT = REPOSITORY_ROOT / "ui"
 def _application() -> QApplication:
     existing = QApplication.instance()
     return existing if isinstance(existing, QApplication) else QApplication([])
+
+
+def _style_rule(stylesheet: str, selector: str) -> str:
+    match = re.search(rf"{re.escape(selector)}\s*\{{([^}}]+)\}}", stylesheet)
+    assert match is not None
+    return " ".join(match.group(1).split())
+
+
+def test_default_desktop_theme_is_light() -> None:
+    assert DEFAULT_THEME is ThemeMode.LIGHT
+
+    _application()
+    settings = SystemSettingsPage()
+    assert settings.theme_combo.currentData() == ThemeMode.LIGHT.value
+    settings.close()
+
+
+def test_light_theme_uses_reference_navigation_canvas_and_separator_palette() -> None:
+    light = load_stylesheet(ThemeMode.LIGHT)
+
+    canvas = _style_rule(light, "QWidget#appShell, QWidget#pageStack")
+    navigation = _style_rule(light, "QWidget#navigationRail")
+    workspace_navigation = _style_rule(light, "QWidget#workspaceNavigationRail")
+    navigation_stack = _style_rule(light, "QWidget#navigationStack")
+    page_header = _style_rule(light, "QFrame#topBar")
+
+    assert "background: #fafbfc;" in canvas
+    assert "background: #f3f7fd;" in navigation
+    assert "background: #f3f7fd;" in workspace_navigation
+    assert "background: #f3f7fd;" in navigation_stack
+    assert "border-right: 1px solid #cfd7e3;" in navigation
+    assert "border-right: 1px solid #cfd7e3;" in workspace_navigation
+    assert "background: #ffffff;" in page_header
+    assert "border-bottom: 1px solid #cfd7e3;" in page_header
+
+
+def test_light_traffic_scene_detail_does_not_retain_dark_backgrounds() -> None:
+    light = load_stylesheet(ThemeMode.LIGHT)
+
+    hero = _style_rule(light, "QFrame#trafficSceneHero")
+    title = _style_rule(light, "QLabel#trafficSceneTitle")
+    incident = _style_rule(light, "QLabel#trafficSceneIncident")
+    metadata = _style_rule(light, "QLabel#trafficSceneMeta")
+    map_preview = _style_rule(light, "QWebEngineView#trafficSceneMapPreview")
+
+    assert "background: #ffffff;" in hero
+    assert "color: #202532;" in title
+    assert "color: #747d8f;" in incident
+    assert "background: #f3f7fd;" in metadata
+    assert "background: #eef2f7;" in map_preview
+
+
+def test_dark_map_hosts_match_the_asset_preview_canvas_style() -> None:
+    dark = load_stylesheet(ThemeMode.DARK)
+    map_hosts = _style_rule(
+        dark,
+        "QWebEngineView#assetPreviewMap,\n"
+        "QWebEngineView#liveMap,\n"
+        "QWebEngineView#simulationMapPreview,\n"
+        "QWebEngineView#workspacePreviewMap,\n"
+        "QWebEngineView#trafficSceneMapPreview",
+    )
+
+    assert "background: #141414;" in map_hosts
+    assert "border: 0;" in map_hosts
 
 
 def test_qt_theme_styles_are_external_and_cover_dark_and_light_modes() -> None:
@@ -40,6 +107,15 @@ def test_qt_theme_styles_are_external_and_cover_dark_and_light_modes() -> None:
         assert "#67c23a" in stylesheet.lower()
         assert "#e6a23c" in stylesheet.lower()
         assert "#f56c6c" in stylesheet.lower()
+        assert "QWidget#nav_children_experiments" in stylesheet
+        assert 'QPushButton[role="historyEntry"]' in stylesheet
+        assert "QScrollBar#navigationScrollBar" in stylesheet
+        assert "QScrollBar#navigationScrollBar::add-line" in stylesheet
+        assert "QScrollBar#navigationScrollBar::sub-line" in stylesheet
+        assert "QWidget#simulationHeaderActions" in stylesheet
+        assert "QComboBoxPrivateContainer" in stylesheet
+        assert "QComboBox QAbstractItemView QWidget" in stylesheet
+        assert "border-right: 1px solid" in stylesheet
 
 
 def test_qt_theme_resolves_font_declarations_to_installed_families() -> None:

@@ -190,6 +190,74 @@ def test_success_notice_auto_hides() -> None:
 
 
 @pytest.mark.e2e
+def test_navigation_rail_scales_with_window_and_fills_its_stack() -> None:
+    app = QApplication.instance() or QApplication([])
+    assert isinstance(app, QCoreApplication)
+    viewmodel = RunViewModel(
+        _Rest(),  # type: ignore[arg-type]
+        _Realtime(),  # type: ignore[arg-type]
+        UUID("00000000-0000-0000-0000-000000000042"),
+    )
+    window = MainWindow(viewmodel, load_web_map=False)
+    window.navigation_stack.setCurrentWidget(window.navigation)
+    window.resize(1600, 960)
+    window.show()
+    app.processEvents()
+
+    initial_stack_width = window.navigation_stack.width()
+    assert window.navigation.width() == initial_stack_width
+
+    window.resize(2400, 960)
+    app.processEvents()
+
+    enlarged_stack_width = window.navigation_stack.width()
+    assert window.navigation.width() == enlarged_stack_width
+    assert enlarged_stack_width > initial_stack_width
+    assert enlarged_stack_width / window.width() == pytest.approx(
+        initial_stack_width / 1600,
+        abs=0.01,
+    )
+    window.close()
+
+
+@pytest.mark.e2e
+def test_workspace_region_preview_receives_the_selected_map_network() -> None:
+    app = QApplication.instance() or QApplication([])
+    assert isinstance(app, QCoreApplication)
+    viewmodel = RunViewModel(
+        _Rest(),  # type: ignore[arg-type]
+        _Realtime(),  # type: ignore[arg-type]
+        UUID("00000000-0000-0000-0000-000000000042"),
+    )
+    window = MainWindow(viewmodel, load_web_map=False)
+    network = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"trafficverse_role": "sumo_lane"},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [100, 0]]},
+            }
+        ],
+    }
+
+    viewmodel.handle_rest_success("map.network:image2road", network)
+
+    assert window.workspace_page.preview_map._pending["setNetwork"] == network
+    assert window.workspace_page.preview_status.text() == "已加载标准路网预览"
+    window._apply_theme("dark")
+    map_widgets = (
+        window.live_page.map_widget,
+        window.scene_page.map_widget,
+        window.workspace_page.preview_map,
+        window.maps_page.map_widget,
+        window.traffic_scenes_page.map_widget,
+    )
+    assert all(widget._pending["setTheme"] == "dark" for widget in map_widgets)
+    window.close()
+
+
+@pytest.mark.e2e
 def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> None:
     app = QApplication.instance() or QApplication([])
     assert isinstance(app, QCoreApplication)
@@ -279,12 +347,13 @@ def test_core_run_window_constructs_and_closes_without_backend_or_carla() -> Non
         "Insights",
     ):
         assert english_copy not in visible_text
-    assert window.property("theme") == "dark"
+    assert window.property("theme") == "light"
 
     theme_combo = window.settings_page.findChild(QComboBox, "themeModeCombo")
     assert theme_combo is not None
-    theme_combo.setCurrentIndex(theme_combo.findData("light"))
-    assert window.property("theme") == "light"
+    assert theme_combo.currentData() == "light"
+    theme_combo.setCurrentIndex(theme_combo.findData("dark"))
+    assert window.property("theme") == "dark"
 
     expected_pages = {
         "scene": "sceneConfigurationPage",

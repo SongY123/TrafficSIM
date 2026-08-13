@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 from ui.models import WorkspaceOverview, WorkspaceSummary
 from ui.models.protocol import WorkspaceRecentSimulation
 from ui.views.components import PAGE_CONTENT_MARGIN, PANEL_CONTENT_MARGIN, page_header
-from ui.views.theme import ThemeMode, load_icon_colors
+from ui.views.theme import DEFAULT_THEME, ThemeMode, load_icon_colors
 
 _STATUS_PRESENTATION = {
     "WARNING": ("进行中", "running"),
@@ -154,7 +154,7 @@ class ProjectDetailPage(QWidget):
         super().__init__(parent)
         self.setObjectName("projectDetailPage")
         self._workspace: WorkspaceSummary | None = None
-        self._theme = ThemeMode.DARK
+        self._theme = DEFAULT_THEME
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)

@@ -9,10 +9,11 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
 )
-from ui.models import WorkspaceOverview, WorkspaceSummary
+from ui.models import MapSummary, WorkspaceOverview, WorkspaceSummary
 from ui.views.navigation import WorkspaceNavigationRail
 from ui.views.theme import ThemeMode, load_stylesheet
 from ui.views.workspace_page import WorkspaceDeleteDialog, WorkspaceOverviewPage
+from ui.widgets import MapLibreDeckMapWidget
 
 
 def _application() -> QApplication:
@@ -153,6 +154,50 @@ def test_workspace_overview_renders_mock_contract_and_enters() -> None:
     assert "1,284" in labels
     assert "250,000" in labels
     assert entered == [True]
+    page.close()
+
+
+def test_workspace_region_preview_renders_the_selected_standard_network() -> None:
+    _application()
+    page = WorkspaceOverviewPage(load_web_map=False)
+    network = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"trafficverse_role": "sumo_lane"},
+                "geometry": {"type": "LineString", "coordinates": [[0, 0], [100, 0]]},
+            }
+        ],
+    }
+
+    page.set_preview_network(network)
+
+    preview = page.findChild(MapLibreDeckMapWidget, "workspacePreviewMap")
+    assert preview is not None
+    assert preview._pending["setLegendVisible"] is False
+    assert preview._pending["setNetwork"] == network
+    assert page.preview_status.text() == "已加载标准路网预览"
+    page.close()
+
+
+def test_workspace_region_preview_reports_when_no_valid_sumo_map_exists() -> None:
+    _application()
+    page = WorkspaceOverviewPage(load_web_map=False)
+
+    page.set_maps(
+        (
+            MapSummary(
+                map_id="town04",
+                kind="core_run",
+                display_name="Town04",
+                validated=True,
+                network_schema_version="traffic-network/1.0",
+            ),
+        )
+    )
+
+    assert page.preview_status.text() == "暂无可预览的SUMO路网"
     page.close()
 
 

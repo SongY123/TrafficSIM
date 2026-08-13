@@ -247,7 +247,7 @@ def _vehicle(
     }
 
 
-def test_initialize_loads_workspaces_without_exposing_simulation_resources() -> None:
+def test_initialize_loads_workspaces_and_maps_for_region_preview() -> None:
     viewmodel, rest, _ = _viewmodel()
     connection_states: list[str] = []
     viewmodel.connection_changed.connect(connection_states.append)
@@ -258,7 +258,7 @@ def test_initialize_loads_workspaces_without_exposing_simulation_resources() -> 
         {"status": "ok", "service": "trafficverse-api"},
     )
 
-    assert rest.calls == [("health", None), ("workspaces", None)]
+    assert rest.calls == [("health", None), ("workspaces", None), ("maps", None)]
     assert connection_states == ["API_CONNECTED"]
 
 

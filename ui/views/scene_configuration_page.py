@@ -188,6 +188,7 @@ class SceneConfigurationPage(QWidget):
 
     def _header_actions(self) -> QWidget:
         widget = QWidget()
+        widget.setObjectName("simulationHeaderActions")
         row = QHBoxLayout(widget)
         row.setContentsMargins(0, 0, 0, 0)
         self.test_button = QPushButton("测试")

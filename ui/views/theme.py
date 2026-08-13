@@ -17,6 +17,9 @@ class ThemeMode(str, Enum):
     LIGHT = "light"
 
 
+DEFAULT_THEME = ThemeMode.LIGHT
+
+
 _STYLE_ROOT = Path(__file__).with_name("styles")
 
 

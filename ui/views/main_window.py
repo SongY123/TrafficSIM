@@ -38,7 +38,7 @@ from ui.views.navigation import NavigationRail, WorkspaceNavigationRail
 from ui.views.project_detail_page import ProjectDetailPage
 from ui.views.scene_configuration_page import SceneConfigurationPage
 from ui.views.system_settings_page import SystemSettingsPage
-from ui.views.theme import ThemeMode, configure_application_font, load_stylesheet
+from ui.views.theme import DEFAULT_THEME, ThemeMode, configure_application_font, load_stylesheet
 from ui.views.traffic_scene_page import TrafficScenePage
 from ui.views.workspace_page import (
     WorkspaceDeleteDialog,
@@ -49,6 +49,8 @@ from ui.views.workspace_page import (
 
 _WINDOW_ICON_PATH = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg"
 _SUCCESS_NOTICE_TIMEOUT_MS = 3_000
+_NAVIGATION_STRETCH = 13
+_CONTENT_STRETCH = 67
 
 
 class MainWindow(QMainWindow):
@@ -90,7 +92,7 @@ class MainWindow(QMainWindow):
         self.maps_page = MapAssetPage(load_web_map=load_web_map)
         self.agents_page = AgentAssetPage()
         self.settings_page = SystemSettingsPage()
-        self.workspace_page = WorkspaceOverviewPage()
+        self.workspace_page = WorkspaceOverviewPage(load_web_map=load_web_map)
         self.project_detail_page = ProjectDetailPage()
         self._pages = {
             "workspace": self.workspace_page,
@@ -119,13 +121,13 @@ class MainWindow(QMainWindow):
         shell_layout = QHBoxLayout(shell)
         shell_layout.setContentsMargins(0, 0, 0, 0)
         shell_layout.setSpacing(0)
-        shell_layout.addWidget(self.navigation_stack)
-        shell_layout.addWidget(content, 1)
+        shell_layout.addWidget(self.navigation_stack, _NAVIGATION_STRETCH)
+        shell_layout.addWidget(content, _CONTENT_STRETCH)
         self.setCentralWidget(shell)
 
         self._connect_pages()
         self._connect_viewmodel()
-        self._apply_theme(ThemeMode.DARK.value)
+        self._apply_theme(DEFAULT_THEME.value)
         self.navigation_stack.setCurrentWidget(self.workspace_navigation)
         self.page_stack.setCurrentWidget(self.workspace_page)
 
@@ -187,6 +189,7 @@ class MainWindow(QMainWindow):
         vm.asset_network_changed.connect(self.traffic_scenes_page.set_preview_network)
         vm.network_changed.connect(self._set_live_network)
         vm.network_changed.connect(self.scene_page.set_preview_network)
+        vm.network_changed.connect(self.workspace_page.set_preview_network)
         vm.vehicles_changed.connect(self._set_vehicles)
         vm.traffic_lights_changed.connect(self._set_traffic_lights)
         vm.live_metrics_changed.connect(self._set_live_metrics)
@@ -417,6 +420,7 @@ class MainWindow(QMainWindow):
             else ()
         )
         self.scene_page.set_maps(tuple(item for item in values if item.kind == "sumo"))
+        self.workspace_page.set_maps(values)
         self.traffic_scenes_page.set_maps(values)
         self.maps_page.set_maps(values)
 
@@ -620,5 +624,7 @@ class MainWindow(QMainWindow):
         self.navigation.refresh_icons(theme)
         self.project_detail_page.refresh_action_icons(theme)
         self.live_page.map_widget.set_theme(theme.value)
+        self.scene_page.map_widget.set_theme(theme.value)
+        self.workspace_page.preview_map.set_theme(theme.value)
         self.maps_page.map_widget.set_theme(theme.value)
         self.traffic_scenes_page.set_theme(theme.value)

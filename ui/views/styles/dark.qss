@@ -75,7 +75,7 @@ QWidget[role="navigationRow"][active="true"] {
 }
 QPushButton[role="navigationRowMain"] {
   background: transparent; border: 0; border-radius: 0; color: #cfd3dc;
-  padding: 10px 13px; text-align: left; font-size: 15px; font-weight: 400;
+  padding: 10px 13px 10px 19px; text-align: left; font-size: 15px; font-weight: 400;
 }
 QPushButton[role="navigationExpand"] {
   background: transparent; border: 0; border-radius: 0; color: #8d9095;
@@ -91,8 +91,19 @@ QPushButton[role="subnavigation"] {
 }
 QPushButton[role="subnavigation"]:hover { background: #262727; color: #e5eaf3; }
 QPushButton[role="subnavigation"][active="true"] { color: #409eff; }
+QScrollBar#navigationScrollBar:vertical {
+  background: transparent; border: 0; margin: 0; width: 0;
+}
+QScrollBar#navigationScrollBar::handle:vertical { background: transparent; min-height: 0; width: 0; }
+QScrollBar#navigationScrollBar::add-line:vertical,
+QScrollBar#navigationScrollBar::sub-line:vertical {
+  background: transparent; border: 0; height: 0; subcontrol-origin: margin;
+}
+QScrollBar#navigationScrollBar::add-page:vertical,
+QScrollBar#navigationScrollBar::sub-page:vertical { background: transparent; }
 QFrame#navigationDivider { background: #414243; border: 0; max-height: 1px; }
 QFrame#topBar { background: #1d1e1f; border-bottom: 1px solid #414243; }
+QWidget#simulationHeaderActions { background: #1d1e1f; }
 QLabel#pageTitle { color: #e5eaf3; font-size: 20px; font-weight: 600; }
 QLabel#pageSubtitle { color: #a3a6ad; font-size: 12px; }
 QLabel#mono, QLabel#metricValue, QLabel#statusValue {
@@ -182,10 +193,15 @@ QLabel#automationTotal {
   background: #082c34; border: 1px solid #0f5965; border-radius: 3px;
   color: #36cfc9; padding: 3px 7px; font-family: "__TRAFFICVERSE_MONO_FONT__";
 }
-QWebEngineView#simulationMapPreview {
-  background: #090d15; border: 1px solid #343b4a; border-radius: 4px;
+QWebEngineView#assetPreviewMap,
+QWebEngineView#liveMap,
+QWebEngineView#simulationMapPreview,
+QWebEngineView#workspacePreviewMap,
+QWebEngineView#trafficSceneMapPreview {
+  background: #141414; border: 0;
 }
 QLabel#simulationMapStatus { color: #7f8799; font-size: 11px; }
+QLabel#workspacePreviewStatus { color: #7f8799; font-size: 11px; }
 QTimeEdit#simulationDurationTime {
   background: #090c12; border: 1px solid #3a4150; border-radius: 4px;
   color: #eef1f7; padding: 7px 12px; font-family: "__TRAFFICVERSE_MONO_FONT__";
@@ -234,7 +250,16 @@ QPushButton#restartButton:hover { background: #3a301e; border-color: #e6a23c; }
 QPushButton#speedButton { padding: 6px 11px; }
 QPushButton#speedButton:checked { background: #18222c; border-color: #409eff; color: #409eff; }
 QComboBox::drop-down { border: 0; width: 24px; }
-QComboBox QAbstractItemView { background: #1d1e1f; border: 1px solid #4c4d4f; selection-background-color: #3375b9; }
+QComboBoxPrivateContainer { background: #1d1e1f; border: 0; }
+QComboBox QAbstractItemView {
+  background: #1d1e1f; border: 1px solid #4c4d4f; color: #cfd3dc;
+  outline: 0; padding: 4px 0; selection-background-color: #3375b9;
+  selection-color: #ffffff;
+}
+QComboBox QAbstractItemView QWidget { background: #1d1e1f; color: #cfd3dc; }
+QComboBox QAbstractItemView::item { background: #1d1e1f; color: #cfd3dc; min-height: 28px; }
+QComboBox QAbstractItemView::item:hover,
+QComboBox QAbstractItemView::item:selected { background: #3375b9; color: #ffffff; }
 QScrollArea { border: 0; background: transparent; }
 QScrollArea > QWidget > QWidget { background: transparent; }
 QSplitter::handle { background: #2b2b2c; width: 8px; }
@@ -261,16 +286,20 @@ QTabWidget::pane { border: 1px solid #414243; border-radius: 4px; }
 QTabBar::tab { background: #1d1e1f; color: #a3a6ad; padding: 8px 14px; }
 QTabBar::tab:selected { color: #409eff; border-bottom: 2px solid #409eff; }
 
+QWidget#nav_children_experiments {
+  background: #151820; border: 1px solid #343b4a; border-radius: 6px;
+}
 QPushButton[role="historyEntry"] {
-  background: transparent; border: 0; border-left: 1px solid #343b4a;
-  border-radius: 0; color: #8b93a7; padding: 7px 5px 7px 25px;
+  background: transparent; border: 0; border-left: 3px solid transparent;
+  border-radius: 4px; color: #aeb6c8; padding: 7px 10px 7px 18px;
   text-align: left; font-size: 12px; font-family: "__TRAFFICVERSE_MONO_FONT__";
 }
-QPushButton[role="historyEntry"]:hover { background: #151b29; color: #cdd6e8; }
+QPushButton[role="historyEntry"]:hover { background: #202838; color: #e6ebf5; }
 QPushButton[role="historyEntry"][active="true"] {
-  background: #11192a; border: 1px solid #29426f; border-left: 3px solid #6f8dff;
-  border-radius: 4px; color: #e6ebf5; font-weight: 600;
+  background: #182b42; border: 0; border-left: 3px solid #409eff;
+  border-radius: 4px; color: #8fc7ff; font-weight: 600;
 }
+QLabel#historyEmptyState { color: #7f8799; padding: 7px 10px; }
 QWidget#dataReplayPage, QWidget#replayBody { background: #11141d; }
 QLabel#replayTimestamp {
   background: #1c2432; border: 1px solid #303a4b; border-radius: 6px;
@@ -357,9 +386,6 @@ QFrame#trafficSceneLevelCard {
 }
 QFrame#trafficScenePanel {
   background: #1b1e27; border: 1px solid #343a48; border-radius: 6px;
-}
-QWebEngineView#trafficSceneMapPreview {
-  background: #090d14; border: 1px solid #303746; border-radius: 5px;
 }
 QLabel#trafficSceneLevel { font-size: 12px; font-weight: 800; }
 QLabel#trafficSceneLevel[level="L0"] { color: #ff6670; }

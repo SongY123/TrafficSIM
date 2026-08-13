@@ -24,8 +24,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import WorkspaceOverview, WorkspaceSummary
+from ui.models import MapSummary, WorkspaceOverview, WorkspaceSummary
 from ui.views.components import PAGE_CONTENT_MARGIN, empty_state, metric_card, panel
+from ui.widgets import MapLibreDeckMapWidget
 
 
 class WorkspaceEditDialog(QDialog):
@@ -153,9 +154,15 @@ class WorkspaceOverviewPage(QWidget):
     rename_requested = Signal()
     delete_requested = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        load_web_map: bool = False,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("workspaceOverviewPage")
+        self._load_web_map = load_web_map
         self._workspace: WorkspaceSummary | None = None
         self._metric_values: dict[str, QLabel] = {}
         self._automation_values: dict[str, QLabel] = {}
@@ -330,20 +337,34 @@ class WorkspaceOverviewPage(QWidget):
         self.preview_title = QLabel("区域预览")
         self.preview_title.setObjectName("panelTitle")
         preview_layout.addWidget(self.preview_title)
-        preview_layout.addWidget(
-            empty_state(
-                "地图总览占位",
-                "该区域已通过 mock 接口预留，后续可直接接入工作区地图聚合视图。",
-                "⌖",
-            ),
-            1,
+        self.preview_map = MapLibreDeckMapWidget(
+            load_page=self._load_web_map,
+            show_legend=False,
         )
+        self.preview_map.setObjectName("workspacePreviewMap")
+        self.preview_map.setMinimumHeight(260)
+        preview_layout.addWidget(self.preview_map, 1)
+        self.preview_status = QLabel("正在加载标准路网预览……")
+        self.preview_status.setObjectName("workspacePreviewStatus")
+        preview_layout.addWidget(self.preview_status)
         details.addWidget(preview, 3)
         details.addWidget(self._activity_panel(), 2)
         layout.addLayout(details, 1)
         layout.addWidget(self._recent_panel())
         scroll.setWidget(body)
         return scroll
+
+    def set_preview_network(self, network: object) -> None:
+        """Render the selected standard network in the workspace region preview."""
+        self.preview_map.set_network(network)
+        self.preview_status.setText("已加载标准路网预览")
+
+    def set_maps(self, maps: tuple[MapSummary, ...]) -> None:
+        """Explain whether a validated SUMO network is available for preview."""
+        has_preview = any(item.kind == "sumo" and item.validated for item in maps)
+        self.preview_status.setText(
+            "正在加载标准路网预览……" if has_preview else "暂无可预览的SUMO路网"
+        )
 
     def _activity_panel(self) -> QFrame:
         self.activity_table = QTableWidget(0, 2)

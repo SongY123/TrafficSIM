@@ -5,9 +5,18 @@ from datetime import datetime, timezone
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QStackedWidget,
+    QStyle,
+    QStyleOptionButton,
+    QWidget,
+)
 from ui.models import TRAFFIC_SCENARIO_PRESETS, ExperimentStatus, ReplaySummary
-from ui.views.navigation import NavigationRail
+from ui.views.navigation import NavigationRail, WorkspaceNavigationRail
 from ui.views.theme import ThemeMode, load_stylesheet
 
 
@@ -79,10 +88,31 @@ def test_workspace_navigation_matches_grouped_stitch_structure_and_starts_collap
     navigation.close()
 
 
+def test_project_navigation_fills_the_same_sidebar_width_as_workspace_navigation() -> None:
+    app = _application()
+    project_navigation = NavigationRail()
+    workspace_navigation = WorkspaceNavigationRail()
+    stack = QStackedWidget()
+    stack.addWidget(workspace_navigation)
+    stack.addWidget(project_navigation)
+    stack.resize(360, 720)
+    stack.setCurrentWidget(project_navigation)
+    stack.show()
+    app.processEvents()
+
+    assert project_navigation.width() == stack.width()
+
+    stack.setCurrentWidget(workspace_navigation)
+    app.processEvents()
+    assert workspace_navigation.width() == stack.width()
+
+    stack.close()
+
+
 def test_history_navigation_expands_on_main_click_and_opens_selected_replay() -> None:
     app = _application()
     navigation = NavigationRail()
-    navigation.resize(236, 720)
+    navigation.resize(260, 720)
     navigation.show()
     records = _history()
     navigation.set_history(records)
@@ -106,6 +136,16 @@ def test_history_navigation_expands_on_main_click_and_opens_selected_replay() ->
     assert children.height() >= 32 * len(records)
     assert all(entry.isVisible() and entry.height() == 32 for entry in entries)
     assert all(entry.text() for entry in entries)
+    scroll = navigation.findChild(QScrollArea, "navigationScroll")
+    content = navigation.findChild(QWidget, "navigationScrollContent")
+    assert scroll is not None
+    assert content is not None
+    assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert content.width() == scroll.viewport().width()
+    assert children.width() == scroll.viewport().width()
+    assert all(entry.width() == scroll.viewport().width() for entry in entries)
+    entry_right = entries[0].mapTo(navigation, QPoint(entries[0].width() - 1, 0)).x()
+    assert entry_right == navigation.rect().right()
 
     entries[0].click()
     navigation.set_active("replay")
@@ -122,7 +162,7 @@ def test_history_navigation_expands_on_main_click_and_opens_selected_replay() ->
 def test_traffic_scene_navigation_lists_and_selects_each_scenario() -> None:
     app = _application()
     navigation = NavigationRail()
-    navigation.resize(236, 760)
+    navigation.resize(260, 760)
     navigation.show()
     requests: list[str] = []
     navigation.traffic_scene_requested.connect(requests.append)
@@ -162,7 +202,7 @@ def test_traffic_scene_navigation_lists_and_selects_each_scenario() -> None:
 def test_navigation_middle_area_accepts_wheel_scrolling_when_groups_expand() -> None:
     app = _application()
     navigation = NavigationRail()
-    navigation.resize(236, 480)
+    navigation.resize(260, 480)
     navigation.show()
     for key in ("experiments", "traffic_scenes", "maps", "agents"):
         expand = navigation.findChild(QPushButton, f"nav_expand_{key}")
@@ -174,6 +214,8 @@ def test_navigation_middle_area_accepts_wheel_scrolling_when_groups_expand() -> 
     assert scroll is not None
     scroll_bar = scroll.verticalScrollBar()
     assert scroll_bar.maximum() > 0
+    assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert not scroll_bar.isVisible()
     wheel = QWheelEvent(
         QPointF(12.0, 12.0),
         QPointF(12.0, 12.0),
@@ -212,7 +254,7 @@ def test_expandable_navigation_row_uses_one_background_for_main_and_arrow() -> N
     app = _application()
     navigation = NavigationRail()
     navigation.setStyleSheet(load_stylesheet(ThemeMode.DARK))
-    navigation.resize(236, 800)
+    navigation.resize(260, 800)
     navigation.show()
 
     row = navigation.findChild(QWidget, "navRow_experiments")
@@ -228,4 +270,57 @@ def test_expandable_navigation_row_uses_one_background_for_main_and_arrow() -> N
     hovered = row.grab().toImage()
     assert hovered.pixelColor(12, 2) == hovered.pixelColor(hovered.width() - 12, 2)
 
+    navigation.close()
+
+
+def test_light_expandable_navigation_rows_match_regular_navigation_background() -> None:
+    app = _application()
+    navigation = NavigationRail()
+    navigation.setStyleSheet(load_stylesheet(ThemeMode.LIGHT))
+    navigation.resize(260, 800)
+    navigation.show()
+    app.processEvents()
+
+    regular = navigation.findChild(QPushButton, "nav_scene")
+    expandable = navigation.findChild(QWidget, "navRow_experiments")
+    expandable_container = navigation.findChild(QWidget, "navContainer_experiments")
+    assert regular is not None
+    assert expandable is not None
+    assert expandable_container is not None
+    assert expandable_container.property("role") == "navigationContainer"
+
+    navigation_image = navigation.grab().toImage()
+    regular_sample = regular.mapTo(navigation, QPoint(150, regular.height() // 2))
+    expandable_sample = expandable.mapTo(
+        navigation,
+        QPoint(150, expandable.height() // 2),
+    )
+    regular_background = navigation_image.pixelColor(regular_sample)
+    expandable_background = navigation_image.pixelColor(expandable_sample)
+
+    assert expandable_background == regular_background
+
+    regular_option = QStyleOptionButton()
+    regular_option.initFrom(regular)
+    expandable_main = navigation.findChild(QPushButton, "nav_experiments")
+    assert expandable_main is not None
+    expandable_option = QStyleOptionButton()
+    expandable_option.initFrom(expandable_main)
+    regular_content = regular.style().subElementRect(
+        QStyle.SubElement.SE_PushButtonContents,
+        regular_option,
+        regular,
+    )
+    expandable_content = expandable_main.style().subElementRect(
+        QStyle.SubElement.SE_PushButtonContents,
+        expandable_option,
+        expandable_main,
+    )
+
+    regular_left = regular.mapTo(navigation, regular_content.topLeft()).x()
+    expandable_left = expandable_main.mapTo(
+        navigation,
+        expandable_content.topLeft(),
+    ).x()
+    assert expandable_left == regular_left
     navigation.close()

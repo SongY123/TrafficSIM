@@ -19,6 +19,7 @@ def test_map_page_uses_offline_maplibre_deck_bundle() -> None:
     assert "http://" not in html
     assert 'href="bundle/maplibre-gl.css"' in html
     assert 'src="bundle/map.js"' in html
+    assert '<html lang="zh-CN" data-theme="light">' in html
     assert (MAP_WEB_ROOT / "bundle/maplibre-gl.css").is_file()
     assert (MAP_WEB_ROOT / "bundle/map.js").is_file()
     assert (MAP_WEB_ROOT / "bundle/map.js.LEGAL.txt").is_file()
@@ -27,7 +28,7 @@ def test_map_page_uses_offline_maplibre_deck_bundle() -> None:
         {
             "id": "background",
             "type": "background",
-            "paint": {"background-color": "#141414"},
+            "paint": {"background-color": "#f1f3f9"},
         }
     ]
 
@@ -174,13 +175,26 @@ def test_map_visuals_are_externalized_and_support_light_theme() -> None:
     assert "dark: {" in style
     assert "light: {" in style
     assert 'background: "#141414"' in style
+    assert "laneBoundary: [237, 238, 232, 205]" in style
+    assert 'background: "#f1f3f9"' in style
+    assert "roadCasing: [255, 255, 255, 255]" in style
+    assert "roadSurface: [255, 255, 255, 255]" in style
+    assert "roadSurfaceFast: [255, 255, 255, 255]" in style
+    assert "junctionSurface: [255, 255, 255, 255]" in style
+    assert "laneBoundary: [252, 234, 135, 255]" in style
+    assert style.count("showLaneMarkings: false") == 2
+    assert "showLaneMarkings: true" not in style
+    assert 'theme: "light"' in source
+    assert "createLightingEffect(MAP_THEMES.light)" in source
     assert "automated: [47, 137, 230]" in style
     assert "roadSurface:" in style
     assert "laneBoundary:" in style
     assert "vehicleGlass:" in style
     assert ':root[data-theme="light"]' in css
+    assert "--map-background: #141414;" in css
+    assert "--map-background: #f1f3f9;" in css
     assert "setTheme" in bundle
-    assert "#f2f3f5" in bundle
+    assert "#f1f3f9" in bundle
 
 
 def test_map_derives_clear_lane_boundaries_and_dashed_markings_from_lane_geometry() -> None:
@@ -193,6 +207,7 @@ def test_map_derives_clear_lane_boundaries_and_dashed_markings_from_lane_geometr
     assert 'id: "trafficverse-road-shadow"' in source
     assert 'id: "trafficverse-lane-boundaries"' in source
     assert 'id: "trafficverse-lane-markings"' in source
+    assert "data: theme.showLaneMarkings ? state.laneMarkings : EMPTY_NETWORK" in source
     assert "state.laneBoundaries" in source
     assert "state.laneMarkings" in source
     assert "laneBoundaryWidthM" in style
@@ -259,6 +274,20 @@ def test_map_hud_shows_automation_and_special_vehicle_legends() -> None:
     assert ".legend-icon.emergency" in css
     assert ".legend-icon.obstacle" in css
     assert ".legend-icon.signal" in css
+
+
+def test_map_legend_visibility_can_be_controlled_by_the_qt_host() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    css = (MAP_WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+    host = (MAP_WEB_ROOT.parents[1] / "widgets/maplibre_deck_map.py").read_text(encoding="utf-8")
+
+    assert "setLegendVisible(visible)" in source
+    assert 'document.getElementById("map-hud").hidden = !visible;' in source
+    assert "#map-hud[hidden]" in css
+    assert "setLegendVisible" in bundle
+    assert "show_legend: bool = True" in host
+    assert 'self._dispatch("setLegendVisible", show_legend)' in host
 
 
 def test_truck_model_is_local_and_checksum_documented() -> None:

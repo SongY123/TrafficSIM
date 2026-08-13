@@ -46,6 +46,7 @@ class LiveMonitorPage(QWidget):
         self._replay_completed_vehicle_count = 0
         self._replay_last_time_ms: int | None = None
         self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map)
+        self.map_widget.setObjectName("liveMap")
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)

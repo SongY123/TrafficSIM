@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from ui.models import TRAFFIC_SCENARIO_PRESETS, ReplaySummary, WorkspaceSummary
 from ui.views.element_plus_icons import ICON_SIZE, render_element_plus_icon, render_svg_pixmap
-from ui.views.theme import ThemeMode, load_icon_colors
+from ui.views.theme import DEFAULT_THEME, ThemeMode, load_icon_colors
 
 _NAVIGATION_GROUPS = (
     (
@@ -45,6 +45,7 @@ _NAVIGATION_GROUPS = (
 _SETTINGS_NAVIGATION = ("settings", "setting.svg", "系统设置")
 _ICON_ROOT = Path(__file__).resolve().parents[1] / "assets/icons/element-plus"
 _BRAND_LOGO = Path(__file__).resolve().parents[1] / "assets/icons/logo.svg"
+_NAVIGATION_RAIL_WIDTH = 260
 _HISTORY_ENTRY_HEIGHT = 32
 _SCENARIO_ENTRY_HEIGHT = 32
 
@@ -89,7 +90,8 @@ class NavigationRail(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("navigationRail")
-        self.setFixedWidth(236)
+        self.setMinimumWidth(_NAVIGATION_RAIL_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._buttons: dict[str, QPushButton] = {}
         self._sub_buttons: dict[str, QPushButton] = {}
         self._expand_buttons: dict[str, QPushButton] = {}
@@ -99,10 +101,10 @@ class NavigationRail(QWidget):
         self._history_layout: QVBoxLayout | None = None
         self._traffic_scene_buttons: dict[str, QPushButton] = {}
         self._icon_paths: dict[str, Path] = {}
-        self._theme = ThemeMode.DARK
+        self._theme = DEFAULT_THEME
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 22, 18, 18)
+        layout.setContentsMargins(18, 22, 0, 18)
         layout.setSpacing(6)
         layout.addLayout(self._brand())
         layout.addSpacing(18)
@@ -125,13 +127,18 @@ class NavigationRail(QWidget):
         self.navigation_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.navigation_scroll.setWidgetResizable(True)
         self.navigation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.navigation_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.navigation_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.navigation_scroll.verticalScrollBar().setObjectName("navigationScrollBar")
         self._navigation_content = QWidget()
         self._navigation_content.setObjectName("navigationScrollContent")
+        self._navigation_content.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         navigation_layout = QVBoxLayout(self._navigation_content)
-        navigation_layout.setContentsMargins(0, 0, 2, 0)
+        navigation_layout.setContentsMargins(0, 0, 0, 0)
         navigation_layout.setSpacing(6)
-        navigation_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        navigation_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
 
         section = QLabel("控制中心")
         section.setObjectName("sectionLabel")
@@ -317,6 +324,7 @@ class NavigationRail(QWidget):
     ) -> QWidget:
         container = QWidget()
         container.setObjectName(f"navContainer_{key}")
+        container.setProperty("role", "navigationContainer")
         column = QVBoxLayout(container)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
@@ -474,7 +482,8 @@ class WorkspaceNavigationRail(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("workspaceNavigationRail")
-        self.setFixedWidth(260)
+        self.setMinimumWidth(_NAVIGATION_RAIL_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._workspace_ids: set[str] = set()
         self._rows: dict[str, _WorkspaceListRow] = {}
 

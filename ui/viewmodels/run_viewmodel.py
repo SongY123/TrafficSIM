@@ -130,9 +130,10 @@ class RunViewModel(QObject):
 
     def initialize(self) -> None:
         # Readiness describes a prepared experiment and is expected to fail before one exists.
-        # At UI startup only probe whether the API control plane is reachable.
+        # The map catalog is also needed for the workspace region preview before entry.
         self._rest.check_health()
         self._rest.list_workspaces()
+        self._rest.list_maps()
         self._emit_controls()
 
     def search_workspaces(self, query: str) -> None:

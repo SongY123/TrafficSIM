@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QCoreApplication
-from PySide6.QtWidgets import QApplication, QLineEdit, QTreeWidget
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QTreeWidget
+from ui.models import MapSummary
 from ui.models.assets import AssetDirectoryEntry, AssetFileEntry
+from ui.views.map_asset_page import MapAssetPage
+from ui.widgets import MapLibreDeckMapWidget
 from ui.widgets.asset_directory import AssetDirectoryWidget
 
 
@@ -76,3 +79,28 @@ def test_asset_directory_searches_platform_and_map_id() -> None:
     search.setText("town04")
     assert not directory.isHidden()
     widget.close()
+
+
+def test_map_asset_preview_hides_vehicle_legend_and_technology_badge() -> None:
+    _application()
+    page = MapAssetPage(load_web_map=False)
+    summary = MapSummary(
+        map_id="town04",
+        kind="sumo",
+        display_name="Town04",
+        validated=True,
+        network_schema_version="traffic-network/1.0",
+        files=("network.geojson",),
+    )
+
+    page.set_maps((summary,))
+    page._select_asset(summary.map_id)
+    page.set_preview_network(summary.map_id, {"type": "FeatureCollection", "features": []})
+
+    preview = page.findChild(MapLibreDeckMapWidget, "assetPreviewMap")
+    assert preview is not None
+    assert preview._pending["setLegendVisible"] is False
+    labels = {label.text() for label in page.findChildren(QLabel)}
+    assert not any("deck.gl" in label or "MapLibre" in label for label in labels)
+    assert page.preview_status.text() == "已加载标准路网预览"
+    page.close()

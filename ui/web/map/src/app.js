@@ -48,8 +48,8 @@ const state = {
   viewMode: "2d",
   selectedVehicleId: null,
   followScenarioVehicles: true,
-  theme: "dark",
-  lightingEffect: createLightingEffect(MAP_THEMES.dark)
+  theme: "light",
+  lightingEffect: createLightingEffect(MAP_THEMES.light)
 };
 
 document.documentElement.dataset.theme = state.theme;
@@ -536,7 +536,7 @@ function roadLayers() {
     new GeoJsonLayer({
       ...common,
       id: "trafficverse-lane-markings",
-      data: state.laneMarkings,
+      data: theme.showLaneMarkings ? state.laneMarkings : EMPTY_NETWORK,
       lineWidthUnits: "meters",
       getLineWidth: LAYER_STYLE.laneMarkingWidthM,
       lineWidthMinPixels: 0.8,
@@ -953,6 +953,9 @@ function fitNetwork(network) {
 document.getElementById("reset-view").addEventListener("click", () => resetView());
 
 window.TrafficVerseMap = {
+  setLegendVisible(visible) {
+    document.getElementById("map-hud").hidden = !visible;
+  },
   setNetwork(network) {
     state.network = network?.type === "FeatureCollection" ? network : EMPTY_NETWORK;
     const lineFeatures = state.network.features.filter(

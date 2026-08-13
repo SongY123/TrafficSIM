@@ -34,7 +34,7 @@ class MapAssetPage(QWidget):
 
         self.directory = AssetDirectoryWidget()
         self.directory.asset_selected.connect(self._select_asset)
-        self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map)
+        self.map_widget = MapLibreDeckMapWidget(load_page=load_web_map, show_legend=False)
         self.map_widget.setObjectName("assetPreviewMap")
 
         root = QVBoxLayout(self)
@@ -100,11 +100,8 @@ class MapAssetPage(QWidget):
         title_stack.addWidget(self.asset_id)
         heading.addLayout(title_stack)
         heading.addStretch(1)
-        self.compatibility = QLabel("SUMO · CARLA · deck.gl · MapLibre")
-        self.compatibility.setObjectName("compatibilityTag")
         self.status = QLabel("等待选择")
         self.status.setObjectName("assetStatusBadge")
-        heading.addWidget(self.compatibility)
         heading.addWidget(self.status)
         layout.addLayout(heading)
 
@@ -143,7 +140,7 @@ class MapAssetPage(QWidget):
         if map_id != self._selected_asset_id:
             return
         self.map_widget.set_network(network)
-        self.preview_status.setText("已加载 MapLibre/deck.gl 标准路网预览")
+        self.preview_status.setText("已加载标准路网预览")
 
     def _refresh_directory(self) -> None:
         entries = tuple(
@@ -177,5 +174,4 @@ class MapAssetPage(QWidget):
         )
         self.asset_id.setText(f"场景 ID：{map_id}  ·  {runtime}")
         self.status.setText("已验证" if summary.validated else "待验证")
-        self.compatibility.setText(" · ".join(entry.compatibility) or "正在加载清单")
         self.file_count.setText(f"{len(entry.files)} 个文件")

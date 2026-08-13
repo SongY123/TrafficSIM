@@ -37,6 +37,7 @@ def test_traffic_scene_page_shows_selected_scenario_details_and_real_preview() -
     assert page.incident_label.text() == preset.incident
     assert page.summary_values["vehicles"].text() == f"车辆 · {preset.vehicle_total} 辆"
     assert isinstance(page.map_widget, MapLibreDeckMapWidget)
+    assert page.map_widget._pending["setLegendVisible"] is True
     assert page.map_widget.minimumHeight() == 220
     page.resize(1200, 800)
     page.show()

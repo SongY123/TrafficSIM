@@ -31,7 +31,13 @@ class MapLibreDeckMapWidget(QWebEngineView):
 
     vehicle_selected = Signal(str)
 
-    def __init__(self, parent: QWidget | None = None, *, load_page: bool = True) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        load_page: bool = True,
+        show_legend: bool = True,
+    ) -> None:
         super().__init__(parent)
         self._ready = False
         self._pending: dict[str, object] = {}
@@ -43,6 +49,7 @@ class MapLibreDeckMapWidget(QWebEngineView):
         self.page().setWebChannel(channel)
         self.loadStarted.connect(self._loading)
         self.loadFinished.connect(self._loaded)
+        self._dispatch("setLegendVisible", show_legend)
         if load_page:
             page = Path(__file__).resolve().parents[1] / "web/map/index.html"
             self.load(QUrl.fromLocalFile(str(page)))

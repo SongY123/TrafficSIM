@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStyle,
     QStyleOptionSpinBox,
+    QWidget,
 )
 from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary, SimulationConfigurationDraft
 from ui.views.scene_configuration_page import SceneConfigurationPage
@@ -74,6 +75,7 @@ def test_scene_configuration_matches_reference_defaults() -> None:
     assert page.findChild(QPushButton, "saveSimulationDraftButton") is None
     assert page.save_configuration_button.text() == "保存配置"
     assert page.test_button.text() == "测试"
+    assert page.findChild(QWidget, "simulationHeaderActions") is not None
     assert page.automation_rows == []
     assert page.vehicle_total.text() == "总计：0"
 

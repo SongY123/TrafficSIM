@@ -42,6 +42,7 @@ def test_live_monitor_is_two_dimensional_and_exposes_requested_controls_and_metr
     buttons = {button.text() for button in page.findChildren(QPushButton)}
 
     assert not hasattr(page, "carla_window")
+    assert page.map_widget.objectName() == "liveMap"
     assert "二维仿真场景" in labels
     assert "ROI 局部三维" not in labels
     assert "CARLA" not in labels

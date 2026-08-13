@@ -8,6 +8,7 @@ export const MAP_THEMES = {
     junctionSurface: [65, 68, 71, 255],
     laneBoundary: [237, 238, 232, 205],
     laneMarking: [246, 246, 238, 225],
+    showLaneMarkings: false,
     signal: {
       green: [103, 194, 58],
       yellow: [230, 162, 60],
@@ -53,14 +54,15 @@ export const MAP_THEMES = {
     keyLight: [255, 245, 224]
   },
   light: {
-    background: "#f2f3f5",
-    roadShadow: [37, 42, 47, 72],
-    roadCasing: [116, 121, 126, 255],
-    roadSurface: [83, 88, 93, 255],
-    roadSurfaceFast: [75, 83, 91, 255],
-    junctionSurface: [79, 84, 89, 255],
-    laneBoundary: [250, 250, 242, 215],
-    laneMarking: [255, 255, 247, 235],
+    background: "#f1f3f9",
+    roadShadow: [194, 200, 214, 55],
+    roadCasing: [255, 255, 255, 255],
+    roadSurface: [255, 255, 255, 255],
+    roadSurfaceFast: [255, 255, 255, 255],
+    junctionSurface: [255, 255, 255, 255],
+    laneBoundary: [252, 234, 135, 255],
+    laneMarking: [252, 234, 135, 255],
+    showLaneMarkings: false,
     signal: {
       green: [103, 194, 58],
       yellow: [230, 162, 60],
