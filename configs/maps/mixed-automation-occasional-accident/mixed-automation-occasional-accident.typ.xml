@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<types>
+    <type
+        id="urban_two_lane"
+        priority="3"
+        numLanes="2"
+        speed="16.67"
+        allow="passenger"
+        spreadType="center"
+        width="3.50" />
+    <type
+        id="urban_right_turn"
+        priority="2"
+        numLanes="1"
+        speed="13.89"
+        allow="passenger"
+        spreadType="center"
+        width="3.50" />
+</types>

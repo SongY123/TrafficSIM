@@ -2,7 +2,7 @@
   "apiVersion": "trafficverse/v1",
   "kind": "SumoScenarioPackage",
   "spec": {
-    "name": "救护车接近与应急让行",
+    "name": "静态障碍物与紧急避障",
     "trafficDemandMode": "scripted"
   }
 }

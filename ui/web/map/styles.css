@@ -14,12 +14,12 @@
   --error: #f56c6c;
   --separator: #363637;
   --legend-text: #909399;
-  --l0: #30c4d2;
-  --l1: #e6a23c;
-  --l2: #f5cd50;
-  --l3: #409eff;
-  --l4: #67c23a;
-  --l5: #a78bfa;
+  --l0: #e7e5e4;
+  --l1: #22d3ee;
+  --l2: #a78bfa;
+  --l3: #e879f9;
+  --l4: #b45309;
+  --l5: #000000;
   --emergency: #ef4444;
   --obstacle: #ffbe28;
   --ai: #e6a23c;
@@ -51,12 +51,12 @@
   --error: #f56c6c;
   --separator: #ebeef5;
   --legend-text: #909399;
-  --l0: #008fa6;
-  --l1: #d57f1c;
-  --l2: #d3aa19;
-  --l3: #247bd8;
-  --l4: #4ea624;
-  --l5: #8563e0;
+  --l0: #a8a29e;
+  --l1: #0891b2;
+  --l2: #7c3aed;
+  --l3: #c026d3;
+  --l4: #78350f;
+  --l5: #000000;
   --emergency: #dc2626;
   --obstacle: #e09912;
   --ai: #e6a23c;
@@ -138,6 +138,7 @@ button { font: inherit; }
 .legend-icon.l3 { color: var(--l3); }
 .legend-icon.l4 { color: var(--l4); }
 .legend-icon.l5 { color: var(--l5); }
+:root:not([data-theme="light"]) .legend-icon.l5 { border-color: var(--legend-text); }
 .legend-icon.emergency,
 .legend-icon.obstacle {
   width: 12px;

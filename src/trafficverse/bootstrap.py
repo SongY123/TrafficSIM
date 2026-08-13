@@ -245,7 +245,11 @@ class CoreRuntimeFactory:
                         "config_file": str(staged_config),
                         "expected_version": None,
                         "output_directory": str(output_directory),
-                        "freeze_collisions": package.package_id == "mixed-automation-obstacle",
+                        "freeze_collisions": package.package_id
+                        in {
+                            "mixed-automation-obstacle",
+                            "mixed-automation-occasional-accident",
+                        },
                     }
                 ),
                 "carla": self._scenario.carla.model_copy(update={"mode": RequirementMode.DISABLED}),

@@ -67,6 +67,12 @@ class MapLibreDeckMapWidget(QWebEngineView):
         self._dispatch("setVehicles", payload)
 
     @Slot(object)
+    def set_collision_vehicle_ids(self, vehicle_ids: object) -> None:
+        values = vehicle_ids if isinstance(vehicle_ids, (tuple, list, set, frozenset)) else ()
+        payload = sorted(value for value in values if isinstance(value, str))
+        self._dispatch("setCollisionVehicleIds", payload)
+
+    @Slot(object)
     def set_traffic_lights(self, lights: object) -> None:
         values = lights if isinstance(lights, tuple) else ()
         payload = [

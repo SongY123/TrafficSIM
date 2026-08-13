@@ -50,6 +50,7 @@ class RunViewModel(QObject):
     selected_map_changed = Signal(str)
     network_changed = Signal(object)
     vehicles_changed = Signal(object)
+    collisions_changed = Signal(object)
     traffic_lights_changed = Signal(object)
     component_health_changed = Signal(object)
     experiment_status_changed = Signal(str)
@@ -597,6 +598,8 @@ class RunViewModel(QObject):
                     self._world.simulation_time_ms,
                 )
                 self.vehicles_changed.emit(vehicles)
+            if update.collisions_changed:
+                self.collisions_changed.emit(tuple(sorted(self._world.collision_vehicle_ids)))
             if update.traffic_lights_changed:
                 self.traffic_lights_changed.emit(tuple(self._world.traffic_lights.values()))
             if update.health_changed:
@@ -795,6 +798,7 @@ class RunViewModel(QObject):
         self.experiment_status_changed.emit("NOT_CREATED")
         self.simulation_time_changed.emit(0)
         self.vehicles_changed.emit(())
+        self.collisions_changed.emit(())
         self.traffic_lights_changed.emit(())
         self._reset_live_metrics()
         self._emit_controls()

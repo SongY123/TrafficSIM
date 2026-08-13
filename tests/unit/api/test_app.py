@@ -194,8 +194,13 @@ def test_workspace_search_create_rename_overview_and_delete(tmp_path: Path) -> N
 
         overview = client.get(f"/api/v1/workspaces/{workspace_id}/overview")
         assert overview.status_code == 200
-        assert overview.json()["workspace_id"] == workspace_id
-        assert overview.json()["recent_simulations"]
+        overview_payload = overview.json()
+        assert overview_payload["workspace_id"] == workspace_id
+        assert overview_payload["agent_count"] == 200
+        assert overview_payload["scenario_count"] == 4
+        assert overview_payload["simulation_count"] <= 34
+        assert overview_payload["runtime_hours"] <= 12
+        assert overview_payload["recent_simulations"]
 
         configured_agent = client.post(
             f"/api/v1/workspaces/{workspace_id}/agent-assets",

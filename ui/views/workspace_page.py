@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.models import MapSummary, WorkspaceOverview, WorkspaceSummary
+from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary, WorkspaceOverview, WorkspaceSummary
 from ui.views.components import PAGE_CONTENT_MARGIN, empty_state, metric_card, panel
 from ui.widgets import MapLibreDeckMapWidget
 
@@ -215,7 +215,7 @@ class WorkspaceOverviewPage(QWidget):
         values = {
             "map_count": f"{overview.map_count:,}",
             "agent_count": f"{overview.agent_count:,}",
-            "scenario_count": f"{overview.scenario_count:,}",
+            "scenario_count": f"{len(TRAFFIC_SCENARIO_PRESETS):,}",
             "simulation_count": f"{overview.simulation_count:,}",
             "total": f"{overview.simulation_count:,}",
             "succeeded": f"{overview.succeeded_simulations:,}",
@@ -298,8 +298,8 @@ class WorkspaceOverviewPage(QWidget):
         metrics.setSpacing(12)
         definitions = (
             ("map_count", "地图数量", "工作区地图资产"),
-            ("agent_count", "智能体数量", "mock 总览数据"),
-            ("scenario_count", "场景个数", "工作区场景配置"),
+            ("agent_count", "智能体数量", "当前工作区车辆规模"),
+            ("scenario_count", "场景个数", "实际可运行场景"),
             ("simulation_count", "仿真次数", "累计运行记录"),
         )
         for column, (key, label, detail) in enumerate(definitions):
@@ -342,7 +342,7 @@ class WorkspaceOverviewPage(QWidget):
             show_legend=False,
         )
         self.preview_map.setObjectName("workspacePreviewMap")
-        self.preview_map.setMinimumHeight(260)
+        self.preview_map.setMinimumHeight(520)
         preview_layout.addWidget(self.preview_map, 1)
         self.preview_status = QLabel("正在加载标准路网预览……")
         self.preview_status.setObjectName("workspacePreviewStatus")
@@ -382,7 +382,7 @@ class WorkspaceOverviewPage(QWidget):
         self.recent_table.horizontalHeader().setStretchLastSection(True)
         self.recent_table.verticalHeader().hide()
         self.recent_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        return panel("近期仿真", self.recent_table, kicker="Mock 接口数据")
+        return panel("近期仿真", self.recent_table, kicker="近期运行记录")
 
     def _reset_overview(self) -> None:
         for label in (*self._metric_values.values(), *self._automation_values.values()):

@@ -59,7 +59,7 @@ def test_map_source_uses_interleaved_meter_offset_layers_with_snapshot_interpola
     assert "lineJointRounded: true" in source
     assert source.count("new GeoJsonLayer") == 6
     assert source.count("new ScatterplotLayer") == 6
-    assert source.count("new PolygonLayer") == 4
+    assert source.count("new PolygonLayer") == 5
     assert "new ScenegraphLayer" not in source
     assert "new LightingEffect" in source
     assert "../../assets/models/truck/truck.gltf" not in source
@@ -220,6 +220,7 @@ def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     models = (MAP_WEB_ROOT / "src/vehicle_models.mjs").read_text(encoding="utf-8")
     style = (MAP_WEB_ROOT / "src/style.js").read_text(encoding="utf-8")
+    css = (MAP_WEB_ROOT / "styles.css").read_text(encoding="utf-8")
     bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
 
     assert "function orientedVehiclePoint(vehicle, forwardM, lateralM" in source
@@ -228,6 +229,7 @@ def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     assert "function vehiclePartColor(part)" in source
     assert 'id: "trafficverse-vehicle-shadows"' in source
     assert 'id: "trafficverse-vehicle-dots"' in source
+    assert 'id: "trafficverse-compact-ambulances"' in source
     assert 'id: "trafficverse-vehicle-bodies"' in source
     assert 'id: "trafficverse-vehicle-details"' in source
     assert 'id: "trafficverse-vehicle-headlights"' in source
@@ -237,20 +239,40 @@ def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     assert "map.getZoom() >= LAYER_STYLE.detailedVehicleMinZoom" in source
     assert "const detailedVehicles = showDetailedVehicles ? vehicles : []" in source
     assert "const compactVehicles = showDetailedVehicles ? [] : vehicles" in source
+    assert "const compactAmbulances = compactVehicles.filter(isAmbulance)" in source
+    assert "new IconLayer" in source
+    assert "COMPACT_AMBULANCE_ICON" in source
+    assert 'kind: "rear-marker"' in source
+    assert "vehicleTailLight" not in source
     assert 'map.on("zoomend", renderVehicleLayers)' in source
     assert "getFillColor: vehicleColor" in source
     assert all(f'"{kind}"' in models for kind in ("sedan", "truck", "trailer", "ambulance"))
     assert "isAmbulanceVehicle" in models
     assert "stableStringHash" in models
-    assert "L0: [48, 196, 210]" in style
-    assert "L0: [0, 143, 166]" in style
+    assert "L0: [231, 229, 228]" in style
+    assert "L0: [168, 162, 158]" in style
+    assert style.count("L5: [0, 0, 0]") == 4
+    assert 'vehicle.automation_level === "L5" ? theme.vehicleOutline' in source
+    assert css.count("--l5: #000000") == 2
+    assert ':root:not([data-theme="light"]) .legend-icon.l5' in css
+    assert "vehicleTailLight" not in style
     assert "emergencyVehicle: [239, 68, 68]" in style
     assert "emergencyVehicle: [220, 38, 38]" in style
     assert "trafficverse-vehicle-bodies" in bundle
     assert "trafficverse-vehicle-dots" in bundle
+    assert "trafficverse-compact-ambulances" in bundle
     assert "trafficverse-vehicle-details" in bundle
     assert "trafficverse-vehicle-headlights" in bundle
     assert "trafficverse-emergency-highlight" in bundle
+
+
+def test_map_fits_the_complete_occasional_accident_vehicle_group() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
+
+    assert 'vehicleId.startsWith("accident_")' in source
+    assert '.startsWith("accident_")' in source
+    assert "accident_" in bundle
 
 
 def test_map_hud_has_a_safe_inset_from_the_webview_edge() -> None:
@@ -299,6 +321,38 @@ def test_map_legend_visibility_can_be_controlled_by_the_qt_host() -> None:
     assert "setLegendVisible" in bundle
     assert "show_legend: bool = True" in host
     assert 'self._dispatch("setLegendVisible", show_legend)' in host
+
+
+def test_legend_free_preview_uses_symmetric_padding_to_center_the_network() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+
+    assert "legendVisible: true" in source
+    assert "const verticalPaddingPx = state.legendVisible ? 100 : 46" in source
+    assert "top: verticalPaddingPx" in source
+    assert "bottom: 46" in source
+
+
+def test_map_renders_authoritative_collision_ids_as_one_rectangular_accident_zone() -> None:
+    source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    host = (MAP_WEB_ROOT.parents[1] / "widgets/maplibre_deck_map.py").read_text(encoding="utf-8")
+
+    assert "collisionVehicleIds: new Set()" in source
+    assert "function collisionZonePolygon(vehicles)" in source
+    assert "vehicles.flatMap((vehicle) => vehicleBodyPolygon(vehicle))" in source
+    assert "collisionZonePaddingM" in source
+    assert "Math.max(9" not in source
+    assert "Math.max(5.5" not in source
+    assert 'id: "trafficverse-collision-zone"' in source
+    assert "data: collisionZonePolygon(collisionVehicles)" in source
+    assert "trafficverse-collision-halos" not in source
+    assert "trafficverse-collision-markers" not in source
+    assert "setCollisionVehicleIds(vehicleIds)" in source
+    assert "const hadCollisions = state.collisionVehicleIds.size > 0" in source
+    assert "if (!hadCollisions && state.collisionVehicleIds.size > 0)" in source
+    assert "state.followScenarioVehicles = true" in source
+    assert "fitScenarioVehicles();" in source
+    assert "def set_collision_vehicle_ids" in host
+    assert 'self._dispatch("setCollisionVehicleIds", payload)' in host
 
 
 def test_truck_model_is_local_and_checksum_documented() -> None:

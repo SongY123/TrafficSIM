@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edges>
+    <edge
+        id="road_approach"
+        from="start"
+        to="turn"
+        type="urban_two_lane"
+        shape="0.0,0.0 510.0,0.0" />
+    <edge
+        id="road_curve"
+        from="turn"
+        to="end"
+        type="urban_two_lane"
+        shape="510.0,0.0 560.0,30.0 650.0,56.0 740.0,60.0 1000.0,60.0" />
+    <edge
+        id="right_exit"
+        from="turn"
+        to="right_end"
+        type="urban_right_turn"
+        shape="510.0,0.0 530.0,-5.0 555.0,-20.0 575.0,-45.0 595.0,-80.0 630.0,-120.0" />
+</edges>

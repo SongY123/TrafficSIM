@@ -9,7 +9,12 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
 )
-from ui.models import MapSummary, WorkspaceOverview, WorkspaceSummary
+from ui.models import (
+    TRAFFIC_SCENARIO_PRESETS,
+    MapSummary,
+    WorkspaceOverview,
+    WorkspaceSummary,
+)
 from ui.views.navigation import WorkspaceNavigationRail
 from ui.views.theme import ThemeMode, load_stylesheet
 from ui.views.workspace_page import WorkspaceDeleteDialog, WorkspaceOverviewPage
@@ -117,20 +122,20 @@ def test_workspace_overview_renders_mock_contract_and_enters() -> None:
             {
                 "workspace_id": str(workspace.workspace_id),
                 "map_count": 12,
-                "agent_count": 250000,
-                "scenario_count": 158,
-                "simulation_count": 1284,
-                "automation_counts": [{"level": "L4", "count": 2800}],
-                "succeeded_simulations": 1250,
-                "failed_simulations": 34,
-                "runtime_hours": 4582.0,
-                "activity": [{"day": "2026-07-19", "simulations": 49}],
+                "agent_count": 200,
+                "scenario_count": 999,
+                "simulation_count": 24,
+                "automation_counts": [{"level": "L4", "count": 30}],
+                "succeeded_simulations": 23,
+                "failed_simulations": 1,
+                "runtime_hours": 8.4,
+                "activity": [{"day": "2026-07-19", "simulations": 3}],
                 "recent_simulations": [
                     {
                         "name": "Peak_Hour",
                         "status": "SUCCEEDED",
                         "occurred_at": "2026-07-19T08:30:00Z",
-                        "duration_ms": 7200000,
+                        "duration_ms": 1500000,
                         "automation_summary": "L3 · 45%",
                     }
                 ],
@@ -151,8 +156,10 @@ def test_workspace_overview_renders_mock_contract_and_enters() -> None:
     enter_button.click()
     labels = {label.text() for label in page.findChildren(QLabel)}
 
-    assert "1,284" in labels
-    assert "250,000" in labels
+    assert "24" in labels
+    assert "200" in labels
+    assert str(len(TRAFFIC_SCENARIO_PRESETS)) in labels
+    assert "999" not in labels
     assert entered == [True]
     page.close()
 
@@ -175,6 +182,7 @@ def test_workspace_region_preview_renders_the_selected_standard_network() -> Non
 
     preview = page.findChild(MapLibreDeckMapWidget, "workspacePreviewMap")
     assert preview is not None
+    assert preview.minimumHeight() == 520
     assert preview._pending["setLegendVisible"] is False
     assert preview._pending["setNetwork"] == network
     assert page.preview_status.text() == "已加载标准路网预览"

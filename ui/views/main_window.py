@@ -191,6 +191,7 @@ class MainWindow(QMainWindow):
         vm.network_changed.connect(self.scene_page.set_preview_network)
         vm.network_changed.connect(self.workspace_page.set_preview_network)
         vm.vehicles_changed.connect(self._set_vehicles)
+        vm.collisions_changed.connect(self._set_collision_vehicle_ids)
         vm.traffic_lights_changed.connect(self._set_traffic_lights)
         vm.live_metrics_changed.connect(self._set_live_metrics)
         vm.experiment_status_changed.connect(self._set_status)
@@ -461,6 +462,11 @@ class MainWindow(QMainWindow):
     def _set_vehicles(self, vehicles: object) -> None:
         if not self._replay_viewmodel.active:
             self.live_page.map_widget.set_vehicles(vehicles)
+
+    @Slot(object)
+    def _set_collision_vehicle_ids(self, vehicle_ids: object) -> None:
+        if not self._replay_viewmodel.active:
+            self.live_page.map_widget.set_collision_vehicle_ids(vehicle_ids)
 
     @Slot(object)
     def _set_traffic_lights(self, lights: object) -> None:

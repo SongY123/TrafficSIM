@@ -44,6 +44,10 @@ _SCENARIO_METRICS = {
         (41.4, 48.1, 54.7, 61.0, 65.2, 75.8),
         (0, 0, 0, 0, 0, 0),
     ),
+    "mixed-automation-occasional-accident": (
+        (41.8, 43.2, 44.0, 44.8, 45.6, 46.4),
+        (2, 0, 0, 0, 0, 0),
+    ),
 }
 
 
@@ -396,9 +400,9 @@ class TrafficScenePage(QWidget):
         metrics_layout.addWidget(speed_label)
         self.speed_chart = _SpeedBarChart()
         metrics_layout.addWidget(self.speed_chart)
-        collision_label = QLabel("碰撞数量")
-        collision_label.setObjectName("trafficSceneChartLabel")
-        metrics_layout.addWidget(collision_label)
+        self.collision_label = QLabel("碰撞次数")
+        self.collision_label.setObjectName("trafficSceneChartLabel")
+        metrics_layout.addWidget(self.collision_label)
         self.collision_chart = _CollisionBarChart()
         metrics_layout.addWidget(self.collision_chart)
         grid.addWidget(self.metrics_panel, 0, 1)
@@ -415,6 +419,16 @@ class TrafficScenePage(QWidget):
         if map_id == self._selected_scenario.map_id:
             self.map_widget.set_network(network)
             self.map_widget.set_vehicles(scenario_preview_vehicles(self._selected_scenario))
+            collision_vehicle_ids = (
+                (
+                    "accident_actor_L0_0",
+                    "accident_victim_L0_0",
+                    "accident_follow_L0_0",
+                )
+                if self._selected_scenario.scenario_id == "mixed-automation-occasional-accident"
+                else ()
+            )
+            self.map_widget.set_collision_vehicle_ids(collision_vehicle_ids)
 
     def set_scenario(self, preset: TrafficScenarioPreset) -> None:
         self._selected_scenario = preset
@@ -426,9 +440,15 @@ class TrafficScenePage(QWidget):
         self.summary_values["step"].setText("步长 · 50 ms")
         self.map_widget.set_network({"type": "FeatureCollection", "features": []})
         self.map_widget.set_vehicles(())
+        self.map_widget.set_collision_vehicle_ids(())
         for level, description in preset.level_behaviors:
             self.level_descriptions[level].setText(description)
         speeds, collisions = _SCENARIO_METRICS[preset.scenario_id]
+        self.collision_label.setText(
+            "碰撞次数 · 3辆事故车"
+            if preset.scenario_id == "mixed-automation-occasional-accident"
+            else "碰撞次数"
+        )
         self.speed_chart.set_values(dict(zip(_LEVELS, speeds, strict=True)))
         self.collision_chart.set_values(dict(zip(_LEVELS, collisions, strict=True)))
         self._sync_availability()

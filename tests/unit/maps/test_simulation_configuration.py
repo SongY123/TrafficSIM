@@ -14,6 +14,9 @@ from trafficverse.domain.models import AutomationDemand, SimulationConfiguration
 from trafficverse.maps.simulation_configuration import SumoSimulationConfigurationStore
 from trafficverse.maps.sumo_package import load_sumo_package
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+ACCIDENT_PACKAGE_ID = "mixed-automation-occasional-accident"
+
 
 def _package(maps_root: Path, *, include_route: bool = True) -> Path:
     package = maps_root / "demo"
@@ -163,6 +166,58 @@ def test_save_with_empty_automation_demand_preserves_original_route_file(
     assert route_option is not None
     assert end_option.attrib["value"] == "60"
     assert route_option.attrib["value"] == "demo.rou.xml"
+
+
+def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
+    tmp_path: Path,
+) -> None:
+    maps_root = REPOSITORY_ROOT / "configs/maps"
+    package = load_sumo_package(
+        maps_root / ACCIDENT_PACKAGE_ID / f"{ACCIDENT_PACKAGE_ID}.sumocfg",
+        allowed_root=maps_root,
+    )
+    store = SumoSimulationConfigurationStore(
+        package_resolver=lambda map_id: package if map_id == ACCIDENT_PACKAGE_ID else None,
+        configuration_root=tmp_path / "configs/configs",
+        simulation_artifact_root=tmp_path / "artifacts/simulations",
+        test_artifact_root=tmp_path / "artifacts/tests",
+        now=lambda: datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    draft = SimulationConfigurationDraft(
+        workspace_id=UUID("10000000-0000-0000-0000-000000000001"),
+        scenario_id=UUID("20000000-0000-0000-0000-000000000002"),
+        scene_name="偶发事故",
+        description="固定事故台本",
+        map_id=ACCIDENT_PACKAGE_ID,
+        duration_ms=60_000,
+        automation_demands=(
+            AutomationDemand(level=AutomationLevel.L0, vehicle_count=3),
+            AutomationDemand(level=AutomationLevel.L1, vehicle_count=1),
+            AutomationDemand(level=AutomationLevel.L3, vehicle_count=1),
+            AutomationDemand(level=AutomationLevel.L5, vehicle_count=1),
+        ),
+    )
+
+    snapshot = store.save(draft)
+
+    route_path = (
+        tmp_path
+        / "configs/configs"
+        / snapshot.configuration_id
+        / ACCIDENT_PACKAGE_ID
+        / f"{ACCIDENT_PACKAGE_ID}.rou.xml"
+    )
+    route_root = ElementTree.parse(route_path).getroot()
+    vehicle_ids = {vehicle.attrib["id"] for vehicle in route_root.findall("vehicle")}
+    assert vehicle_ids == {
+        "accident_parked_L0_0",
+        "accident_actor_L0_0",
+        "accident_victim_L0_0",
+        "accident_follow_L0_0",
+        "accident_follow_L1_0",
+        "accident_follow_L3_0",
+        "accident_follow_L5_0",
+    }
 
 
 @pytest.mark.parametrize(

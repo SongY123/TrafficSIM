@@ -41,6 +41,7 @@ def test_load_sumo_package_resolves_inputs_timing_and_output_directories(tmp_pat
     package = load_sumo_package(config, allowed_root=tmp_path)
 
     assert package.package_id == "scene"
+    assert package.traffic_demand_mode == "generated"
     assert package.network_path == (tmp_path / "scene/scene.net.xml").resolve()
     assert package.route_paths == ((tmp_path / "scene/scene.rou.xml").resolve(),)
     assert package.begin_time_ms == 5000
@@ -100,6 +101,30 @@ def test_load_sumo_package_uses_sumo_time_defaults(tmp_path: Path) -> None:
     assert package.begin_time_ms == 0
     assert package.end_time_ms is None
     assert package.step_ms == 1000
+
+
+def test_load_sumo_package_reads_scripted_traffic_demand_mode(tmp_path: Path) -> None:
+    config = _write_package(tmp_path / "scene")
+    (config.parent / "scene.manifest.json").write_text(
+        '{"spec":{"name":"固定台本","trafficDemandMode":"scripted"}}\n',
+        encoding="utf-8",
+    )
+
+    package = load_sumo_package(config, allowed_root=tmp_path)
+
+    assert package.display_name == "固定台本"
+    assert package.traffic_demand_mode == "scripted"
+
+
+def test_load_sumo_package_rejects_unknown_traffic_demand_mode(tmp_path: Path) -> None:
+    config = _write_package(tmp_path / "scene")
+    (config.parent / "scene.manifest.json").write_text(
+        '{"spec":{"trafficDemandMode":"typo"}}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SumoPackageError, match="trafficDemandMode"):
+        load_sumo_package(config, allowed_root=tmp_path)
 
 
 def test_stage_sumo_package_preserves_inputs_and_excludes_previous_outputs(

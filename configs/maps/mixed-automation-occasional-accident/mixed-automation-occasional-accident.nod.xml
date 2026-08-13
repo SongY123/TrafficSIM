@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nodes>
+    <node id="start" x="0.0" y="0.0" type="dead_end" />
+    <node id="turn" x="510.0" y="0.0" type="priority" />
+    <node id="end" x="1000.0" y="60.0" type="dead_end" />
+    <node id="right_end" x="630.0" y="-120.0" type="dead_end" />
+</nodes>

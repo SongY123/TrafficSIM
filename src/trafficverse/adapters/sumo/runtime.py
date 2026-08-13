@@ -141,6 +141,24 @@ class PythonSumoRuntime:
     def set_vehicle_lane_change_mode(self, vehicle_id: str, mode: int) -> None:
         self._require_connection().vehicle.setLaneChangeMode(vehicle_id, mode)
 
+    def set_vehicle_pose(
+        self,
+        vehicle_id: str,
+        x_m: float,
+        y_m: float,
+        angle_deg: float,
+    ) -> None:
+        self._require_connection().vehicle.moveToXY(
+            vehicle_id,
+            "",
+            -1,
+            x_m,
+            y_m,
+            angle=angle_deg,
+            keepRoute=2,
+            matchThreshold=100.0,
+        )
+
     def colliding_vehicle_ids(self) -> tuple[str, ...]:
         values = self._require_connection().simulation.getCollidingVehiclesIDList()
         return tuple(sorted(str(value) for value in values))

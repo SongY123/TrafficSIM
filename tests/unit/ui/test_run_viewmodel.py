@@ -945,6 +945,39 @@ def test_running_world_deltas_forward_new_vehicle_positions_to_the_map() -> None
     assert positions == [(1.0, 2.0), (8.0, 5.0)]
 
 
+def test_running_world_deltas_forward_collision_ids_to_the_map() -> None:
+    viewmodel, _, _ = _viewmodel()
+    _enter_workspace(viewmodel)
+    viewmodel.handle_rest_success(
+        "experiment.create",
+        {
+            "experiment_id": str(EXPERIMENT_ID),
+            "workspace_id": str(WORKSPACE_ID),
+            "status": "RUNNING",
+            "simulation_time_ms": 0,
+            "speed_multiplier": 1.0,
+        },
+    )
+    collisions: list[tuple[str, ...]] = []
+    viewmodel.collisions_changed.connect(collisions.append)
+
+    viewmodel.handle_envelope(
+        _envelope(
+            "vehicle.delta",
+            1,
+            {
+                "vehicles": [_vehicle(1, vehicle_id="accident_actor_L0_0")],
+                "collision_vehicle_ids": [
+                    "accident_actor_L0_0",
+                    "accident_victim_L0_0",
+                ],
+            },
+        )
+    )
+
+    assert collisions == [("accident_actor_L0_0", "accident_victim_L0_0")]
+
+
 def test_live_metrics_track_active_total_speed_and_completed_travel_time() -> None:
     viewmodel, _, _ = _viewmodel()
     _enter_workspace(viewmodel)

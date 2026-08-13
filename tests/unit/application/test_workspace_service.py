@@ -34,7 +34,11 @@ def test_workspace_crud_search_and_mock_overview() -> None:
 
         assert renamed.name == "北京核心区"
         assert overview.workspace_id == created.workspace_id
-        assert overview.simulation_count > 0
+        assert overview.agent_count == 200
+        assert sum(item.count for item in overview.automation_counts) == 200
+        assert overview.scenario_count == 4
+        assert 18 <= overview.simulation_count <= 34
+        assert overview.runtime_hours <= 12
         assert overview.recent_simulations
 
         await service.delete(created.workspace_id)

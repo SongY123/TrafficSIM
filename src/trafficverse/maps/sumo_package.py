@@ -8,6 +8,7 @@ import shutil
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from trafficverse.maps.errors import SumoPackageError
 
@@ -33,6 +34,7 @@ class SumoScenarioPackage:
 
     package_id: str
     display_name: str
+    traffic_demand_mode: Literal["generated", "scripted"]
     asset_root: Path
     directory: Path
     config_path: Path
@@ -121,6 +123,7 @@ def load_sumo_package(
         sorted({path for paths in resolved_inputs.values() for path in paths}, key=str)
     )
     optional_manifest = next(iter(sorted(directory.glob("*.manifest.json"))), None)
+    manifest_spec = _manifest_spec(optional_manifest)
     tracked_paths = {resolved_config, *all_input_paths}
     if optional_manifest is not None:
         tracked_paths.add(optional_manifest.resolve())
@@ -129,7 +132,8 @@ def load_sumo_package(
     )
     return SumoScenarioPackage(
         package_id=package_name,
-        display_name=_display_name(optional_manifest, fallback=package_name),
+        display_name=_display_name(manifest_spec, fallback=package_name),
+        traffic_demand_mode=_traffic_demand_mode(manifest_spec),
         asset_root=resolved_root,
         directory=directory,
         config_path=resolved_config,
@@ -223,20 +227,37 @@ def _optional_end_time_ms(root: ElementTree.Element) -> int | None:
     return value if value >= 0 else None
 
 
-def _display_name(manifest_path: Path | None, *, fallback: str) -> str:
+def _manifest_spec(manifest_path: Path | None) -> dict[str, object]:
     if manifest_path is None:
-        return fallback
+        return {}
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return fallback
+    except (OSError, json.JSONDecodeError) as error:
+        raise SumoPackageError(f"invalid SUMO package manifest: {manifest_path.name}") from error
     if not isinstance(payload, dict):
-        return fallback
+        raise SumoPackageError("SUMO package manifest must be a JSON object")
     spec = payload.get("spec")
+    if spec is None:
+        return {}
     if not isinstance(spec, dict):
-        return fallback
+        raise SumoPackageError("SUMO package manifest spec must be a JSON object")
+    return spec
+
+
+def _display_name(spec: dict[str, object], *, fallback: str) -> str:
     name = spec.get("name")
     return name.strip() if isinstance(name, str) and name.strip() else fallback
+
+
+def _traffic_demand_mode(
+    spec: dict[str, object],
+) -> Literal["generated", "scripted"]:
+    value = spec.get("trafficDemandMode", "generated")
+    if value == "generated":
+        return "generated"
+    if value == "scripted":
+        return "scripted"
+    raise SumoPackageError("SUMO package manifest trafficDemandMode must be generated or scripted")
 
 
 def _output_directories(

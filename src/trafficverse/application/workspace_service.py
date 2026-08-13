@@ -41,31 +41,31 @@ class WorkspaceService:
         """Return stable mock data behind the final overview interface."""
         workspace = await self.get(workspace_id)
         offset = workspace.workspace_id.int % 17
-        simulations = 1_284 + offset * 13
-        failed = 34 + offset
+        simulations = 18 + offset
+        failed = 1 + offset % 3
         return WorkspaceOverview(
             workspace_id=workspace.workspace_id,
-            map_count=12 + offset,
-            agent_count=250_000 + offset * 100,
-            scenario_count=158 + offset * 3,
+            map_count=6,
+            agent_count=200,
+            scenario_count=4,
             simulation_count=simulations,
             automation_counts=(
-                WorkspaceAutomationCount(level="L0", count=12_400),
-                WorkspaceAutomationCount(level="L1", count=8_200),
-                WorkspaceAutomationCount(level="L2", count=15_600),
-                WorkspaceAutomationCount(level="L3", count=4_100),
-                WorkspaceAutomationCount(level="L4", count=2_800),
-                WorkspaceAutomationCount(level="L5", count=450),
-                WorkspaceAutomationCount(level="其他交通参与方", count=85_200),
+                WorkspaceAutomationCount(level="L0", count=30),
+                WorkspaceAutomationCount(level="L1", count=30),
+                WorkspaceAutomationCount(level="L2", count=35),
+                WorkspaceAutomationCount(level="L3", count=35),
+                WorkspaceAutomationCount(level="L4", count=30),
+                WorkspaceAutomationCount(level="L5", count=25),
+                WorkspaceAutomationCount(level="其他交通参与方", count=15),
             ),
             succeeded_simulations=simulations - failed,
             failed_simulations=failed,
-            runtime_hours=4_582.0 + offset * 7.5,
+            runtime_hours=simulations * 0.35,
             activity=tuple(
-                WorkspaceActivitySample(day=date(2026, 7, day), simulations=value + offset)
+                WorkspaceActivitySample(day=date(2026, 7, day), simulations=value + offset % 2)
                 for day, value in zip(
                     range(13, 20),
-                    (38, 27, 51, 43, 56, 34, 49),
+                    (2, 3, 1, 4, 3, 2, 3),
                     strict=True,
                 )
             ),
@@ -74,21 +74,21 @@ class WorkspaceService:
                     name="Peak_Hour_Mix_01",
                     status="SUCCEEDED",
                     occurred_at=datetime(2026, 7, 19, 8, 30, tzinfo=timezone.utc),
-                    duration_ms=7_200_000,
+                    duration_ms=1_500_000,
                     automation_summary="L3 · 45%",
                 ),
                 WorkspaceRecentSimulation(
                     name="Intersection_Test_Night",
                     status="SUCCEEDED",
                     occurred_at=datetime(2026, 7, 18, 22, 15, tzinfo=timezone.utc),
-                    duration_ms=2_700_000,
+                    duration_ms=1_200_000,
                     automation_summary="L4 · 10%",
                 ),
                 WorkspaceRecentSimulation(
                     name="Highway_Merge_Stress",
                     status="WARNING",
                     occurred_at=datetime(2026, 7, 17, 14, 0, tzinfo=timezone.utc),
-                    duration_ms=5_400_000,
+                    duration_ms=1_800_000,
                     automation_summary="L2 · 60%",
                 ),
             ),

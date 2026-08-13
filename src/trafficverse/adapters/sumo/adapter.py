@@ -56,7 +56,7 @@ class SumoTrafficEngineAdapter:
         self._departed_vehicle_ids: tuple[str, ...] = ()
         self._arrived_vehicle_ids: tuple[str, ...] = ()
         self._rejected_control_vehicle_ids: tuple[str, ...] = ()
-        self._frozen_collision_vehicle_ids: set[str] = set()
+        self._frozen_collision_poses: dict[str, SumoVehicleSample] = {}
         self._collision_vehicle_ids: set[str] = set()
 
     def load(self, config: SumoConfig) -> None:
@@ -91,7 +91,7 @@ class SumoTrafficEngineAdapter:
         self._config = config
         self._version = version
         self._simulation_time_ms = initial_time_ms
-        self._frozen_collision_vehicle_ids.clear()
+        self._frozen_collision_poses.clear()
         self._collision_vehicle_ids.clear()
         self._connected = True
 
@@ -127,12 +127,18 @@ class SumoTrafficEngineAdapter:
             except Exception:
                 rejected.append(vehicle_id)
         if config.freeze_collisions:
-            for vehicle_id in tuple(sorted(self._frozen_collision_vehicle_ids)):
+            for vehicle_id, pose in tuple(sorted(self._frozen_collision_poses.items())):
                 try:
                     self._runtime.set_vehicle_speed_mode(vehicle_id, 0)
                     self._runtime.set_vehicle_speed(vehicle_id, 0.0)
+                    self._runtime.set_vehicle_pose(
+                        vehicle_id,
+                        pose.x_m,
+                        pose.y_m,
+                        pose.angle_deg,
+                    )
                 except Exception:
-                    self._frozen_collision_vehicle_ids.discard(vehicle_id)
+                    self._frozen_collision_poses.pop(vehicle_id, None)
         self._rejected_control_vehicle_ids = tuple(rejected)
 
     def step(self, target_time_ms: int) -> TrafficSnapshot:
@@ -161,15 +167,10 @@ class SumoTrafficEngineAdapter:
             current_collision_ids = set(self._runtime.colliding_vehicle_ids())
             self._collision_vehicle_ids.update(current_collision_ids)
             if config.freeze_collisions:
-                present_ids = {sample.vehicle_id for sample in vehicle_samples}
-                self._frozen_collision_vehicle_ids.intersection_update(present_ids)
-                collision_ids = current_collision_ids & present_ids
-                for vehicle_id in sorted(collision_ids):
-                    self._runtime.set_vehicle_speed_mode(vehicle_id, 0)
-                    self._runtime.set_vehicle_speed(vehicle_id, 0.0)
-                self._frozen_collision_vehicle_ids.update(collision_ids)
-                if collision_ids:
-                    vehicle_samples = self._runtime.vehicle_samples()
+                vehicle_samples = self._freeze_collision_poses(
+                    vehicle_samples,
+                    current_collision_ids,
+                )
             traffic_light_samples = self._runtime.traffic_light_samples()
         except TrafficVerseError:
             raise
@@ -241,6 +242,30 @@ class SumoTrafficEngineAdapter:
             risk_score=0.0,
             route_id=sample.route_id or None,
         )
+
+    def _freeze_collision_poses(
+        self,
+        vehicle_samples: tuple[SumoVehicleSample, ...],
+        current_collision_ids: set[str],
+    ) -> tuple[SumoVehicleSample, ...]:
+        samples_by_id = {sample.vehicle_id: sample for sample in vehicle_samples}
+        self._frozen_collision_poses = {
+            vehicle_id: pose
+            for vehicle_id, pose in self._frozen_collision_poses.items()
+            if vehicle_id in samples_by_id
+        }
+        for vehicle_id in sorted(current_collision_ids & samples_by_id.keys()):
+            self._frozen_collision_poses.setdefault(vehicle_id, samples_by_id[vehicle_id])
+        for vehicle_id, pose in sorted(self._frozen_collision_poses.items()):
+            self._runtime.set_vehicle_speed_mode(vehicle_id, 0)
+            self._runtime.set_vehicle_speed(vehicle_id, 0.0)
+            self._runtime.set_vehicle_pose(
+                vehicle_id,
+                pose.x_m,
+                pose.y_m,
+                pose.angle_deg,
+            )
+        return self._runtime.vehicle_samples() if self._frozen_collision_poses else vehicle_samples
 
     def _require_config(self) -> SumoConfig:
         if not self._connected or self._config is None:

@@ -24,6 +24,10 @@ class FakeSumoRuntime:
         self.acceleration_calls: list[tuple[str, float, float]] = []
         self.lane_calls: list[tuple[str, int, float]] = []
         self.lane_mode_calls: list[tuple[str, int]] = []
+        self.pose_calls: list[tuple[str, float, float, float]] = []
+        self.position_x_m = 10.0
+        self.position_y_m = 20.0
+        self.drift_y_per_step_m = 0.0
         self.closed = False
         self.connect_error: Exception | None = None
         self.fail_controls_for: set[str] = set()
@@ -38,6 +42,7 @@ class FakeSumoRuntime:
     def simulation_step(self, target_time_s: float) -> None:
         self.step_calls.append(target_time_s)
         self.time_s = target_time_s
+        self.position_y_m += self.drift_y_per_step_m
 
     def simulation_time_s(self) -> float:
         return self.time_s
@@ -52,8 +57,8 @@ class FakeSumoRuntime:
         return (
             SumoVehicleSample(
                 vehicle_id="vehicle-1",
-                x_m=10.0,
-                y_m=20.0,
+                x_m=self.position_x_m,
+                y_m=self.position_y_m,
                 z_m=0.0,
                 speed_mps=8.0,
                 acceleration_mps2=1.0,
@@ -87,6 +92,18 @@ class FakeSumoRuntime:
     def set_vehicle_lane_change_mode(self, vehicle_id: str, mode: int) -> None:
         self._check_control(vehicle_id)
         self.lane_mode_calls.append((vehicle_id, mode))
+
+    def set_vehicle_pose(
+        self,
+        vehicle_id: str,
+        x_m: float,
+        y_m: float,
+        angle_deg: float,
+    ) -> None:
+        self._check_control(vehicle_id)
+        self.pose_calls.append((vehicle_id, x_m, y_m, angle_deg))
+        self.position_x_m = x_m
+        self.position_y_m = y_m
 
     def colliding_vehicle_ids(self) -> tuple[str, ...]:
         return self.collision_ids
@@ -138,6 +155,22 @@ def test_step_keeps_cumulative_collision_vehicle_ids_after_the_collision_tick() 
     expected = ("target_L0_001", "target_L2_004")
     assert collision_snapshot.collision_vehicle_ids == expected
     assert later_snapshot.collision_vehicle_ids == expected
+
+
+def test_collision_freeze_preserves_the_contact_pose_after_lateral_drift() -> None:
+    runtime = FakeSumoRuntime()
+    runtime.collision_ids = ("vehicle-1",)
+    runtime.drift_y_per_step_m = 1.0
+    adapter = SumoTrafficEngineAdapter(UUID(int=11), runtime)
+    adapter.load(_config(freeze_collisions=True))
+
+    collision_snapshot = adapter.step(50)
+    runtime.collision_ids = ()
+    stopped_snapshot = adapter.step(100)
+
+    assert collision_snapshot.vehicles[0].position.y == 21.0
+    assert stopped_snapshot.vehicles[0].position.y == 21.0
+    assert runtime.pose_calls[-1] == ("vehicle-1", 10.0, 21.0, 90.0)
 
 
 def test_apply_controls_attempts_each_vehicle_and_records_rejections() -> None:

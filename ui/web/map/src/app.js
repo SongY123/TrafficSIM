@@ -4,7 +4,7 @@ import {
   DirectionalLight,
   LightingEffect
 } from "@deck.gl/core";
-import {GeoJsonLayer, PolygonLayer, ScatterplotLayer} from "@deck.gl/layers";
+import {GeoJsonLayer, IconLayer, PolygonLayer, ScatterplotLayer} from "@deck.gl/layers";
 import {MapboxOverlay} from "@deck.gl/mapbox";
 import maplibregl from "maplibre-gl";
 
@@ -23,7 +23,14 @@ const EMPTY_NETWORK = {type: "FeatureCollection", features: []};
 const FLAT_LAYER_PARAMETERS = {depthCompare: "always", depthWriteEnabled: false};
 const SUMO_LANE_ROLES = new Set(["sumo_lane", "sumo_internal_lane"]);
 const SUMO_JUNCTION_ROLE = "sumo_junction";
-
+const COMPACT_AMBULANCE_ICON = Object.freeze({
+  url: "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='black'/%3E%3C/svg%3E",
+  width: 16,
+  height: 16,
+  anchorX: 8,
+  anchorY: 8,
+  mask: true
+});
 function createLightingEffect(theme) {
   return new LightingEffect({
     ambientLight: new AmbientLight({color: theme.ambientLight, intensity: 1.55}),
@@ -45,6 +52,7 @@ const state = {
   junctionSurfaces: EMPTY_NETWORK,
   signalPoints: [],
   trafficLights: new Map(),
+  collisionVehicleIds: new Set(),
   vehicles: [], // Transient render models; authoritative state remains in the latest snapshot.
   authoritativeVehicles: [],
   vehicleAnimationFrame: null,
@@ -53,6 +61,7 @@ const state = {
   viewMode: "2d",
   selectedVehicleId: null,
   followScenarioVehicles: true,
+  legendVisible: true,
   theme: "light",
   lightingEffect: createLightingEffect(MAP_THEMES.light)
 };
@@ -388,8 +397,8 @@ function vehicleLightPoints(vehicles) {
     return [
       {vehicle, forwardM: halfLengthM - 0.12, lateralM: -model.lightLateralM, kind: "headlight"},
       {vehicle, forwardM: halfLengthM - 0.12, lateralM: model.lightLateralM, kind: "headlight"},
-      {vehicle, forwardM: -halfLengthM + 0.1, lateralM: -model.lightLateralM, kind: "tail-light"},
-      {vehicle, forwardM: -halfLengthM + 0.1, lateralM: model.lightLateralM, kind: "tail-light"}
+      {vehicle, forwardM: -halfLengthM + 0.1, lateralM: -model.lightLateralM, kind: "rear-marker"},
+      {vehicle, forwardM: -halfLengthM + 0.1, lateralM: model.lightLateralM, kind: "rear-marker"}
     ];
   });
 }
@@ -535,6 +544,27 @@ function signalLayers(phaseTrigger) {
   ];
 }
 
+function collisionZonePolygon(vehicles) {
+  if (vehicles.length === 0) {
+    return [];
+  }
+  const bodyPoints = vehicles.flatMap((vehicle) => vehicleBodyPolygon(vehicle));
+  const xValues = bodyPoints.map((position) => position[0]);
+  const yValues = bodyPoints.map((position) => position[1]);
+  const minX = Math.min(...xValues) - LAYER_STYLE.collisionZonePaddingM;
+  const maxX = Math.max(...xValues) + LAYER_STYLE.collisionZonePaddingM;
+  const minY = Math.min(...yValues) - LAYER_STYLE.collisionZonePaddingM;
+  const maxY = Math.max(...yValues) + LAYER_STYLE.collisionZonePaddingM;
+  return [{
+    polygon: [
+      [minX, minY, 0.04],
+      [maxX, minY, 0.04],
+      [maxX, maxY, 0.04],
+      [minX, maxY, 0.04]
+    ]
+  }];
+}
+
 function vehicleLayers() {
   const theme = activeTheme();
   const vehicles = state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle));
@@ -543,6 +573,11 @@ function vehicleLayers() {
   const showDetailedVehicles = map.getZoom() >= LAYER_STYLE.detailedVehicleMinZoom;
   const detailedVehicles = showDetailedVehicles ? vehicles : [];
   const compactVehicles = showDetailedVehicles ? [] : vehicles;
+  const collisionVehicles = vehicles.filter((vehicle) =>
+    state.collisionVehicleIds.has(vehicle.vehicle_id)
+  );
+  const compactAmbulances = compactVehicles.filter(isAmbulance);
+  const compactOrdinaryVehicles = compactVehicles.filter((vehicle) => !isAmbulance(vehicle));
   const common = {
     data: detailedVehicles,
     coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
@@ -551,6 +586,20 @@ function vehicleLayers() {
     onClick: selectVehicle
   };
   return [
+    new PolygonLayer({
+      id: "trafficverse-collision-zone",
+      data: collisionZonePolygon(collisionVehicles),
+      coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+      coordinateOrigin: [0, 0, 0],
+      getPolygon: (zone) => zone.polygon,
+      getFillColor: [249, 115, 22, 42],
+      getLineColor: [194, 65, 12, 245],
+      stroked: true,
+      getLineWidth: 2.5,
+      lineWidthUnits: "pixels",
+      pickable: false,
+      parameters: FLAT_LAYER_PARAMETERS
+    }),
     new ScatterplotLayer({
       id: "trafficverse-obstacle-halo",
       data: obstacles,
@@ -587,7 +636,7 @@ function vehicleLayers() {
     }),
     new ScatterplotLayer({
       id: "trafficverse-emergency-highlight",
-      data: ambulances,
+      data: showDetailedVehicles ? ambulances : [],
       coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
       coordinateOrigin: [0, 0, 0],
       getPosition: (vehicle) => toMapPosition(vehicle.position),
@@ -614,13 +663,14 @@ function vehicleLayers() {
     new ScatterplotLayer({
       ...common,
       id: "trafficverse-vehicle-dots",
-      data: compactVehicles,
+      data: compactOrdinaryVehicles,
       getPosition: (vehicle) => toMapPosition(vehicle.position),
       getFillColor: (vehicle) =>
         vehicle.vehicle_id === state.selectedVehicleId
           ? vehicleColor(vehicle)
           : vehicleColor(vehicle, 235),
-      getLineColor: (vehicle) => vehicleColor(vehicle),
+      getLineColor: (vehicle) =>
+        vehicle.automation_level === "L5" ? theme.vehicleOutline : vehicleColor(vehicle),
       getRadius: (vehicle) =>
         vehicle.vehicle_id === state.selectedVehicleId
           ? LAYER_STYLE.compactVehicleSelectedRadiusPx
@@ -633,6 +683,24 @@ function vehicleLayers() {
         getFillColor: [state.theme, state.selectedVehicleId],
         getLineColor: state.theme,
         getRadius: state.selectedVehicleId
+      }
+    }),
+    new IconLayer({
+      ...common,
+      id: "trafficverse-compact-ambulances",
+      data: compactAmbulances,
+      getPosition: (vehicle) => toMapPosition(vehicle.position),
+      getIcon: () => COMPACT_AMBULANCE_ICON,
+      getColor: (vehicle) => vehicleColor(vehicle),
+      getSize: (vehicle) =>
+        vehicle.vehicle_id === state.selectedVehicleId
+          ? LAYER_STYLE.compactVehicleSelectedRadiusPx * 2
+          : LAYER_STYLE.compactVehicleRadiusPx * 2,
+      sizeUnits: "pixels",
+      parameters: FLAT_LAYER_PARAMETERS,
+      updateTriggers: {
+        getColor: state.theme,
+        getSize: state.selectedVehicleId
       }
     }),
     new PolygonLayer({
@@ -670,7 +738,9 @@ function vehicleLayers() {
       getPosition: (light) =>
         orientedVehiclePoint(light.vehicle, light.forwardM, light.lateralM, 0.12),
       getFillColor: (light) =>
-        light.kind === "headlight" ? theme.vehicleHeadlight : theme.vehicleTailLight,
+        light.kind === "headlight"
+          ? theme.vehicleHeadlight
+          : vehicleAccentColor(light.vehicle, 225),
       getRadius: (light) =>
         light.kind === "headlight"
           ? LAYER_STYLE.vehicleHeadlightRadiusM
@@ -705,7 +775,10 @@ function updateMapStatus() {
   const roadCount = state.roadNetwork.features.length;
   const signalCount = state.signalPoints.length;
   const vehicleCount = state.authoritativeVehicles.length;
-  setStatus(`车道 ${roadCount} · 信号 ${signalCount} · 车辆 ${vehicleCount}`);
+  const collisionCount = state.collisionVehicleIds.size;
+  setStatus(
+    `车道 ${roadCount} · 信号 ${signalCount} · 车辆 ${vehicleCount} · 碰撞 ${collisionCount}`
+  );
 }
 
 function renderLayers() {
@@ -783,8 +856,9 @@ function resetView(duration = 500) {
   if (!state.networkBounds || state.networkBounds.isEmpty()) {
     return;
   }
+  const verticalPaddingPx = state.legendVisible ? 100 : 46;
   map.fitBounds(state.networkBounds, {
-    padding: {top: 100, right: 46, bottom: 46, left: 46},
+    padding: {top: verticalPaddingPx, right: 46, bottom: 46, left: 46},
     duration,
     maxZoom: 18,
     pitch: 0,
@@ -804,6 +878,11 @@ function scenarioVehicles() {
   }
   if (ids.some((vehicleId) => vehicleId === "ambulance_L5_0")) {
     return state.vehicles.filter((vehicle) => /^(yield_|ambulance_)/.test(vehicle.vehicle_id ?? ""));
+  }
+  if (ids.some((vehicleId) => vehicleId.startsWith("accident_"))) {
+    return state.vehicles.filter((vehicle) =>
+      (vehicle.vehicle_id ?? "").startsWith("accident_")
+    );
   }
   return [];
 }
@@ -909,6 +988,7 @@ document.getElementById("reset-view").addEventListener("click", () => resetView(
 
 window.TrafficVerseMap = {
   setLegendVisible(visible) {
+    state.legendVisible = Boolean(visible);
     document.getElementById("map-hud").hidden = !visible;
   },
   setNetwork(network) {
@@ -950,6 +1030,20 @@ window.TrafficVerseMap = {
   setVehicles(vehicles) {
     setVehicleSnapshot(Array.isArray(vehicles) ? vehicles : []);
     fitScenarioVehicles();
+  },
+  setCollisionVehicleIds(vehicleIds) {
+    const hadCollisions = state.collisionVehicleIds.size > 0;
+    state.collisionVehicleIds = new Set(
+      (Array.isArray(vehicleIds) ? vehicleIds : []).filter((vehicleId) =>
+        typeof vehicleId === "string"
+      )
+    );
+    renderVehicleLayers();
+    updateMapStatus();
+    if (!hadCollisions && state.collisionVehicleIds.size > 0) {
+      state.followScenarioVehicles = true;
+      fitScenarioVehicles();
+    }
   },
   setTrafficLights(trafficLights) {
     state.trafficLights = new Map(

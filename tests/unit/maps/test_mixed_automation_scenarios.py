@@ -13,7 +13,12 @@ MAP_ROOT = REPOSITORY_ROOT / "configs/maps"
 
 @pytest.mark.parametrize(
     "scenario_id",
-    ("mixed-automation-cutin", "mixed-automation-emergency-yield"),
+    (
+        "mixed-automation-obstacle",
+        "mixed-automation-cutin",
+        "mixed-automation-emergency-yield",
+        "mixed-automation-occasional-accident",
+    ),
 )
 def test_mixed_automation_package_is_self_contained_and_uses_core_step(
     scenario_id: str,
@@ -23,6 +28,7 @@ def test_mixed_automation_package_is_self_contained_and_uses_core_step(
     package = load_sumo_package(config, allowed_root=MAP_ROOT)
 
     assert package.package_id == scenario_id
+    assert package.traffic_demand_mode == "scripted"
     assert package.step_ms == 50
     assert package.network_path.parent == config.parent
     assert package.route_paths == (config.parent / f"{scenario_id}.rou.xml",)
@@ -154,3 +160,96 @@ def test_emergency_routes_are_dense_and_randomly_mix_all_yield_levels() -> None:
     ]
     assert len(vehicles) == 73
     assert len(set(ordered_levels[:12])) >= 5
+
+
+def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_cars() -> None:
+    scenario_id = "mixed-automation-occasional-accident"
+    directory = MAP_ROOT / scenario_id
+    network_root = ElementTree.parse(directory / f"{scenario_id}.net.xml").getroot()
+    node_root = ElementTree.parse(directory / f"{scenario_id}.nod.xml").getroot()
+    route_root = ElementTree.parse(directory / f"{scenario_id}.rou.xml").getroot()
+    config_root = ElementTree.parse(directory / f"{scenario_id}.sumocfg").getroot()
+
+    road = next(edge for edge in network_root.findall("edge") if edge.attrib["id"] == "road_curve")
+    lanes = road.findall("lane")
+    assert len(lanes) == 2
+    lane_shape = lanes[0].attrib["shape"]
+    assert len({point.split(",")[1] for point in lane_shape.split()}) >= 3
+    right_exit = next(
+        edge for edge in network_root.findall("edge") if edge.attrib["id"] == "right_exit"
+    )
+    assert len(right_exit.findall("lane")) == 1
+    right_exit_shape = right_exit.find("lane").attrib["shape"]
+    right_exit_y = [float(point.split(",")[1]) for point in right_exit_shape.split()]
+    assert right_exit_y[-1] < right_exit_y[0]
+
+    vehicles = {vehicle.attrib["id"]: vehicle.attrib for vehicle in route_root.findall("vehicle")}
+    vehicle_types = {
+        vehicle_type.attrib["id"]: vehicle_type.attrib
+        for vehicle_type in route_root.findall("vType")
+    }
+    routes = {route.attrib["id"]: route.attrib["edges"] for route in route_root.findall("route")}
+    assert set(vehicles) == {
+        "accident_parked_L0_0",
+        "accident_actor_L0_0",
+        "accident_victim_L0_0",
+        "accident_follow_L0_0",
+        "accident_follow_L1_0",
+        "accident_follow_L3_0",
+        "accident_follow_L5_0",
+    }
+    assert vehicles["accident_actor_L0_0"]["departLane"] == "0"
+    assert vehicles["accident_parked_L0_0"]["departLane"] == "0"
+    assert vehicles["accident_victim_L0_0"]["departLane"] == "1"
+    assert vehicles["accident_follow_L5_0"]["departLane"] == "1"
+    assert routes[vehicles["accident_follow_L5_0"]["route"]].endswith("right_exit")
+    assert routes[vehicles["accident_follow_L3_0"]["route"]].endswith("road_curve")
+    assert vehicle_types["L0"]["length"] == "4.55"
+    assert vehicle_types["L0"]["color"] == "168,162,158"
+    assert vehicle_types["L5"]["color"] == "0,0,0"
+    assert float(vehicles["accident_parked_L0_0"]["departPos"]) > float(
+        vehicles["accident_actor_L0_0"]["departPos"]
+    )
+    turn_x_m = float(
+        next(node for node in node_root.findall("node") if node.attrib["id"] == "turn").attrib["x"]
+    )
+    approach_length_m = turn_x_m
+    assert turn_x_m == 510.0
+
+    def global_position_m(attributes: dict[str, str]) -> float:
+        position_m = float(attributes["departPos"])
+        return (
+            position_m + approach_length_m
+            if routes[attributes["route"]] == "road_curve"
+            else position_m
+        )
+
+    follower_positions = []
+    for level in (0, 1, 3, 5):
+        attributes = vehicles[f"accident_follow_L{level}_0"]
+        follower_positions.append(global_position_m(attributes))
+    assert follower_positions == sorted(follower_positions, reverse=True)
+    assert (
+        follower_positions[-1]
+        < follower_positions[0]
+        < float(vehicles["accident_actor_L0_0"]["departPos"]) + approach_length_m
+    )
+    parked_position_m = global_position_m(vehicles["accident_parked_L0_0"])
+    actor_position_m = global_position_m(vehicles["accident_actor_L0_0"])
+    assert parked_position_m - actor_position_m <= 50.0
+    assert actor_position_m - follower_positions[0] <= 75.0
+    assert follower_positions == [480.0, 473.2, 461.6, 432.0]
+    compressed_gaps_m = [
+        leading_position_m - following_position_m
+        for leading_position_m, following_position_m in zip(
+            follower_positions[:-1],
+            follower_positions[1:],
+            strict=True,
+        )
+    ]
+    assert compressed_gaps_m == pytest.approx([17.0 * 0.4, 29.0 * 0.4, 74.0 * 0.4])
+    assert actor_position_m - turn_x_m == pytest.approx(40.0)
+    assert turn_x_m - follower_positions[-1] == pytest.approx(78.0)
+    processing = config_root.find("processing")
+    assert processing is not None
+    assert processing.find("collision.mingap-factor").attrib["value"] == "0"

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-08-13T14:14:42.547348+08:00 by Eclipse SUMO netconvert 1.27.1
+<netconvertConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <node-files value="configs/maps/mixed-automation-occasional-accident/mixed-automation-occasional-accident.nod.xml"/>
+        <edge-files value="configs/maps/mixed-automation-occasional-accident/mixed-automation-occasional-accident.edg.xml"/>
+        <type-files value="configs/maps/mixed-automation-occasional-accident/mixed-automation-occasional-accident.typ.xml"/>
+    </input>
+
+    <output>
+        <output-file value="configs/maps/mixed-automation-occasional-accident/mixed-automation-occasional-accident.net.xml"/>
+    </output>
+
+</netconvertConfiguration>
+-->
+
+<net version="1.20" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+
+    <location netOffset="0.00,120.00" convBoundary="0.00,0.00,1000.00,180.00" origBoundary="0.00,-120.00,1000.00,60.00" projParameter="!"/>
+
+    <type id="urban_right_turn" priority="2" numLanes="1" speed="13.89" allow="passenger" spreadType="center" width="3.50"/>
+    <type id="urban_two_lane" priority="3" numLanes="2" speed="16.67" allow="passenger" spreadType="center" width="3.50"/>
+
+    <edge id=":turn_0" function="internal">
+        <lane id=":turn_0_0" index="0" allow="passenger" speed="15.28" length="16.14" width="3.50" shape="505.03,118.25 510.25,118.26 514.26,118.19 517.67,117.90 521.09,117.23"/>
+    </edge>
+    <edge id=":turn_1" function="internal">
+        <lane id=":turn_1_0" index="0" allow="passenger" speed="16.67" length="15.75" width="3.50" shape="505.03,118.25 509.60,118.53 512.65,119.46 515.50,121.12 519.45,123.63"/>
+        <lane id=":turn_1_1" index="1" allow="passenger" speed="16.67" length="13.85" width="3.50" shape="505.03,121.75 509.04,122.02 511.70,122.89 514.18,124.40 517.65,126.63"/>
+    </edge>
+
+    <edge id="right_exit" from="turn" to="right_end" priority="2" type="urban_right_turn" spreadType="center" shape="510.00,120.00 530.00,115.00 555.00,100.00 575.00,75.00 595.00,40.00 630.00,0.00">
+        <lane id="right_exit_0" index="0" allow="passenger" speed="13.89" length="163.82" width="3.50" shape="521.09,117.23 530.00,115.00 555.00,100.00 575.00,75.00 595.00,40.00 630.00,0.00"/>
+    </edge>
+    <edge id="road_approach" from="start" to="turn" priority="3" type="urban_two_lane" spreadType="center">
+        <lane id="road_approach_0" index="0" allow="passenger" speed="16.67" length="505.03" width="3.50" shape="0.00,118.25 505.03,118.25"/>
+        <lane id="road_approach_1" index="1" allow="passenger" speed="16.67" length="505.03" width="3.50" shape="0.00,121.75 505.03,121.75"/>
+    </edge>
+    <edge id="road_curve" from="turn" to="end" priority="3" type="urban_two_lane" spreadType="center" shape="510.00,120.00 560.00,150.00 650.00,176.00 740.00,180.00 1000.00,180.00">
+        <lane id="road_curve_0" index="0" allow="passenger" speed="16.67" length="492.10" width="3.50" shape="519.45,123.63 560.70,148.38 650.29,174.26 740.04,178.25 1000.00,178.25"/>
+        <lane id="road_curve_1" index="1" allow="passenger" speed="16.67" length="492.10" width="3.50" shape="517.65,126.63 559.30,151.62 649.71,177.74 739.96,181.75 1000.00,181.75"/>
+    </edge>
+
+    <junction id="end" type="dead_end" x="1000.00" y="180.00" incLanes="road_curve_0 road_curve_1" intLanes="" shape="1000.00,176.50 1000.00,183.50"/>
+    <junction id="right_end" type="dead_end" x="630.00" y="0.00" incLanes="right_exit_0" intLanes="" shape="628.68,-1.15 631.32,1.15"/>
+    <junction id="start" type="dead_end" x="0.00" y="120.00" incLanes="" intLanes="" shape="0.00,123.50 0.00,116.50"/>
+    <junction id="turn" type="priority" x="510.00" y="120.00" incLanes="road_approach_0 road_approach_1" intLanes=":turn_0_0 :turn_1_0 :turn_1_1" shape="516.75,128.13 520.35,122.13 518.96,120.86 518.93,120.30 519.35,119.79 520.21,119.33 521.51,118.93 520.67,115.53 517.41,116.26 514.98,116.63 512.94,116.73 510.88,116.67 508.38,116.56 505.03,116.50 505.03,123.50 507.71,123.62 509.67,123.98 511.23,124.60 512.71,125.49 514.45,126.66">
+        <request index="0" response="000" foes="000" cont="0"/>
+        <request index="1" response="000" foes="000" cont="0"/>
+        <request index="2" response="000" foes="000" cont="0"/>
+    </junction>
+
+    <connection from="road_approach" to="right_exit" fromLane="0" toLane="0" via=":turn_0_0" dir="s" state="M"/>
+    <connection from="road_approach" to="road_curve" fromLane="0" toLane="0" via=":turn_1_0" dir="L" state="M"/>
+    <connection from="road_approach" to="road_curve" fromLane="1" toLane="1" via=":turn_1_1" dir="L" state="M"/>
+
+    <connection from=":turn_0" to="right_exit" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":turn_1" to="road_curve" fromLane="0" toLane="0" dir="L" state="M"/>
+    <connection from=":turn_1" to="road_curve" fromLane="1" toLane="1" dir="L" state="M"/>
+
+</net>

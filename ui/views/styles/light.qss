@@ -245,6 +245,14 @@ QPushButton[role="primaryAction"] { background: #409eff; border-color: #409eff; 
 QPushButton[role="primaryAction"]:hover { background: #79bbff; border-color: #79bbff; }
 QPushButton#dangerButton { background: #fef0f0; border-color: #fbc4c4; color: #f56c6c; }
 QPushButton#dangerButton:hover { background: #f56c6c; border-color: #f56c6c; color: #ffffff; }
+QWidget#agentRowActions { background: transparent; }
+QPushButton#agentRowEditButton, QPushButton#agentRowDeleteButton {
+  min-width: 38px; padding: 4px 7px; font-size: 11px;
+}
+QPushButton#agentRowEditButton { background: #ecf5ff; border-color: #a0cfff; color: #409eff; }
+QPushButton#agentRowEditButton:hover { background: #409eff; border-color: #409eff; color: #ffffff; }
+QPushButton#agentRowDeleteButton { background: #fef0f0; border-color: #fbc4c4; color: #f56c6c; }
+QPushButton#agentRowDeleteButton:hover { background: #f56c6c; border-color: #f56c6c; color: #ffffff; }
 QPushButton#restartButton { background: #fdf6ec; border-color: #f5dab1; color: #e6a23c; }
 QPushButton#restartButton:hover { background: #e6a23c; border-color: #e6a23c; color: #ffffff; }
 QPushButton#speedButton { padding: 6px 11px; }

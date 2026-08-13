@@ -15,6 +15,7 @@ def _vehicle(
     x_m: float,
     lane_index: int = 1,
     speed_mps: float = 20.0,
+    acceleration_mps2: float = 0.0,
 ) -> VehicleState:
     level_text = vehicle_id.split("_L", maxsplit=1)[1][0]
     return VehicleState(
@@ -25,7 +26,7 @@ def _vehicle(
         automation_level=AutomationLevel(f"L{level_text}"),
         position=Vector3(x=x_m, y=lane_index * 3.5),
         speed_mps=speed_mps,
-        acceleration_mps2=0.0,
+        acceleration_mps2=acceleration_mps2,
         heading_rad=0.0,
         lane_id=f"road_fwd_{lane_index}",
         controller_id="sumo",
@@ -34,12 +35,17 @@ def _vehicle(
     )
 
 
-def _snapshot(*vehicles: VehicleState, time_ms: int = 8_000) -> TrafficSnapshot:
+def _snapshot(
+    *vehicles: VehicleState,
+    time_ms: int = 8_000,
+    collision_vehicle_ids: tuple[str, ...] = (),
+) -> TrafficSnapshot:
     return TrafficSnapshot(
         experiment_id=UUID(int=1),
         simulation_time_ms=time_ms,
         sequence=1,
         vehicles=vehicles,
+        collision_vehicle_ids=collision_vehicle_ids,
     )
 
 
@@ -259,6 +265,7 @@ def test_all_scenes_hold_vehicles_during_initial_layout() -> None:
         _vehicle("cutin_target_L3_0", x_m=300.0),
         _vehicle("yield_L4_0", x_m=400.0),
         _vehicle("ambulance_L5_0", x_m=50.0),
+        _vehicle("accident_follow_L1_0", x_m=420.0),
     )
 
     obstacle = MixedAutomationScenarioController("mixed-automation-obstacle").step(
@@ -273,8 +280,263 @@ def test_all_scenes_hold_vehicles_during_initial_layout() -> None:
         _snapshot(vehicles[2], vehicles[3], time_ms=1_000),
         0.05,
     )
+    accident = MixedAutomationScenarioController("mixed-automation-occasional-accident").step(
+        _snapshot(vehicles[4], time_ms=1_000),
+        0.05,
+    )
 
     assert obstacle[vehicles[0].vehicle_id].desired_speed_mps == 0.0
     assert cutin[vehicles[1].vehicle_id].desired_speed_mps == 0.0
     assert emergency[vehicles[2].vehicle_id].desired_speed_mps == 0.0
     assert emergency[vehicles[3].vehicle_id].desired_speed_mps == 0.0
+    assert accident[vehicles[4].vehicle_id].desired_speed_mps == 0.0
+
+
+def test_occasional_accident_scripts_right_to_left_collision_then_stops_both_cars() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    parked = _vehicle("accident_parked_L0_0", x_m=595.0, lane_index=0, speed_mps=0.0)
+    actor = _vehicle("accident_actor_L0_0", x_m=540.0, lane_index=0, speed_mps=14.0)
+    victim = _vehicle("accident_victim_L0_0", x_m=555.0, lane_index=1, speed_mps=10.0)
+
+    approaching = controller.step(_snapshot(parked, actor, victim, time_ms=5_000), 0.05)
+    actor_near_parked = actor.model_copy(update={"position": Vector3(x=560.0, y=0.0)})
+    moving = controller.step(_snapshot(parked, actor_near_parked, victim, time_ms=7_000), 0.05)
+    collided_actor = actor_near_parked.model_copy(update={"lane_id": "road_1"})
+    stopped = controller.step(
+        _snapshot(
+            parked,
+            collided_actor,
+            victim,
+            time_ms=9_000,
+            collision_vehicle_ids=(actor.vehicle_id, victim.vehicle_id),
+        ),
+        0.05,
+    )
+
+    assert approaching[parked.vehicle_id].desired_speed_mps == 0.0
+    assert approaching[actor.vehicle_id].lane_change is LaneChangeDirection.NONE
+    assert approaching[actor.vehicle_id].desired_speed_mps == 10.0
+    assert moving[actor.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert moving[actor.vehicle_id].desired_speed_mps == 11.0
+    assert moving[actor.vehicle_id].lane_change_duration_s == 2.0
+    assert moving[actor.vehicle_id].safety_checks_override
+    assert stopped[actor.vehicle_id].desired_speed_mps == 0.0
+    assert stopped[actor.vehicle_id].lane_change is LaneChangeDirection.NONE
+    assert stopped[victim.vehicle_id].desired_speed_mps == 0.0
+
+
+def test_occasional_accident_keeps_followers_moving_until_the_front_collision_occurs() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    l0 = _vehicle("accident_follow_L0_0", x_m=510.0, lane_index=1)
+    l1 = _vehicle("accident_follow_L1_0", x_m=520.0, lane_index=1)
+    l3 = _vehicle("accident_follow_L3_0", x_m=480.0, lane_index=1)
+    l5 = _vehicle("accident_follow_L5_0", x_m=400.0, lane_index=1)
+
+    commands = controller.step(_snapshot(l0, l1, l3, l5, time_ms=8_000), 0.05)
+
+    assert commands[l0.vehicle_id].desired_speed_mps == 16.0
+    assert commands[l0.vehicle_id].safety_checks_override
+    assert commands[l1.vehicle_id].desired_speed_mps == 15.2
+    assert commands[l1.vehicle_id].safety_checks_override
+    assert commands[l3.vehicle_id].desired_speed_mps == 13.0
+    assert commands[l3.vehicle_id].safety_checks_override
+    assert commands[l5.vehicle_id].desired_speed_mps == 12.0
+    assert all(command.lane_change is LaneChangeDirection.NONE for command in commands.values())
+
+
+def test_occasional_accident_opens_a_safe_gap_after_the_front_collision() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    l0 = _vehicle("accident_follow_L0_0", x_m=510.0, lane_index=1)
+    l1 = _vehicle("accident_follow_L1_0", x_m=500.0, lane_index=1)
+    l3 = _vehicle("accident_follow_L3_0", x_m=430.0, lane_index=1)
+    l5 = _vehicle("accident_follow_L5_0", x_m=350.0, lane_index=0)
+
+    commands = controller.step(
+        _snapshot(
+            l0,
+            l1,
+            l3,
+            l5,
+            time_ms=9_000,
+            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
+        ),
+        0.05,
+    )
+    decelerating_l1 = l1.model_copy(update={"speed_mps": 14.8, "acceleration_mps2": -1.5})
+    coordinated_commands = controller.step(
+        _snapshot(
+            l0,
+            decelerating_l1,
+            l3,
+            l5,
+            time_ms=9_050,
+            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
+        ),
+        0.05,
+    )
+
+    assert commands[l0.vehicle_id].desired_speed_mps == 16.0
+    assert commands[l1.vehicle_id].desired_acceleration_mps2 == -0.65
+    assert commands[l1.vehicle_id].safety_checks_override
+    assert commands[l3.vehicle_id].desired_speed_mps == 13.0
+    assert commands[l3.vehicle_id].safety_checks_override
+    assert commands[l5.vehicle_id].desired_speed_mps == 6.0
+    assert commands[l5.vehicle_id].lane_change is LaneChangeDirection.NONE
+    assert coordinated_commands[l3.vehicle_id].desired_acceleration_mps2 == -0.65
+
+
+def test_occasional_accident_l5_waits_until_near_turn_after_l3_stops_before_changing() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    l5 = _vehicle(
+        "accident_follow_L5_0",
+        x_m=410.0,
+        lane_index=1,
+        speed_mps=12.0,
+    ).model_copy(update={"lane_id": "road_approach_1"})
+    near_turn_l5 = l5.model_copy(update={"position": Vector3(x=480.0, y=0.0)})
+    moving_l3 = _vehicle("accident_follow_L3_0", x_m=500.0, lane_index=1, speed_mps=3.0)
+    stopped_l3 = moving_l3.model_copy(update={"speed_mps": 0.0})
+    collision_ids = (
+        "accident_actor_L0_0",
+        "accident_victim_L0_0",
+        "accident_follow_L0_0",
+    )
+
+    waiting = controller.step(
+        _snapshot(
+            l5,
+            moving_l3,
+            time_ms=6_000,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )[l5.vehicle_id]
+    approaching_turn = controller.step(
+        _snapshot(
+            l5,
+            stopped_l3,
+            time_ms=15_000,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )[l5.vehicle_id]
+    changing = controller.step(
+        _snapshot(
+            near_turn_l5,
+            stopped_l3,
+            time_ms=17_000,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )[l5.vehicle_id]
+    continuing_change = controller.step(
+        _snapshot(
+            near_turn_l5,
+            stopped_l3,
+            time_ms=17_050,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )[l5.vehicle_id]
+    lower_lane_l5 = near_turn_l5.model_copy(update={"lane_id": "road_approach_0"})
+    changed = controller.step(
+        _snapshot(
+            lower_lane_l5,
+            stopped_l3,
+            time_ms=18_000,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )[l5.vehicle_id]
+
+    assert waiting.lane_change is LaneChangeDirection.NONE
+    assert waiting.desired_speed_mps == 6.0
+    assert approaching_turn.lane_change is LaneChangeDirection.NONE
+    assert approaching_turn.desired_speed_mps == 12.0
+    assert changing.lane_change is LaneChangeDirection.RIGHT
+    assert changing.lane_change_duration_s == 1.0
+    assert changing.desired_speed_mps == 9.0
+    assert continuing_change.lane_change is LaneChangeDirection.NONE
+    assert continuing_change.desired_speed_mps == 9.0
+    assert changed.desired_speed_mps == 12.0
+
+
+def test_occasional_accident_stages_l1_emergency_brake_before_l3_gentle_brake() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    collided_l0 = _vehicle("accident_follow_L0_0", x_m=560.0, lane_index=1, speed_mps=0.0)
+    l1 = _vehicle("accident_follow_L1_0", x_m=540.0, lane_index=1, speed_mps=15.2)
+    l3 = _vehicle("accident_follow_L3_0", x_m=508.0, lane_index=1, speed_mps=13.0)
+    collision_ids = (
+        "accident_actor_L0_0",
+        "accident_victim_L0_0",
+        "accident_follow_L0_0",
+    )
+
+    immediate = controller.step(
+        _snapshot(
+            collided_l0,
+            l1,
+            l3,
+            time_ms=9_000,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
+    braking_l1 = l1.model_copy(update={"speed_mps": 14.8, "acceleration_mps2": -8.0})
+    delayed = controller.step(
+        _snapshot(
+            collided_l0,
+            braking_l1,
+            l3,
+            time_ms=9_050,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
+
+    assert immediate[l1.vehicle_id].desired_acceleration_mps2 == -8.0
+    assert immediate[l1.vehicle_id].safety_checks_override
+    assert immediate[l3.vehicle_id].desired_speed_mps == 13.0
+    assert delayed[l3.vehicle_id].desired_acceleration_mps2 == -2.2
+    assert delayed[l3.vehicle_id].takeover_requested
+    assert delayed[l3.vehicle_id].safety_checks_override
+
+
+def test_occasional_accident_l1_brakes_when_the_second_impact_is_imminent() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    actor = _vehicle("accident_actor_L0_0", x_m=580.0, lane_index=1, speed_mps=0.0)
+    victim = _vehicle("accident_victim_L0_0", x_m=582.0, lane_index=1, speed_mps=0.0)
+    approaching_l0 = _vehicle("accident_follow_L0_0", x_m=573.5, lane_index=1)
+    l1 = _vehicle("accident_follow_L1_0", x_m=550.0, lane_index=1, speed_mps=15.2)
+
+    commands = controller.step(
+        _snapshot(
+            actor,
+            victim,
+            approaching_l0,
+            l1,
+            time_ms=8_000,
+            collision_vehicle_ids=(actor.vehicle_id, victim.vehicle_id),
+        ),
+        0.05,
+    )
+
+    assert commands[l1.vehicle_id].desired_acceleration_mps2 == -8.0
+    assert commands[l1.vehicle_id].takeover_requested
+
+
+def test_occasional_accident_stops_l0_after_it_reaches_the_pileup() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    follower = _vehicle("accident_follow_L0_0", x_m=550.0, lane_index=1)
+
+    command = controller.step(
+        _snapshot(
+            follower,
+            time_ms=12_000,
+            collision_vehicle_ids=("accident_follow_L0_0",),
+        ),
+        0.05,
+    )[follower.vehicle_id]
+
+    assert command.desired_speed_mps == 0.0
+    assert command.safety_checks_override

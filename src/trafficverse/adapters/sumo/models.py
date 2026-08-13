@@ -54,6 +54,14 @@ class SumoRuntime(Protocol):
 
     def set_vehicle_lane_change_mode(self, vehicle_id: str, mode: int) -> None: ...
 
+    def set_vehicle_pose(
+        self,
+        vehicle_id: str,
+        x_m: float,
+        y_m: float,
+        angle_deg: float,
+    ) -> None: ...
+
     def colliding_vehicle_ids(self) -> tuple[str, ...]: ...
 
     def close(self) -> None: ...

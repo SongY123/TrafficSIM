@@ -73,7 +73,7 @@ class SumoSimulationConfigurationStore:
             staged_package = load_sumo_package(staged_config, allowed_root=destination)
             generated_route = (
                 self._generate_route_file(staged_package, draft)
-                if draft.automation_demands
+                if draft.automation_demands and staged_package.traffic_demand_mode == "generated"
                 else None
             )
             self._update_sumo_configuration(

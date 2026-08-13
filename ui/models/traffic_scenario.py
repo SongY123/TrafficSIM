@@ -43,6 +43,7 @@ def _preview_vehicle(
     y_m: float | None = None,
     heading_rad: float = 0.0,
     action: str = "KEEP_LANE",
+    lane_prefix: str = "road_fwd",
 ) -> Vehicle:
     return Vehicle(
         experiment_id=_PREVIEW_EXPERIMENT_ID,
@@ -56,7 +57,7 @@ def _preview_vehicle(
         speed_mps=speed_mps,
         acceleration_mps2=0.0,
         heading_rad=heading_rad,
-        lane_id=f"road_fwd_{lane_index}",
+        lane_id=f"{lane_prefix}_{lane_index}",
         target_lane_id=None,
         automation_level=level,
         controller_id="scenario-preview",
@@ -139,6 +140,97 @@ def _emergency_preview() -> tuple[Vehicle, ...]:
     return tuple(vehicles)
 
 
+def _occasional_accident_preview() -> tuple[Vehicle, ...]:
+    # Display the deterministic 25 s key frame from the scripted SUMO run. These coordinates
+    # include the native network offset and keep the two impacts visually distinct.
+    return (
+        _preview_vehicle(
+            "accident_parked_L0_0",
+            "L0",
+            6,
+            595.989,
+            0,
+            0.0,
+            y_m=158.574,
+            heading_rad=0.2812,
+            action="PARKED",
+            lane_prefix="road_curve",
+        ),
+        _preview_vehicle(
+            "accident_victim_L0_0",
+            "L0",
+            0,
+            569.381,
+            1,
+            0.0,
+            y_m=154.532,
+            heading_rad=0.2812,
+            action="COLLISION",
+            lane_prefix="road_curve",
+        ),
+        _preview_vehicle(
+            "accident_actor_L0_0",
+            "L0",
+            1,
+            567.508,
+            0,
+            0.0,
+            y_m=152.17,
+            heading_rad=0.4274,
+            action="COLLISION",
+            lane_prefix="road_curve",
+        ),
+        _preview_vehicle(
+            "accident_follow_L0_0",
+            "L0",
+            2,
+            562.999,
+            1,
+            0.0,
+            y_m=152.689,
+            heading_rad=0.3213,
+            action="COLLISION",
+            lane_prefix="road_curve",
+        ),
+        _preview_vehicle(
+            "accident_follow_L1_0",
+            "L1",
+            3,
+            554.199,
+            1,
+            0.0,
+            y_m=148.559,
+            heading_rad=0.5404,
+            action="EMERGENCY_BRAKE",
+            lane_prefix="road_curve",
+        ),
+        _preview_vehicle(
+            "accident_follow_L3_0",
+            "L3",
+            4,
+            545.202,
+            1,
+            0.0,
+            y_m=143.161,
+            heading_rad=0.5404,
+            action="BRAKE",
+            lane_prefix="road_curve",
+        ),
+        _preview_vehicle(
+            "accident_follow_L5_0",
+            "L5",
+            5,
+            543.597,
+            0,
+            12.0,
+            y_m=106.842,
+            heading_rad=-0.5404,
+            action="CHANGE_LANE",
+            lane_prefix="right_exit",
+        ),
+    )
+
+
 def scenario_preview_vehicles(preset: TrafficScenarioPreset) -> tuple[Vehicle, ...]:
     """Return a deterministic, non-authoritative key frame for a scene detail preview."""
     if preset.scenario_id == "mixed-automation-obstacle":
@@ -147,6 +239,8 @@ def scenario_preview_vehicles(preset: TrafficScenarioPreset) -> tuple[Vehicle, .
         return _cutin_preview()
     if preset.scenario_id == "mixed-automation-emergency-yield":
         return _emergency_preview()
+    if preset.scenario_id == "mixed-automation-occasional-accident":
+        return _occasional_accident_preview()
     return ()
 
 
@@ -233,6 +327,42 @@ TRAFFIC_SCENARIO_PRESETS = (
             ("L3", "主动识别应急车辆，较早选择相邻车道。"),
             ("L4", "自动规划让行轨迹，救护车通过后恢复行驶。"),
             ("L5", "通过车路协同提前获知路线并率先形成通道。"),
+        ),
+    ),
+    TrafficScenarioPreset(
+        scenario_id="mixed-automation-occasional-accident",
+        name="偶发事故",
+        incident=(
+            "普通城市或园区道路，无雨雪、雾、积水和外界复杂干扰。道路为单向双车道，"
+            "前方经过轻微弯道。右侧车道前方停靠一辆L0车辆，后方L0为避让停车车辆向左"
+            "变道，却在横跨车道线时与左侧正常行驶的L0车辆发生侧碰；两车随即停止，"
+            "车身分别占据左右车道并封死全部通行空间。"
+        ),
+        behavior_summary=(
+            "两次碰撞共涉及3辆行驶中的L0。首次碰撞发生时，后方车辆仍继续前进；第三辆L0"
+            "反应过晚并追尾，碰撞后"
+            "立即停车。第三辆L0后方各车的连续初始间距压缩为原布局的40%；L1与L3先同步"
+            "轻微减速，随后L1紧急制动，L3在下一时间步缓慢制动，最终均留出约一个车长且"
+            "未发生碰撞。L5从上方车道出发，待L3刹停后继续接近路口，进入路口前区域才向"
+            "下方车道变道并右转绕行。"
+        ),
+        map_id="mixed-automation-occasional-accident",
+        duration_s=60,
+        automation_counts=(("L0", 4), ("L1", 1), ("L3", 1), ("L5", 1)),
+        scene_type="偶发事故",
+        level_behaviors=(
+            (
+                "L0",
+                "停车车辆诱发前车变道碰撞；后方L0发现过晚，继续前进并追尾后立即停车。",
+            ),
+            ("L1", "与前方L0保持压缩后的近距离跟车，先轻微减速再紧急制动。"),
+            ("L2", "本场景未配置该等级车辆。"),
+            ("L3", "紧随L1同步接近，检测到L1真实急刹后缓慢制动并留出一个车长。"),
+            ("L4", "本场景未配置该等级车辆。"),
+            (
+                "L5",
+                "从上方车道出发，待L3刹停后继续接近路口，再向下方车道变道右转绕行。",
+            ),
         ),
     ),
 )

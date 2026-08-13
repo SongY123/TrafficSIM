@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vType id="L0" vClass="passenger" length="4.55" minGap="2.5" accel="2.6" decel="4.5" emergencyDecel="7.0" sigma="0.5" tau="1.0" maxSpeed="16.67" color="168,162,158" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L1" vClass="passenger" length="5.0" minGap="2.0" accel="3.0" decel="5.5" emergencyDecel="8.0" sigma="0.3" tau="0.9" maxSpeed="16.67" color="8,145,178" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3" vClass="passenger" length="5.0" minGap="1.3" accel="3.4" decel="5.0" emergencyDecel="8.0" sigma="0.1" tau="0.75" maxSpeed="16.67" color="192,38,211" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5" vClass="passenger" length="5.0" minGap="0.8" accel="3.8" decel="5.0" emergencyDecel="8.0" sigma="0" tau="0.6" maxSpeed="16.67" color="0,0,0" lcStrategic="0" lcCooperative="0" lcSpeedGain="0" lcKeepRight="0" />
+
+    <route id="route_curve" edges="road_curve" />
+    <route id="route_main" edges="road_approach road_curve" />
+    <route id="route_right_turn" edges="road_approach right_exit" />
+
+    <vehicle id="accident_parked_L0_0" type="L0" route="route_curve" depart="0" departLane="0" departPos="85" departSpeed="0" />
+    <vehicle id="accident_actor_L0_0" type="L0" route="route_curve" depart="0" departLane="0" departPos="40" departSpeed="0" />
+    <vehicle id="accident_victim_L0_0" type="L0" route="route_curve" depart="0" departLane="1" departPos="45" departSpeed="0" />
+    <vehicle id="accident_follow_L0_0" type="L0" route="route_main" depart="0" departLane="1" departPos="480" departSpeed="0" />
+    <vehicle id="accident_follow_L1_0" type="L1" route="route_main" depart="0" departLane="1" departPos="473.2" departSpeed="0" />
+    <vehicle id="accident_follow_L3_0" type="L3" route="route_main" depart="0" departLane="1" departPos="461.6" departSpeed="0" />
+    <vehicle id="accident_follow_L5_0" type="L5" route="route_right_turn" depart="0" departLane="1" departPos="432" departSpeed="0" />
+</routes>

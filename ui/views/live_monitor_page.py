@@ -307,6 +307,7 @@ class LiveMonitorPage(QWidget):
         ):
             self._reset_replay_metrics()
         self.map_widget.set_vehicles(value.vehicles)
+        self.map_widget.set_collision_vehicle_ids(value.collision_vehicle_ids)
         self.map_widget.set_traffic_lights(value.traffic_lights)
         self.set_time(value.simulation_time_ms)
         speeds_by_level: dict[str, list[float]] = {}

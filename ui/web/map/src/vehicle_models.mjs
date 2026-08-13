@@ -5,6 +5,12 @@ export const VEHICLE_MODEL_KINDS = Object.freeze([
   "ambulance"
 ]);
 
+export const ORDINARY_VEHICLE_MODEL_PERCENTAGES = Object.freeze({
+  sedan: 85,
+  truck: 10,
+  trailer: 5
+});
+
 const MODEL_ALIASES = Object.freeze({
   ambulance: "ambulance",
   emergency: "ambulance",
@@ -130,9 +136,17 @@ export function vehicleModelKind(vehicle) {
   if (idKind) {
     return idKind;
   }
-  return ORDINARY_VEHICLE_MODEL_KINDS[
-    stableStringHash(vehicleId) % ORDINARY_VEHICLE_MODEL_KINDS.length
-  ];
+  const bucket = stableStringHash(vehicleId) % 100;
+  if (bucket < ORDINARY_VEHICLE_MODEL_PERCENTAGES.sedan) {
+    return "sedan";
+  }
+  if (
+    bucket <
+    ORDINARY_VEHICLE_MODEL_PERCENTAGES.sedan + ORDINARY_VEHICLE_MODEL_PERCENTAGES.truck
+  ) {
+    return "truck";
+  }
+  return "trailer";
 }
 
 export function vehicleModelSpec(vehicle) {
