@@ -12,8 +12,8 @@
     <vehicle id="accident_parked_L0_0" type="L0" route="route_curve" depart="0" departLane="0" departPos="85" departSpeed="0" />
     <vehicle id="accident_actor_L0_0" type="L0" route="route_curve" depart="0" departLane="0" departPos="40" departSpeed="0" />
     <vehicle id="accident_victim_L0_0" type="L0" route="route_curve" depart="0" departLane="1" departPos="45" departSpeed="0" />
-    <vehicle id="accident_follow_L0_0" type="L0" route="route_main" depart="0" departLane="1" departPos="480" departSpeed="0" />
-    <vehicle id="accident_follow_L1_0" type="L1" route="route_main" depart="0" departLane="1" departPos="473.2" departSpeed="0" />
-    <vehicle id="accident_follow_L3_0" type="L3" route="route_main" depart="0" departLane="1" departPos="461.6" departSpeed="0" />
-    <vehicle id="accident_follow_L5_0" type="L5" route="route_right_turn" depart="0" departLane="1" departPos="432" departSpeed="0" />
+    <vehicle id="accident_follow_L0_0" type="L0" route="route_curve" depart="0" departLane="1" departPos="18.4" departSpeed="0" />
+    <vehicle id="accident_follow_L1_0" type="L1" route="route_curve" depart="0" departLane="1" departPos="11.6" departSpeed="0" />
+    <vehicle id="accident_follow_L3_0" type="L3" route="route_curve" depart="0" departLane="1" departPos="0" departSpeed="0" />
+    <vehicle id="accident_follow_L5_0" type="L5" route="route_right_turn" depart="0" departLane="1" departPos="430.4" departSpeed="0" />
 </routes>

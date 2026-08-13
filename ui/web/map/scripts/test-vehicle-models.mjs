@@ -30,6 +30,8 @@ assert.equal(vehicleModelKind({vehicle_id: "ordinary", visual_type: "emergency"}
 assert.equal(vehicleModelKind({vehicle_id: "fleet_truck_1"}), "truck");
 assert.equal(vehicleModelKind({vehicle_id: "fleet-semi-1"}), "trailer");
 assert.equal(vehicleModelKind({vehicle_id: "passenger_L3_1"}), "sedan");
+assert.equal(vehicleModelKind({vehicle_id: "accident_follow_L1_0"}), "sedan");
+assert.equal(vehicleModelKind({vehicle_id: "accident_follow_L3_0"}), "sedan");
 assert.equal(isAmbulanceVehicle({vehicle_id: "ambulance_L0_0"}), true);
 assert.equal(isAmbulanceVehicle({vehicle_id: "truck_L0_0"}), false);
 

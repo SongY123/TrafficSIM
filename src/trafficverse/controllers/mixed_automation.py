@@ -27,13 +27,13 @@ _CUTIN_BACKGROUND_SPEED_MPS = (8.0, 13.0, 18.0, 23.0, 26.0, 27.5)
 _CUTIN_POST_EVENT_SPEED_MPS = 22.0
 _EMERGENCY_CRUISE_SPEED_MPS = (10.0, 13.0, 16.0, 19.0, 22.0, 25.0)
 _EMERGENCY_BACKGROUND_SPEED_MPS = (12.0, 13.5, 15.0, 16.5, 18.0, 21.0)
-_ACCIDENT_SECOND_IMPACT_WARNING_DISTANCE_M = 9.0
-_ACCIDENT_L5_WAIT_SPEED_MPS = 6.0
-_ACCIDENT_L5_LANE_CHANGE_SPEED_MPS = 9.0
+_ACCIDENT_L1_BRAKE_TRIGGER_DISTANCE_M = 13.0
+_ACCIDENT_L5_CRUISE_SPEED_MPS = 12.0
+_ACCIDENT_PRE_INCIDENT_SPEED_MPS = {0: 16.0, 1: 12.0, 3: 8.0, 5: _ACCIDENT_L5_CRUISE_SPEED_MPS}
+_ACCIDENT_FOLLOWING_L0_POST_INCIDENT_SPEED_MPS = 6.5
 _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M = 475.0
 _ACCIDENT_L1_GAP_OPENING_DECEL_MPS2 = 0.65
-_ACCIDENT_L1_EMERGENCY_SPEED_THRESHOLD_MPS = 12.5
-_ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 2.2
+_ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 1.75
 _SCENARIO_IDS = frozenset(
     {
         "mixed-automation-obstacle",
@@ -51,6 +51,7 @@ class MixedAutomationScenarioController:
         if scenario_id not in _SCENARIO_IDS:
             raise ValueError(f"unsupported mixed-automation scenario: {scenario_id}")
         self._scenario_id = scenario_id
+        self._accident_l1_emergency_observed = False
         self._accident_l5_lane_change_started = False
 
     def step(self, previous: TrafficSnapshot | None, dt_s: float) -> Mapping[str, ControlCommand]:
@@ -308,30 +309,25 @@ class MixedAutomationScenarioController:
         actor = vehicle_by_id.get("accident_actor_L0_0")
         following_l0 = vehicle_by_id.get("accident_follow_L0_0")
         l1_vehicle = vehicle_by_id.get("accident_follow_L1_0")
-        l3_vehicle = vehicle_by_id.get("accident_follow_L3_0")
-        l3_stopped = pileup_complete and l3_vehicle is not None and l3_vehicle.speed_mps < 0.5
         accident_positions = [
             vehicle_by_id[vehicle_id].position.x
             for vehicle_id in front_collision_ids
             if vehicle_id in vehicle_by_id
         ]
         accident_x_m = max(accident_positions, default=595.0)
-        second_impact_imminent = (
+        l1_response_required = pileup_complete or (
             incident_active
             and following_l0 is not None
             and 0.0
             <= accident_x_m - following_l0.position.x
-            <= _ACCIDENT_SECOND_IMPACT_WARNING_DISTANCE_M
+            <= _ACCIDENT_L1_BRAKE_TRIGGER_DISTANCE_M
         )
-        l1_response_required = pileup_complete or second_impact_imminent
-        l1_emergency_braking = (
-            l1_response_required
-            and l1_vehicle is not None
-            and (
-                l1_vehicle.acceleration_mps2 <= -6.0
-                or l1_vehicle.speed_mps < _ACCIDENT_L1_EMERGENCY_SPEED_THRESHOLD_MPS
-            )
+        l1_emergency_braking_now = (
+            l1_response_required and l1_vehicle is not None and l1_vehicle.acceleration_mps2 <= -6.0
         )
+        if l1_emergency_braking_now:
+            self._accident_l1_emergency_observed = True
+        l1_emergency_braking = self._accident_l1_emergency_observed
         l1_decelerating = (
             incident_active
             and l1_vehicle is not None
@@ -390,13 +386,13 @@ class MixedAutomationScenarioController:
                 continue
             if not incident_active:
                 commands[vehicle.vehicle_id] = ControlCommand(
-                    desired_speed_mps={0: 16.0, 1: 15.2, 3: 13.0, 5: 12.0}[level],
-                    safety_checks_override=level in {0, 1, 3},
+                    desired_speed_mps=_ACCIDENT_PRE_INCIDENT_SPEED_MPS[level],
+                    safety_checks_override=level in {0, 1, 3, 5},
                 )
                 continue
             if level == 0:
                 commands[vehicle.vehicle_id] = ControlCommand(
-                    desired_speed_mps=16.0,
+                    desired_speed_mps=_ACCIDENT_FOLLOWING_L0_POST_INCIDENT_SPEED_MPS,
                     safety_checks_override=True,
                 )
             elif level == 5:
@@ -405,24 +401,15 @@ class MixedAutomationScenarioController:
                     and vehicle.position.x >= _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M
                 )
                 start_lane_change = (
-                    l3_stopped
+                    pileup_complete
                     and near_right_turn
                     and _lane_index(vehicle.lane_id) == 1
                     and not self._accident_l5_lane_change_started
                 )
                 if start_lane_change:
                     self._accident_l5_lane_change_started = True
-                lane_change_in_progress = (
-                    self._accident_l5_lane_change_started and vehicle.lane_id == "road_approach_1"
-                )
                 commands[vehicle.vehicle_id] = ControlCommand(
-                    desired_speed_mps=(
-                        _ACCIDENT_L5_LANE_CHANGE_SPEED_MPS
-                        if lane_change_in_progress
-                        else 12.0
-                        if l3_stopped
-                        else _ACCIDENT_L5_WAIT_SPEED_MPS
-                    ),
+                    desired_speed_mps=_ACCIDENT_L5_CRUISE_SPEED_MPS,
                     lane_change=(
                         LaneChangeDirection.RIGHT if start_lane_change else LaneChangeDirection.NONE
                     ),
@@ -442,7 +429,10 @@ class MixedAutomationScenarioController:
                         safety_checks_override=True,
                     )
                     if incident_active
-                    else ControlCommand(desired_speed_mps=15.2, safety_checks_override=True)
+                    else ControlCommand(
+                        desired_speed_mps=_ACCIDENT_PRE_INCIDENT_SPEED_MPS[1],
+                        safety_checks_override=True,
+                    )
                 )
             elif level == 3:
                 commands[vehicle.vehicle_id] = (
@@ -458,7 +448,10 @@ class MixedAutomationScenarioController:
                         safety_checks_override=True,
                     )
                     if l1_decelerating and distance_m <= 180.0
-                    else ControlCommand(desired_speed_mps=13.0, safety_checks_override=True)
+                    else ControlCommand(
+                        desired_speed_mps=_ACCIDENT_PRE_INCIDENT_SPEED_MPS[3],
+                        safety_checks_override=True,
+                    )
                 )
             else:
                 commands[vehicle.vehicle_id] = ControlCommand(

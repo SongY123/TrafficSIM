@@ -111,11 +111,15 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     l3_gentle_brake_time_ms: int | None = None
     all_front_vehicles_stopped_time_ms: int | None = None
     l5_right_turn_time_ms: int | None = None
+    l5_right_turn_speed_mps: float | None = None
     l5_lower_lane_time_ms: int | None = None
     l5_lower_lane_position_x_m: float | None = None
     l5_lane_change_command_count = 0
     l5_lane_change_command_position_x_m: float | None = None
     initial_l5_lane_id: str | None = None
+    l5_initial_max_speed_mps = 0.0
+    l5_running_min_speed_mps = float("inf")
+    l5_running_max_speed_mps = 0.0
     front_vehicle_ids = {
         "accident_parked_L0_0",
         "accident_actor_L0_0",
@@ -159,11 +163,17 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
             l5 = vehicles_by_id.get("accident_follow_L5_0")
             if l5 is not None:
                 initial_l5_lane_id = initial_l5_lane_id or l5.lane_id
+                if target_time_ms <= 3_000:
+                    l5_initial_max_speed_mps = max(l5_initial_max_speed_mps, l5.speed_mps)
+                else:
+                    l5_running_min_speed_mps = min(l5_running_min_speed_mps, l5.speed_mps)
+                    l5_running_max_speed_mps = max(l5_running_max_speed_mps, l5.speed_mps)
                 if l5.lane_id == "road_approach_0":
                     l5_lower_lane_time_ms = l5_lower_lane_time_ms or target_time_ms
                     l5_lower_lane_position_x_m = l5_lower_lane_position_x_m or l5.position.x
             if l5 is not None and l5.lane_id == "right_exit_0":
                 l5_right_turn_time_ms = l5_right_turn_time_ms or target_time_ms
+                l5_right_turn_speed_mps = l5_right_turn_speed_mps or l5.speed_mps
             if (
                 all_front_vehicles_stopped_time_ms is None
                 and "accident_follow_L0_0" in previous.collision_vehicle_ids
@@ -253,6 +263,10 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert _body_gap_m(first_follow_l0, 4.55, first_l1, 5.0) > 0.0
     assert _body_gap_m(first_l1, 5.0, first_l3, 5.0) > 0.0
     assert follower_collision_time_ms is not None
+    assert follower_collision_time_ms - first_collision_time_ms == pytest.approx(
+        4_150 / 3,
+        abs=100,
+    )
     assert follower_post_collision_speed_mps is not None
     assert follower_post_collision_speed_mps < 0.5
 
@@ -306,6 +320,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert l3_gentle_brake_time_ms is not None
     assert l3_gentle_brake_time_ms > l1_emergency_brake_time_ms
     assert initial_l5_lane_id == "road_approach_1"
+    assert l5_initial_max_speed_mps < 0.5
     assert l5_lower_lane_time_ms is not None
     assert l5_lower_lane_position_x_m is not None
     assert 470.0 <= l5_lower_lane_position_x_m < 510.0
@@ -314,8 +329,11 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert 475.0 <= l5_lane_change_command_position_x_m < 500.0
     assert first_collision_time_ms is not None
     assert all_front_vehicles_stopped_time_ms is not None
-    assert l5_lower_lane_time_ms > all_front_vehicles_stopped_time_ms
+    assert follower_collision_time_ms is not None
+    assert l5_lower_lane_time_ms > follower_collision_time_ms
     assert l5_right_turn_time_ms is not None
-    assert l5_right_turn_time_ms > all_front_vehicles_stopped_time_ms
-    assert vehicles["accident_follow_L5_0"].lane_id == "right_exit_0"
-    assert vehicles["accident_follow_L5_0"].speed_mps > 10.0
+    assert l5_right_turn_speed_mps is not None
+    assert l5_right_turn_time_ms > follower_collision_time_ms
+    assert l5_running_min_speed_mps == pytest.approx(12.0, abs=0.05)
+    assert l5_running_max_speed_mps == pytest.approx(12.0, abs=0.05)
+    assert l5_right_turn_speed_mps == pytest.approx(12.0, abs=0.05)

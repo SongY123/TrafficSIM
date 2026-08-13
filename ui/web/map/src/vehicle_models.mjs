@@ -24,6 +24,8 @@ const MODEL_ALIASES = Object.freeze({
   semi: "trailer"
 });
 
+const SCRIPTED_SEDAN_PATTERN = /^accident_/;
+
 export const VEHICLE_MODEL_SPECS = Object.freeze({
   sedan: Object.freeze({
     lengthM: 4.55,
@@ -130,6 +132,9 @@ export function vehicleModelKind(vehicle) {
     return explicitKind;
   }
   const vehicleId = String(vehicle?.vehicle_id ?? "vehicle");
+  if (SCRIPTED_SEDAN_PATTERN.test(vehicleId)) {
+    return "sedan";
+  }
   const idKind = Object.entries(MODEL_ALIASES).find(
     ([alias, kind]) => kind !== "ambulance" && new RegExp(`(^|[_-])${alias}([_-]|$)`, "i").test(vehicleId)
   )?.[1];
