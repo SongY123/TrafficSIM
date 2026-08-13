@@ -32,6 +32,7 @@ _ACCIDENT_L5_CRUISE_SPEED_MPS = 12.0
 _ACCIDENT_PRE_INCIDENT_SPEED_MPS = {0: 16.0, 1: 12.0, 3: 8.0, 5: _ACCIDENT_L5_CRUISE_SPEED_MPS}
 _ACCIDENT_FOLLOWING_L0_POST_INCIDENT_SPEED_MPS = 6.5
 _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M = 475.0
+_ACCIDENT_L5_LANE_CHANGE_DURATION_S = 1.0
 _ACCIDENT_L1_GAP_OPENING_DECEL_MPS2 = 0.65
 _ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 1.75
 _SCENARIO_IDS = frozenset(
@@ -401,7 +402,7 @@ class MixedAutomationScenarioController:
                     and vehicle.position.x >= _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M
                 )
                 start_lane_change = (
-                    pileup_complete
+                    incident_active
                     and near_right_turn
                     and _lane_index(vehicle.lane_id) == 1
                     and not self._accident_l5_lane_change_started
@@ -413,7 +414,7 @@ class MixedAutomationScenarioController:
                     lane_change=(
                         LaneChangeDirection.RIGHT if start_lane_change else LaneChangeDirection.NONE
                     ),
-                    lane_change_duration_s=1.0,
+                    lane_change_duration_s=_ACCIDENT_L5_LANE_CHANGE_DURATION_S,
                     safety_checks_override=True,
                 )
             elif level == 1:

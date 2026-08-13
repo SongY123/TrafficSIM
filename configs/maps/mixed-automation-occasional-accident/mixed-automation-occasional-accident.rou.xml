@@ -15,5 +15,5 @@
     <vehicle id="accident_follow_L0_0" type="L0" route="route_curve" depart="0" departLane="1" departPos="18.4" departSpeed="0" />
     <vehicle id="accident_follow_L1_0" type="L1" route="route_curve" depart="0" departLane="1" departPos="11.6" departSpeed="0" />
     <vehicle id="accident_follow_L3_0" type="L3" route="route_curve" depart="0" departLane="1" departPos="0" departSpeed="0" />
-    <vehicle id="accident_follow_L5_0" type="L5" route="route_right_turn" depart="0" departLane="1" departPos="430.4" departSpeed="0" />
+    <vehicle id="accident_follow_L5_0" type="L5" route="route_right_turn" depart="0" departLane="1" departPos="460.4" departSpeed="0" />
 </routes>

@@ -329,11 +329,10 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert 475.0 <= l5_lane_change_command_position_x_m < 500.0
     assert first_collision_time_ms is not None
     assert all_front_vehicles_stopped_time_ms is not None
-    assert follower_collision_time_ms is not None
-    assert l5_lower_lane_time_ms > follower_collision_time_ms
+    assert l5_lower_lane_time_ms > first_collision_time_ms
     assert l5_right_turn_time_ms is not None
     assert l5_right_turn_speed_mps is not None
-    assert l5_right_turn_time_ms > follower_collision_time_ms
+    assert l5_right_turn_time_ms > first_collision_time_ms
     assert l5_running_min_speed_mps == pytest.approx(12.0, abs=0.05)
     assert l5_running_max_speed_mps == pytest.approx(12.0, abs=0.05)
     assert l5_right_turn_speed_mps == pytest.approx(12.0, abs=0.05)

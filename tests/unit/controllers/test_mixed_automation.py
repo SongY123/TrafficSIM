@@ -388,7 +388,7 @@ def test_occasional_accident_opens_a_safe_gap_after_the_front_collision() -> Non
     assert coordinated_commands[l3.vehicle_id].desired_acceleration_mps2 == -0.65
 
 
-def test_occasional_accident_l5_changes_near_turn_after_pileup_completes() -> None:
+def test_occasional_accident_l5_changes_near_turn_after_incident_starts() -> None:
     controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
     l5 = _vehicle(
         "accident_follow_L5_0",

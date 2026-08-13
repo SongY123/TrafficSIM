@@ -241,7 +241,7 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     actor_position_m = global_position_m(vehicles["accident_actor_L0_0"])
     assert parked_position_m - actor_position_m <= 50.0
     assert actor_position_m - follower_positions[0] <= 75.0
-    assert follower_positions == [528.4, 521.6, 510.0, 430.4]
+    assert follower_positions == [528.4, 521.6, 510.0, 460.4]
     compressed_gaps_m = [
         leading_position_m - following_position_m
         for leading_position_m, following_position_m in zip(
@@ -251,12 +251,12 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         )
     ]
     assert compressed_gaps_m[:2] == pytest.approx([17.0 * 0.4, 29.0 * 0.4])
-    assert compressed_gaps_m[2] == pytest.approx(79.6)
+    assert compressed_gaps_m[2] == pytest.approx(49.6)
     assert actor_position_m - turn_x_m == pytest.approx(40.0)
     victim_position_m = global_position_m(vehicles["accident_victim_L0_0"])
     accident_group_center_m = (actor_position_m + victim_position_m) / 2.0
     assert accident_group_center_m - follower_positions[0] == pytest.approx(72.5 / 3.0, abs=0.1)
-    assert turn_x_m - follower_positions[-1] == pytest.approx(79.6)
+    assert turn_x_m - follower_positions[-1] == pytest.approx(49.6)
     processing = config_root.find("processing")
     assert processing is not None
     assert processing.find("collision.mingap-factor").attrib["value"] == "0"

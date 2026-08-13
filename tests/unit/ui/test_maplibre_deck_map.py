@@ -91,6 +91,8 @@ def test_signal_layers_remain_legible_and_render_above_vehicles() -> None:
     assert "radiusMinPixels: 5" in signal_source
     assert "radiusMaxPixels" not in signal_source
     assert "lineWidthMinPixels: 2" in signal_source
+    assert "const showSignalHalo = map.getZoom() < LAYER_STYLE.detailedVehicleMinZoom" in signal_source
+    assert "data: showSignalHalo ? state.signalPoints : []" in signal_source
     assert "layers: [...cachedRoadLayers, ...vehicleLayers(), ...cachedSignalLayers]" in source
 
 
@@ -244,7 +246,7 @@ def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     assert "COMPACT_AMBULANCE_ICON" in source
     assert 'kind: "rear-marker"' in source
     assert "vehicleTailLight" not in source
-    assert 'map.on("zoomend", renderVehicleLayers)' in source
+    assert 'map.on("zoomend", renderLayers)' in source
     assert "getFillColor: vehicleColor" in source
     assert all(f'"{kind}"' in models for kind in ("sedan", "truck", "trailer", "ambulance"))
     assert "isAmbulanceVehicle" in models
@@ -332,11 +334,13 @@ def test_legend_free_preview_uses_symmetric_padding_to_center_the_network() -> N
     assert "bottom: 46" in source
 
 
-def test_map_renders_authoritative_collision_ids_as_one_rectangular_accident_zone() -> None:
+def test_map_only_renders_scripted_accident_collisions_as_one_rectangular_zone() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
     host = (MAP_WEB_ROOT.parents[1] / "widgets/maplibre_deck_map.py").read_text(encoding="utf-8")
 
     assert "collisionVehicleIds: new Set()" in source
+    assert "function isScriptedAccidentVehicle(vehicle)" in source
+    assert 'vehicleId.startsWith("accident_")' in source
     assert "function collisionZonePolygon(vehicles)" in source
     assert "vehicles.flatMap((vehicle) => vehicleBodyPolygon(vehicle))" in source
     assert "collisionZonePaddingM" in source
@@ -344,11 +348,13 @@ def test_map_renders_authoritative_collision_ids_as_one_rectangular_accident_zon
     assert "Math.max(5.5" not in source
     assert 'id: "trafficverse-collision-zone"' in source
     assert "data: collisionZonePolygon(collisionVehicles)" in source
+    assert "isScriptedAccidentVehicle(vehicle)" in source
     assert "trafficverse-collision-halos" not in source
     assert "trafficverse-collision-markers" not in source
     assert "setCollisionVehicleIds(vehicleIds)" in source
-    assert "const hadCollisions = state.collisionVehicleIds.size > 0" in source
-    assert "if (!hadCollisions && state.collisionVehicleIds.size > 0)" in source
+    assert "const hadScriptedCollisions = hasScriptedAccidentCollision" in source
+    assert "const hasScriptedCollisions = hasScriptedAccidentCollision" in source
+    assert "if (!hadScriptedCollisions && hasScriptedCollisions)" in source
     assert "state.followScenarioVehicles = true" in source
     assert "fitScenarioVehicles();" in source
     assert "def set_collision_vehicle_ids" in host

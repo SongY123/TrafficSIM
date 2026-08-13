@@ -158,6 +158,16 @@ function isStaticObstacle(vehicle) {
   return (vehicle?.vehicle_id ?? "").startsWith("static_obstacle_");
 }
 
+function isScriptedAccidentVehicle(vehicle) {
+  return (vehicle?.vehicle_id ?? "").startsWith("accident_");
+}
+
+function hasScriptedAccidentCollision(vehicleIds) {
+  return Array.from(vehicleIds).some(
+    (vehicleId) => typeof vehicleId === "string" && vehicleId.startsWith("accident_")
+  );
+}
+
 function vehicleTooltip(vehicle) {
   if (!vehicle?.vehicle_id) {
     return null;
@@ -513,6 +523,7 @@ function roadLayers() {
 
 function signalLayers(phaseTrigger) {
   const theme = activeTheme();
+  const showSignalHalo = map.getZoom() < LAYER_STYLE.detailedVehicleMinZoom;
   const common = {
     data: state.signalPoints,
     coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
@@ -527,6 +538,7 @@ function signalLayers(phaseTrigger) {
     new ScatterplotLayer({
       ...common,
       id: "trafficverse-signal-halo",
+      data: showSignalHalo ? state.signalPoints : [],
       getFillColor: (signal) => phaseColor(signal.signalId, 45),
       getRadius: LAYER_STYLE.signalHaloRadiusM,
       radiusMinPixels: 8
@@ -573,8 +585,10 @@ function vehicleLayers() {
   const showDetailedVehicles = map.getZoom() >= LAYER_STYLE.detailedVehicleMinZoom;
   const detailedVehicles = showDetailedVehicles ? vehicles : [];
   const compactVehicles = showDetailedVehicles ? [] : vehicles;
-  const collisionVehicles = vehicles.filter((vehicle) =>
-    state.collisionVehicleIds.has(vehicle.vehicle_id)
+  const collisionVehicles = vehicles.filter(
+    (vehicle) =>
+      isScriptedAccidentVehicle(vehicle) &&
+      state.collisionVehicleIds.has(vehicle.vehicle_id)
   );
   const compactAmbulances = compactVehicles.filter(isAmbulance);
   const compactOrdinaryVehicles = compactVehicles.filter((vehicle) => !isAmbulance(vehicle));
@@ -1032,15 +1046,16 @@ window.TrafficVerseMap = {
     fitScenarioVehicles();
   },
   setCollisionVehicleIds(vehicleIds) {
-    const hadCollisions = state.collisionVehicleIds.size > 0;
+    const hadScriptedCollisions = hasScriptedAccidentCollision(state.collisionVehicleIds);
     state.collisionVehicleIds = new Set(
       (Array.isArray(vehicleIds) ? vehicleIds : []).filter((vehicleId) =>
         typeof vehicleId === "string"
       )
     );
+    const hasScriptedCollisions = hasScriptedAccidentCollision(state.collisionVehicleIds);
     renderVehicleLayers();
     updateMapStatus();
-    if (!hadCollisions && state.collisionVehicleIds.size > 0) {
+    if (!hadScriptedCollisions && hasScriptedCollisions) {
       state.followScenarioVehicles = true;
       fitScenarioVehicles();
     }
@@ -1085,7 +1100,7 @@ map.once("load", () => {
       state.followScenarioVehicles = false;
     }
   });
-  map.on("zoomend", renderVehicleLayers);
+  map.on("zoomend", renderLayers);
 });
 map.on("error", (event) => {
   const message = event?.error?.message ?? "未知错误";
