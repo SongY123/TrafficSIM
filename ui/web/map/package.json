@@ -5,7 +5,7 @@
   "description": "Offline MapLibre and deck.gl bundle for the TrafficVerse Qt map widget.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node scripts/test-vehicle-interpolation.mjs"
+    "test": "node scripts/test-vehicle-interpolation.mjs && node scripts/test-vehicle-models.mjs"
   },
   "engines": {
     "node": ">=16.20.2 <17",

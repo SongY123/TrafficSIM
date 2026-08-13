@@ -216,30 +216,41 @@ def test_map_derives_clear_lane_boundaries_and_dashed_markings_from_lane_geometr
     assert "trafficverse-lane-markings" in bundle
 
 
-def test_map_renders_oriented_top_down_cars_without_sideways_truck_overlay() -> None:
+def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     source = (MAP_WEB_ROOT / "src/app.js").read_text(encoding="utf-8")
+    models = (MAP_WEB_ROOT / "src/vehicle_models.mjs").read_text(encoding="utf-8")
+    style = (MAP_WEB_ROOT / "src/style.js").read_text(encoding="utf-8")
     bundle = (MAP_WEB_ROOT / "bundle/map.js").read_text(encoding="utf-8")
 
     assert "function orientedVehiclePoint(vehicle, forwardM, lateralM" in source
     assert "function vehicleBodyPolygon(vehicle" in source
-    assert "function vehicleCabinPolygon(vehicle" in source
-    assert "function vehicleDetailParts()" in source
+    assert "function vehicleDetailParts(vehicles)" in source
     assert "function vehiclePartColor(part)" in source
     assert 'id: "trafficverse-vehicle-shadows"' in source
+    assert 'id: "trafficverse-vehicle-dots"' in source
     assert 'id: "trafficverse-vehicle-bodies"' in source
     assert 'id: "trafficverse-vehicle-details"' in source
     assert 'id: "trafficverse-vehicle-headlights"' in source
     assert 'id: "trafficverse-emergency-highlight"' in source
-    assert 'id: "trafficverse-vehicle-models"' not in source
     assert "new ScenegraphLayer" not in source
     assert "vehicle.heading_rad" in source
-    assert "LAYER_STYLE.vehicleLengthM * 0.5" in source
-    assert "LAYER_STYLE.vehicleWidthM * 0.5" in source
+    assert "map.getZoom() >= LAYER_STYLE.detailedVehicleMinZoom" in source
+    assert "const detailedVehicles = showDetailedVehicles ? vehicles : []" in source
+    assert "const compactVehicles = showDetailedVehicles ? [] : vehicles" in source
+    assert 'map.on("zoomend", renderVehicleLayers)' in source
+    assert "getFillColor: vehicleColor" in source
+    assert all(f'"{kind}"' in models for kind in ("sedan", "truck", "trailer", "ambulance"))
+    assert "isAmbulanceVehicle" in models
+    assert "stableStringHash" in models
+    assert "L0: [48, 196, 210]" in style
+    assert "L0: [0, 143, 166]" in style
+    assert "emergencyVehicle: [239, 68, 68]" in style
+    assert "emergencyVehicle: [220, 38, 38]" in style
     assert "trafficverse-vehicle-bodies" in bundle
+    assert "trafficverse-vehicle-dots" in bundle
     assert "trafficverse-vehicle-details" in bundle
     assert "trafficverse-vehicle-headlights" in bundle
     assert "trafficverse-emergency-highlight" in bundle
-    assert "trafficverse-vehicle-models" not in bundle
 
 
 def test_map_hud_has_a_safe_inset_from_the_webview_edge() -> None:

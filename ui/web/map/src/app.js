@@ -11,6 +11,11 @@ import maplibregl from "maplibre-gl";
 import blankStyle from "../styles/blank-style.json";
 import {LAYER_STYLE, MAP_THEMES} from "./style.js";
 import {VehicleSnapshotPlayback} from "./vehicle_interpolation.mjs";
+import {
+  isAmbulanceVehicle,
+  vehicleModelKind,
+  vehicleModelSpec
+} from "./vehicle_models.mjs";
 
 const EARTH_RADIUS_M = 6378137;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -137,7 +142,7 @@ function vehicleAccentColor(vehicle, alpha = 245) {
 }
 
 function isAmbulance(vehicle) {
-  return (vehicle?.vehicle_id ?? "").startsWith("ambulance_");
+  return isAmbulanceVehicle(vehicle);
 }
 
 function isStaticObstacle(vehicle) {
@@ -291,34 +296,13 @@ function orientedVehiclePoint(vehicle, forwardM, lateralM, elevationM = 0) {
 }
 
 function vehicleBodyPolygon(vehicle, forwardOffsetM = 0, lateralOffsetM = 0) {
-  const halfLengthM = LAYER_STYLE.vehicleLengthM * 0.5;
-  const halfWidthM = LAYER_STYLE.vehicleWidthM * 0.5;
-  return [
+  return vehicleModelSpec(vehicle).outline.map(([forwardM, lateralM]) =>
     orientedVehiclePoint(
       vehicle,
-      halfLengthM + forwardOffsetM,
-      -halfWidthM * 0.58 + lateralOffsetM
-    ),
-    orientedVehiclePoint(vehicle, halfLengthM + forwardOffsetM, halfWidthM * 0.58 + lateralOffsetM),
-    orientedVehiclePoint(vehicle, halfLengthM - 0.34 + forwardOffsetM, halfWidthM + lateralOffsetM),
-    orientedVehiclePoint(
-      vehicle,
-      -halfLengthM + 0.28 + forwardOffsetM,
-      halfWidthM + lateralOffsetM
-    ),
-    orientedVehiclePoint(vehicle, -halfLengthM + forwardOffsetM, halfWidthM * 0.7 + lateralOffsetM),
-    orientedVehiclePoint(
-      vehicle,
-      -halfLengthM + forwardOffsetM,
-      -halfWidthM * 0.7 + lateralOffsetM
-    ),
-    orientedVehiclePoint(
-      vehicle,
-      -halfLengthM + 0.28 + forwardOffsetM,
-      -halfWidthM + lateralOffsetM
-    ),
-    orientedVehiclePoint(vehicle, halfLengthM - 0.34 + forwardOffsetM, -halfWidthM + lateralOffsetM)
-  ];
+      forwardM + forwardOffsetM,
+      lateralM + lateralOffsetM
+    )
+  );
 }
 
 function orientedVehiclePolygon(vehicle, points, elevationM = 0.04) {
@@ -327,70 +311,28 @@ function orientedVehiclePolygon(vehicle, points, elevationM = 0.04) {
   );
 }
 
-function vehicleCabinPolygon(vehicle) {
-  const cabinHalfWidthM = LAYER_STYLE.vehicleWidthM * 0.36;
-  return orientedVehiclePolygon(vehicle, [
-    [1.0, -cabinHalfWidthM * 0.82],
-    [1.0, cabinHalfWidthM * 0.82],
-    [0.68, cabinHalfWidthM],
-    [-0.92, cabinHalfWidthM],
-    [-1.16, cabinHalfWidthM * 0.76],
-    [-1.16, -cabinHalfWidthM * 0.76],
-    [-0.92, -cabinHalfWidthM],
-    [0.68, -cabinHalfWidthM]
-  ]);
-}
-
-function vehicleDetailParts() {
-  const halfWidthM = LAYER_STYLE.vehicleWidthM * 0.5;
-  const wheelLateralM = halfWidthM * 0.96;
-  return state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle)).flatMap((vehicle) => {
+function vehicleDetailParts(vehicles) {
+  return vehicles.flatMap((vehicle) => {
+    const modelKind = vehicleModelKind(vehicle);
+    const model = vehicleModelSpec(vehicle);
+    const wheelLateralM = model.widthM * 0.5 * 0.96;
+    const wheelHalfLengthM = modelKind === "sedan" ? 0.31 : 0.39;
+    const wheelHalfWidthM = modelKind === "sedan" ? 0.11 : 0.14;
     const parts = [
-      {vehicle, kind: "roof", polygon: vehicleCabinPolygon(vehicle)},
-      {
+      ...model.parts.map((part) => ({
         vehicle,
-        kind: "front-glass",
-        polygon: orientedVehiclePolygon(vehicle, [
-          [0.96, -0.51], [0.96, 0.51], [0.58, 0.62], [0.58, -0.62]
-        ], 0.07)
-      },
-      {
-        vehicle,
-        kind: "rear-glass",
-        polygon: orientedVehiclePolygon(vehicle, [
-          [-0.69, -0.62], [-0.69, 0.62], [-1.1, 0.47], [-1.1, -0.47]
-        ], 0.07)
-      },
-      {
-        vehicle,
-        kind: "side-glass",
-        polygon: orientedVehiclePolygon(vehicle, [
-          [0.48, 0.57], [-0.58, 0.57], [-0.74, 0.63], [0.5, 0.63]
-        ], 0.08)
-      },
-      {
-        vehicle,
-        kind: "side-glass",
-        polygon: orientedVehiclePolygon(vehicle, [
-          [0.48, -0.57], [0.5, -0.63], [-0.74, -0.63], [-0.58, -0.57]
-        ], 0.08)
-      },
-      {
-        vehicle,
-        kind: "hood-highlight",
-        polygon: orientedVehiclePolygon(vehicle, [
-          [2.03, -0.3], [2.03, 0.3], [1.28, 0.42], [1.28, -0.42]
-        ], 0.06)
-      },
-      ...[1.08, -1.24].flatMap((forwardM) =>
+        kind: part.kind,
+        polygon: orientedVehiclePolygon(vehicle, part.points, 0.07)
+      })),
+      ...model.wheelAxlesM.flatMap((forwardM) =>
         [-wheelLateralM, wheelLateralM].map((lateralM) => ({
           vehicle,
           kind: "wheel",
           polygon: orientedVehiclePolygon(vehicle, [
-            [forwardM + 0.31, lateralM - 0.11],
-            [forwardM + 0.31, lateralM + 0.11],
-            [forwardM - 0.31, lateralM + 0.11],
-            [forwardM - 0.31, lateralM - 0.11]
+            [forwardM + wheelHalfLengthM, lateralM - wheelHalfWidthM],
+            [forwardM + wheelHalfLengthM, lateralM + wheelHalfWidthM],
+            [forwardM - wheelHalfLengthM, lateralM + wheelHalfWidthM],
+            [forwardM - wheelHalfLengthM, lateralM - wheelHalfWidthM]
           ], 0.09)
         }))
       )
@@ -400,7 +342,10 @@ function vehicleDetailParts() {
         vehicle,
         kind: "sensor",
         polygon: orientedVehiclePolygon(vehicle, [
-          [0.14, -0.13], [0.14, 0.13], [-0.14, 0.13], [-0.14, -0.13]
+          [model.sensorForwardM + 0.14, -0.13],
+          [model.sensorForwardM + 0.14, 0.13],
+          [model.sensorForwardM - 0.14, 0.13],
+          [model.sensorForwardM - 0.14, -0.13]
         ], 0.1)
       });
     }
@@ -416,27 +361,37 @@ function vehiclePartColor(part) {
   if (part.kind === "front-glass") {
     return theme.vehicleGlassFront;
   }
-  if (part.kind === "rear-glass" || part.kind === "side-glass") {
+  if (part.kind === "rear-glass" || part.kind === "side-glass" || part.kind === "body-seam") {
     return theme.vehicleGlass;
   }
   if (part.kind === "sensor") {
     return theme.vehicleSensor;
   }
-  if (part.kind === "hood-highlight") {
+  if (part.kind.startsWith("emergency-cross")) {
+    return theme.emergencyVehicleMark;
+  }
+  if (
+    part.kind === "hood-highlight" ||
+    part.kind === "cargo-panel" ||
+    part.kind === "trailer-panel" ||
+    part.kind === "medical-roof"
+  ) {
     return vehicleAccentColor(part.vehicle, 190);
   }
   return vehicleAccentColor(part.vehicle);
 }
 
-function vehicleLightPoints() {
-  const halfLengthM = LAYER_STYLE.vehicleLengthM * 0.5;
-  const lateralM = LAYER_STYLE.vehicleWidthM * 0.34;
-  return state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle)).flatMap((vehicle) => [
-    {vehicle, forwardM: halfLengthM - 0.12, lateralM: -lateralM, kind: "headlight"},
-    {vehicle, forwardM: halfLengthM - 0.12, lateralM, kind: "headlight"},
-    {vehicle, forwardM: -halfLengthM + 0.1, lateralM: -lateralM, kind: "tail-light"},
-    {vehicle, forwardM: -halfLengthM + 0.1, lateralM, kind: "tail-light"}
-  ]);
+function vehicleLightPoints(vehicles) {
+  return vehicles.flatMap((vehicle) => {
+    const model = vehicleModelSpec(vehicle);
+    const halfLengthM = model.lengthM * 0.5;
+    return [
+      {vehicle, forwardM: halfLengthM - 0.12, lateralM: -model.lightLateralM, kind: "headlight"},
+      {vehicle, forwardM: halfLengthM - 0.12, lateralM: model.lightLateralM, kind: "headlight"},
+      {vehicle, forwardM: -halfLengthM + 0.1, lateralM: -model.lightLateralM, kind: "tail-light"},
+      {vehicle, forwardM: -halfLengthM + 0.1, lateralM: model.lightLateralM, kind: "tail-light"}
+    ];
+  });
 }
 
 function focusVehicle(vehicleId, duration = 600) {
@@ -585,8 +540,11 @@ function vehicleLayers() {
   const vehicles = state.vehicles.filter((vehicle) => !isStaticObstacle(vehicle));
   const obstacles = state.vehicles.filter(isStaticObstacle);
   const ambulances = vehicles.filter(isAmbulance);
+  const showDetailedVehicles = map.getZoom() >= LAYER_STYLE.detailedVehicleMinZoom;
+  const detailedVehicles = showDetailedVehicles ? vehicles : [];
+  const compactVehicles = showDetailedVehicles ? [] : vehicles;
   const common = {
-    data: vehicles,
+    data: detailedVehicles,
     coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
     coordinateOrigin: [0, 0, 0],
     pickable: true,
@@ -655,24 +613,21 @@ function vehicleLayers() {
     }),
     new ScatterplotLayer({
       ...common,
-      id: "trafficverse-vehicle-halo",
+      id: "trafficverse-vehicle-dots",
+      data: compactVehicles,
       getPosition: (vehicle) => toMapPosition(vehicle.position),
       getFillColor: (vehicle) =>
         vehicle.vehicle_id === state.selectedVehicleId
-          ? vehicleColor(vehicle, 105)
-          : vehicleColor(vehicle, 150),
+          ? vehicleColor(vehicle)
+          : vehicleColor(vehicle, 235),
       getLineColor: (vehicle) => vehicleColor(vehicle),
       getRadius: (vehicle) =>
-        isAmbulance(vehicle)
-          ? LAYER_STYLE.vehicleHaloRadiusM * 1.35
-          : vehicle.vehicle_id === state.selectedVehicleId
-          ? LAYER_STYLE.vehicleHaloRadiusM
-          : LAYER_STYLE.vehicleHaloRadiusM * 0.72,
-      radiusUnits: "meters",
-      radiusMinPixels: 4,
-      radiusMaxPixels: 11,
+        vehicle.vehicle_id === state.selectedVehicleId
+          ? LAYER_STYLE.compactVehicleSelectedRadiusPx
+          : LAYER_STYLE.compactVehicleRadiusPx,
+      radiusUnits: "pixels",
       stroked: true,
-      lineWidthMinPixels: 1,
+      lineWidthMinPixels: 1.25,
       parameters: FLAT_LAYER_PARAMETERS,
       updateTriggers: {
         getFillColor: [state.theme, state.selectedVehicleId],
@@ -700,7 +655,7 @@ function vehicleLayers() {
     new PolygonLayer({
       ...common,
       id: "trafficverse-vehicle-details",
-      data: vehicleDetailParts(),
+      data: vehicleDetailParts(detailedVehicles),
       getPolygon: (part) => part.polygon,
       getFillColor: vehiclePartColor,
       stroked: false,
@@ -711,7 +666,7 @@ function vehicleLayers() {
     new ScatterplotLayer({
       ...common,
       id: "trafficverse-vehicle-headlights",
-      data: vehicleLightPoints(),
+      data: vehicleLightPoints(detailedVehicles),
       getPosition: (light) =>
         orientedVehiclePoint(light.vehicle, light.forwardM, light.lateralM, 0.12),
       getFillColor: (light) =>
@@ -1036,6 +991,7 @@ map.once("load", () => {
       state.followScenarioVehicles = false;
     }
   });
+  map.on("zoomend", renderVehicleLayers);
 });
 map.on("error", (event) => {
   const message = event?.error?.message ?? "未知错误";
