@@ -905,6 +905,7 @@ def test_low_level_merge_requests_more_d1_to_d2_changes_than_d2_to_d3_changes() 
     )
 
     assert first[d1.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert first[d1.vehicle_id].lane_change_duration_s == pytest.approx(1.5)
     assert first[d1.vehicle_id].lane_change_mode == 512
     assert propagated[d2.vehicle_id].lane_change is LaneChangeDirection.NONE
     assert all(not command.safety_checks_override for command in propagated.values())
@@ -950,7 +951,77 @@ def test_low_level_merge_allows_a_sparse_d2_to_d3_change_when_safe() -> None:
     commands = controller.step(_snapshot(d1, d2, ramp, time_ms=13_850), 0.05)
 
     assert commands[d2.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert commands[d2.vehicle_id].lane_change_duration_s == pytest.approx(1.5)
     assert commands[d2.vehicle_id].lane_change_mode == 512
+
+
+def test_low_level_merge_accelerates_a_clear_d1_vehicle_after_lane_change() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-low-level-merge")
+    d1 = _vehicle(
+        "merge_main_L0_lane0.0",
+        x_m=76.0,
+        lane_index=0,
+        speed_mps=14.8,
+    ).model_copy(update={"lane_id": "main_before_0"})
+    ramp = _vehicle(
+        "merge_ramp_L3.0",
+        x_m=88.0,
+        lane_index=0,
+        speed_mps=8.0,
+    ).model_copy(update={"lane_id": "merge_ramp_0"})
+
+    requested = controller.step(_snapshot(d1, ramp, time_ms=18_000), 0.05)
+    changed_d1 = d1.model_copy(
+        update={
+            "lane_id": "main_before_1",
+            "position": Vector3(x=87.5, y=14.75),
+            "speed_mps": 1.5,
+        }
+    )
+    during_change = controller.step(_snapshot(changed_d1, ramp, time_ms=19_000), 0.05)
+    after_change = controller.step(_snapshot(changed_d1, ramp, time_ms=20_050), 0.05)
+
+    assert requested[d1.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert during_change[changed_d1.vehicle_id].desired_speed_mps == pytest.approx(6.0)
+    assert after_change[changed_d1.vehicle_id].desired_speed_mps == pytest.approx(7.5)
+    assert after_change[changed_d1.vehicle_id].lane_change is LaneChangeDirection.NONE
+
+
+def test_low_level_merge_keeps_d2_speed_when_changed_d1_has_a_close_vehicle_ahead() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-low-level-merge")
+    d1 = _vehicle(
+        "merge_main_L0_lane0.0",
+        x_m=76.0,
+        lane_index=0,
+        speed_mps=14.8,
+    ).model_copy(update={"lane_id": "main_before_0"})
+    ramp = _vehicle(
+        "merge_ramp_L3.0",
+        x_m=88.0,
+        lane_index=0,
+        speed_mps=8.0,
+    ).model_copy(update={"lane_id": "merge_ramp_0"})
+    controller.step(_snapshot(d1, ramp, time_ms=18_000), 0.05)
+    changed_d1 = d1.model_copy(
+        update={
+            "lane_id": "main_before_1",
+            "position": Vector3(x=87.5, y=14.75),
+            "speed_mps": 1.5,
+        }
+    )
+    close_d2 = _vehicle(
+        "merge_main_L1_lane1.0",
+        x_m=99.0,
+        lane_index=1,
+        speed_mps=6.0,
+    ).model_copy(update={"lane_id": "main_before_1"})
+
+    commands = controller.step(
+        _snapshot(changed_d1, close_d2, ramp, time_ms=20_050),
+        0.05,
+    )
+
+    assert commands[changed_d1.vehicle_id].desired_speed_mps == pytest.approx(6.0)
 
 
 def test_low_level_merge_waits_for_a_safe_target_lane_gap() -> None:

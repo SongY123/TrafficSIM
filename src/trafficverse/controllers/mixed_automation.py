@@ -90,9 +90,12 @@ _LOW_MERGE_CASCADE_RADIUS_M = {1: 42.0, 2: 60.0}
 _LOW_MERGE_CASCADE_DELAY_MS = {1: 500, 2: 1_200}
 _LOW_MERGE_CASCADE_SPEED_MPS = {1: 6.0, 2: 5.2}
 _LOW_MERGE_CASCADE_DECEL_MPS2 = {1: 3.5, 2: 2.4}
-_LOW_MERGE_LANE_CHANGE_DURATION_S = 1.0
+_LOW_MERGE_LANE_CHANGE_DURATION_S = 1.5
+_LOW_MERGE_LANE_CHANGE_SAFETY_HORIZON_S = 1.0
 _LOW_MERGE_LANE_CHANGE_CLEARANCE_M = {1: 7.5, 2: 9.0}
 _LOW_MERGE_LANE_CHANGE_ZONE_X_M = {1: (58.0, 94.0), 2: (58.0, 98.0)}
+_LOW_MERGE_CLEAR_D2_SPEED_MPS = 7.5
+_LOW_MERGE_CLEAR_AHEAD_DISTANCE_M = 24.0
 _L5_MERGE_CRUISE_SPEED_MPS = 16.0
 _SCENARIO_IDS = frozenset(
     {
@@ -120,7 +123,8 @@ class MixedAutomationScenarioController:
         self._low_merge_gap_provider_id: str | None = None
         self._low_merge_served_ramp_id: str | None = None
         self._low_merge_conflict_started_ms: int | None = None
-        self._low_merge_lane_change_requested_ids: set[str] = set()
+        self._low_merge_lane_change_target_by_vehicle_id: dict[str, int] = {}
+        self._low_merge_lane_change_requested_at_ms_by_vehicle_id: dict[str, int] = {}
         self._low_merge_d1_lane_change_request_count = 0
         self._low_merge_d2_lane_change_requested = False
 
@@ -769,11 +773,21 @@ class MixedAutomationScenarioController:
                 lane_index = (
                     actual_lane_index if actual_lane_index is not None else int(lane_text or 0)
                 )
+                requested_target_lane_index = self._low_merge_lane_change_target_by_vehicle_id.get(
+                    vehicle.vehicle_id
+                )
+                requested_at_ms = self._low_merge_lane_change_requested_at_ms_by_vehicle_id.get(
+                    vehicle.vehicle_id
+                )
                 if disturbance_active and vehicle.vehicle_id == self._low_merge_gap_provider_id:
                     command = (
-                        _low_merge_cascade_command(vehicle, 1)
-                        if vehicle.vehicle_id in self._low_merge_lane_change_requested_ids
-                        and vehicle.lane_id == "main_before_0"
+                        _low_merge_requested_vehicle_command(
+                            snapshot,
+                            vehicle,
+                            requested_target_lane_index,
+                            requested_at_ms,
+                        )
+                        if requested_target_lane_index is not None
                         else _low_merge_slowdown_command(
                             vehicle,
                             target_speed_mps=_LOW_MERGE_D1_SPEED_MPS,
@@ -783,11 +797,14 @@ class MixedAutomationScenarioController:
                     if (
                         vehicle.lane_id == "main_before_0"
                         and self._low_merge_d1_lane_change_request_count < 2
-                        and vehicle.vehicle_id not in self._low_merge_lane_change_requested_ids
+                        and requested_target_lane_index is None
                         and _low_merge_should_change_lane(0, level, sequence)
                         and _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=1)
                     ):
-                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_lane_change_target_by_vehicle_id[vehicle.vehicle_id] = 1
+                        self._low_merge_lane_change_requested_at_ms_by_vehicle_id[
+                            vehicle.vehicle_id
+                        ] = snapshot.simulation_time_ms
                         self._low_merge_d1_lane_change_request_count += 1
                         command = _low_merge_cascade_command(vehicle, 1).model_copy(
                             update={
@@ -804,16 +821,24 @@ class MixedAutomationScenarioController:
                     and vehicle.lane_id == "main_before_0"
                     and _low_merge_should_change_lane(0, level, sequence)
                     and (
-                        vehicle.vehicle_id in self._low_merge_lane_change_requested_ids
+                        requested_target_lane_index is not None
                         or self._low_merge_d1_lane_change_request_count < 2
                     )
                 ):
-                    command = _low_merge_cascade_command(vehicle, 1)
-                    if vehicle.vehicle_id in self._low_merge_lane_change_requested_ids:
+                    command = _low_merge_requested_vehicle_command(
+                        snapshot,
+                        vehicle,
+                        requested_target_lane_index or 1,
+                        requested_at_ms,
+                    )
+                    if requested_target_lane_index is not None:
                         commands[vehicle.vehicle_id] = command
                         continue
                     if _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=1):
-                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_lane_change_target_by_vehicle_id[vehicle.vehicle_id] = 1
+                        self._low_merge_lane_change_requested_at_ms_by_vehicle_id[
+                            vehicle.vehicle_id
+                        ] = snapshot.simulation_time_ms
                         self._low_merge_d1_lane_change_request_count += 1
                         commands[vehicle.vehicle_id] = command.model_copy(
                             update={
@@ -832,11 +857,19 @@ class MixedAutomationScenarioController:
                     and not self._low_merge_d2_lane_change_requested
                 ):
                     command = _low_merge_cascade_command(vehicle, 2)
-                    if vehicle.vehicle_id in self._low_merge_lane_change_requested_ids:
-                        commands[vehicle.vehicle_id] = command
+                    if requested_target_lane_index is not None:
+                        commands[vehicle.vehicle_id] = _low_merge_requested_vehicle_command(
+                            snapshot,
+                            vehicle,
+                            requested_target_lane_index,
+                            requested_at_ms,
+                        )
                         continue
                     if _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=2):
-                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_lane_change_target_by_vehicle_id[vehicle.vehicle_id] = 2
+                        self._low_merge_lane_change_requested_at_ms_by_vehicle_id[
+                            vehicle.vehicle_id
+                        ] = snapshot.simulation_time_ms
                         self._low_merge_d2_lane_change_requested = True
                         commands[vehicle.vehicle_id] = command.model_copy(
                             update={
@@ -848,23 +881,27 @@ class MixedAutomationScenarioController:
                         continue
                 cascade_lane_index = cascade_lane_by_vehicle_id.get(vehicle.vehicle_id)
                 if disturbance_active and cascade_lane_index is not None:
-                    command = _low_merge_cascade_command(
-                        vehicle,
-                        (
-                            2
-                            if cascade_lane_index == 1
-                            and vehicle.vehicle_id in self._low_merge_lane_change_requested_ids
-                            else cascade_lane_index
-                        ),
+                    command = (
+                        _low_merge_requested_vehicle_command(
+                            snapshot,
+                            vehicle,
+                            requested_target_lane_index,
+                            requested_at_ms,
+                        )
+                        if requested_target_lane_index is not None
+                        else _low_merge_cascade_command(vehicle, cascade_lane_index)
                     )
                     if (
                         cascade_lane_index == 1
                         and not self._low_merge_d2_lane_change_requested
-                        and vehicle.vehicle_id not in self._low_merge_lane_change_requested_ids
+                        and requested_target_lane_index is None
                         and _low_merge_should_change_lane(1, level, sequence)
                         and _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=2)
                     ):
-                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_lane_change_target_by_vehicle_id[vehicle.vehicle_id] = 2
+                        self._low_merge_lane_change_requested_at_ms_by_vehicle_id[
+                            vehicle.vehicle_id
+                        ] = snapshot.simulation_time_ms
                         self._low_merge_d2_lane_change_requested = True
                         command = command.model_copy(
                             update={
@@ -1012,22 +1049,17 @@ def _low_merge_lane_change_is_safe(
         return False
     target_lane_id = f"main_before_{target_lane_index}"
     clearance_m = _LOW_MERGE_LANE_CHANGE_CLEARANCE_M[target_lane_index]
+    horizon_s = _LOW_MERGE_LANE_CHANGE_SAFETY_HORIZON_S
     projected_vehicle_x_m = (
         vehicle.position.x
-        + vehicle.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
-        - 0.5
-        * _LOW_MERGE_CASCADE_DECEL_MPS2[target_lane_index]
-        * _LOW_MERGE_LANE_CHANGE_DURATION_S**2
+        + vehicle.speed_mps * horizon_s
+        - 0.5 * _LOW_MERGE_CASCADE_DECEL_MPS2[target_lane_index] * horizon_s**2
     )
     for other in snapshot.vehicles:
         if other.vehicle_id == vehicle.vehicle_id or other.lane_id != target_lane_id:
             continue
         current_delta_m = other.position.x - vehicle.position.x
-        projected_delta_m = (
-            other.position.x
-            + other.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
-            - projected_vehicle_x_m
-        )
+        projected_delta_m = other.position.x + other.speed_mps * horizon_s - projected_vehicle_x_m
         stays_ahead = current_delta_m >= clearance_m and projected_delta_m >= clearance_m
         stays_behind = current_delta_m <= -clearance_m and projected_delta_m <= -clearance_m
         if not (stays_ahead or stays_behind):
@@ -1066,6 +1098,38 @@ def _low_merge_cascade_command(
             lane_change_mode=0,
         )
     return ControlCommand(desired_speed_mps=target_speed_mps, lane_change_mode=0)
+
+
+def _low_merge_requested_vehicle_command(
+    snapshot: TrafficSnapshot,
+    vehicle: VehicleState,
+    target_lane_index: int,
+    requested_at_ms: int | None,
+) -> ControlCommand:
+    command = _low_merge_cascade_command(vehicle, target_lane_index)
+    lane_change_elapsed_ms = (
+        snapshot.simulation_time_ms - requested_at_ms if requested_at_ms is not None else 0
+    )
+    if (
+        target_lane_index != 1
+        or requested_at_ms is None
+        or lane_change_elapsed_ms < round(_LOW_MERGE_LANE_CHANGE_DURATION_S * 1000)
+        or _lane_index(vehicle.lane_id) != target_lane_index
+    ):
+        return command
+    has_close_vehicle_ahead = any(
+        other.vehicle_id != vehicle.vehicle_id
+        and other.lane_id.startswith("main_")
+        and _lane_index(other.lane_id) == target_lane_index
+        and 0.0 < other.position.x - vehicle.position.x < _LOW_MERGE_CLEAR_AHEAD_DISTANCE_M
+        for other in snapshot.vehicles
+    )
+    if has_close_vehicle_ahead:
+        return command
+    return ControlCommand(
+        desired_speed_mps=_LOW_MERGE_CLEAR_D2_SPEED_MPS,
+        lane_change_mode=0,
+    )
 
 
 def _is_active_merge_ramp_vehicle(vehicle: VehicleState) -> bool:

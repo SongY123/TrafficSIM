@@ -10,7 +10,10 @@ import maplibregl from "maplibre-gl";
 
 import blankStyle from "../styles/blank-style.json";
 import {LAYER_STYLE, MAP_THEMES} from "./style.js";
-import {VehicleSnapshotPlayback} from "./vehicle_interpolation.mjs";
+import {
+  VehicleSnapshotPlayback,
+  stabilizeVehicleHeadings
+} from "./vehicle_interpolation.mjs";
 import {
   isAmbulanceVehicle,
   vehicleModelKind,
@@ -854,8 +857,12 @@ function animateVehicles(timestampMs) {
 
 function setVehicleSnapshot(vehicles) {
   const receivedAtMs = performance.now();
-  state.authoritativeVehicles = vehicles;
-  state.vehiclePlayback.push(vehicles, receivedAtMs);
+  const stabilizedVehicles = stabilizeVehicleHeadings(
+    state.authoritativeVehicles,
+    vehicles
+  );
+  state.authoritativeVehicles = stabilizedVehicles;
+  state.vehiclePlayback.push(stabilizedVehicles, receivedAtMs);
   state.vehicles = state.vehiclePlayback.sample(receivedAtMs);
   renderVehicleLayers();
   if (state.vehiclePlayback.isActive() && state.vehicleAnimationFrame === null) {

@@ -14,7 +14,7 @@
     <processing>
         <time-to-teleport value="-1" />
         <collision.action value="warn" />
-        <lanechange.duration value="1.0" />
+        <lanechange.duration value="1.5" />
     </processing>
     <report>
         <verbose value="false" />

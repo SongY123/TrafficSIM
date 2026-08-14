@@ -2,6 +2,7 @@ const TWO_PI = Math.PI * 2;
 const DEFAULT_BUFFER_FRAMES = 2;
 const PLAYBACK_RATE_SMOOTHING = 0.2;
 const MAX_RATE_SAMPLE_MULTIPLIER = 4;
+const MIN_HEADING_MOVEMENT_M = 0.005;
 
 function clampUnit(value) {
   return Math.max(0, Math.min(1, value));
@@ -61,6 +62,31 @@ function canInterpolateVehicle(previous, current) {
   const speedMps = Math.max(previous.speed_mps, current.speed_mps);
   const maximumContinuousDistanceM = Math.max(2, speedMps * elapsedS * 3 + 1);
   return distanceM <= maximumContinuousDistanceM;
+}
+
+export function stabilizeVehicleHeadings(previous, current) {
+  const previousById = new Map(previous.map((vehicle) => [vehicle.vehicle_id, vehicle]));
+  return current.map((vehicle) => {
+    const previousVehicle = previousById.get(vehicle.vehicle_id);
+    if (!previousVehicle || !canInterpolateVehicle(previousVehicle, vehicle)) {
+      return vehicle;
+    }
+    const deltaX = vehicle.position.x - previousVehicle.position.x;
+    const deltaY = vehicle.position.y - previousVehicle.position.y;
+    if (Math.hypot(deltaX, deltaY) <= MIN_HEADING_MOVEMENT_M) {
+      return vehicle;
+    }
+    const usesMergeBodyHeading =
+      vehicle.vehicle_id.startsWith("merge_main_") &&
+      Math.abs(deltaY) > MIN_HEADING_MOVEMENT_M &&
+      Number.isFinite(vehicle.heading_rad);
+    return {
+      ...vehicle,
+      heading_rad: usesMergeBodyHeading
+        ? vehicle.heading_rad
+        : Math.atan2(deltaY, deltaX)
+    };
+  });
 }
 
 export function interpolateVehicleSnapshots(previous, current, progress) {

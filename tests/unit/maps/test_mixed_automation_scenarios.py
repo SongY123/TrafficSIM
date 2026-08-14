@@ -451,7 +451,7 @@ def test_l5_merge_uses_a_mixed_constant_speed_zipper_schedule() -> None:
     )
 
 
-def test_low_level_merge_uses_continuous_one_second_lane_changes() -> None:
+def test_low_level_merge_uses_continuous_one_and_a_half_second_lane_changes() -> None:
     scenario_id = "mixed-automation-low-level-merge"
     config_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.sumocfg").getroot()
 
@@ -459,7 +459,7 @@ def test_low_level_merge_uses_continuous_one_second_lane_changes() -> None:
     assert processing is not None
     lane_change_duration = processing.find("lanechange.duration")
     assert lane_change_duration is not None
-    assert lane_change_duration.attrib["value"] == "1.0"
+    assert lane_change_duration.attrib["value"] == "1.5"
 
 
 def test_low_level_merge_keeps_supplying_ramp_vehicles_for_the_full_run() -> None:

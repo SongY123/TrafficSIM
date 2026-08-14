@@ -4,7 +4,8 @@ import {
   VehicleSnapshotPlayback,
   canInterpolateSnapshots,
   interpolateAngleRad,
-  interpolateVehicleSnapshots
+  interpolateVehicleSnapshots,
+  stabilizeVehicleHeadings
 } from "../src/vehicle_interpolation.mjs";
 
 function vehicle(vehicleId, sequence, simulationTimeMs, x, headingRad = 0) {
@@ -48,6 +49,41 @@ const withNewVehicle = interpolateVehicleSnapshots(
   0.25
 );
 assert.equal(withNewVehicle[1].position.x, 40);
+
+const slantedAfterLaneChange = vehicle("vehicle-1", 11, 550, 0.3, Math.PI / 6);
+const straightened = stabilizeVehicleHeadings(previous, [slantedAfterLaneChange]);
+assert.ok(Math.abs(straightened[0].heading_rad) < 1e-9);
+
+const changingLanePrevious = vehicle("vehicle-1", 10, 500, 0, 0);
+changingLanePrevious.position.y = 2;
+const changingLaneCurrent = vehicle("vehicle-1", 11, 550, 0.3, 0);
+changingLaneCurrent.position.y = 2.2;
+const changingLane = stabilizeVehicleHeadings(
+  [changingLanePrevious],
+  [changingLaneCurrent]
+);
+assert.ok(changingLane[0].heading_rad > 0);
+
+const lowMergePrevious = vehicle("merge_main_L0_lane0.1", 10, 500, 0, 0);
+const lowMergeCurrent = vehicle("merge_main_L0_lane0.1", 11, 550, 0.1, Math.PI / 8);
+lowMergeCurrent.position.y = 2.2;
+const lowMergeChangingLane = stabilizeVehicleHeadings(
+  [lowMergePrevious],
+  [lowMergeCurrent]
+);
+assert.equal(lowMergeChangingLane[0].heading_rad, Math.PI / 8);
+
+const teleportedHeading = stabilizeVehicleHeadings(
+  previous,
+  [vehicle("vehicle-1", 11, 550, 100, 0.75)]
+);
+assert.equal(teleportedHeading[0].heading_rad, 0.75);
+
+const stoppedVehicleHeading = stabilizeVehicleHeadings(
+  previous,
+  [vehicle("vehicle-1", 11, 550, 0.001, 0.75)]
+);
+assert.equal(stoppedVehicleHeading[0].heading_rad, 0.75);
 
 const degrees = (radians) => radians * 180 / Math.PI;
 const wrappedMidpoint = interpolateAngleRad(179 * Math.PI / 180, -179 * Math.PI / 180, 0.5);
