@@ -17,10 +17,10 @@
     <vehicle id="merge_main_L5_lane0.105" type="L5" route="route_main" depart="0" departLane="0" departPos="82.6" departSpeed="15.8" insertionChecks="none" />
     <vehicle id="merge_main_L4_lane0.106" type="L4" route="route_main" depart="0" departLane="0" departPos="98" departSpeed="16.1" insertionChecks="none" />
     <vehicle id="merge_main_L4_lane1.100" type="L4" route="route_main" depart="0" departLane="1" departPos="3.2" departSpeed="15.7" insertionChecks="none" />
-    <vehicle id="merge_main_L5_lane1.101" type="L5" route="route_main" depart="0" departLane="1" departPos="14.1" departSpeed="16.7" insertionChecks="none" />
+    <vehicle id="merge_main_L5_lane1.101" type="L5" route="route_main" depart="0" departLane="1" departPos="14.1" departSpeed="15.45" insertionChecks="none" />
     <vehicle id="merge_main_L3_lane1.102" type="L3" route="route_main" depart="0" departLane="1" departPos="25.8" departSpeed="15.45" insertionChecks="none" />
     <vehicle id="merge_main_L5_lane1.103" type="L5" route="route_main" depart="0" departLane="1" departPos="37" departSpeed="15.45" insertionChecks="none" />
-    <vehicle id="merge_main_L4_lane1.104" type="L4" route="route_main" depart="0" departLane="1" departPos="48.9" departSpeed="16.7" insertionChecks="none" />
+    <vehicle id="merge_main_L4_lane1.104" type="L4" route="route_main" depart="0" departLane="1" departPos="48.9" departSpeed="15.95" insertionChecks="none" />
     <vehicle id="merge_main_L5_lane1.105" type="L5" route="route_main" depart="0" departLane="1" departPos="60" departSpeed="15.95" insertionChecks="none" />
     <vehicle id="merge_main_L5_lane1.106" type="L5" route="route_main" depart="0" departLane="1" departPos="71.8" departSpeed="16.2" insertionChecks="none" />
     <vehicle id="merge_main_L5_lane1.107" type="L5" route="route_main" depart="0" departLane="1" departPos="83.1" departSpeed="16.45" insertionChecks="none" />
@@ -53,10 +53,10 @@
     <vehicle id="merge_opposing_L5_lane0.110" type="L5" route="route_opposing" depart="0" departLane="0" departPos="181" departSpeed="15.95" insertionChecks="none" />
     <vehicle id="merge_opposing_L4_lane0.111" type="L4" route="route_opposing" depart="0" departLane="0" departPos="202" departSpeed="15.45" insertionChecks="none" />
     <vehicle id="merge_opposing_L3_lane1.100" type="L3" route="route_opposing" depart="0" departLane="1" departPos="2.5" departSpeed="15.95" insertionChecks="none" />
-    <vehicle id="merge_opposing_L5_lane1.101" type="L5" route="route_opposing" depart="0" departLane="1" departPos="20.5" departSpeed="15.95" insertionChecks="none" />
+    <vehicle id="merge_opposing_L5_lane1.101" type="L5" route="route_opposing" depart="0" departLane="1" departPos="20.5" departSpeed="15.45" insertionChecks="none" />
     <vehicle id="merge_opposing_L4_lane1.102" type="L4" route="route_opposing" depart="0" departLane="1" departPos="37" departSpeed="15.45" insertionChecks="none" />
-    <vehicle id="merge_opposing_L5_lane1.103" type="L5" route="route_opposing" depart="0" departLane="1" departPos="55.8" departSpeed="16.45" insertionChecks="none" />
-    <vehicle id="merge_opposing_L5_lane1.104" type="L5" route="route_opposing" depart="0" departLane="1" departPos="72.2" departSpeed="16.7" insertionChecks="none" />
+    <vehicle id="merge_opposing_L5_lane1.103" type="L5" route="route_opposing" depart="0" departLane="1" departPos="55.8" departSpeed="15.2" insertionChecks="none" />
+    <vehicle id="merge_opposing_L5_lane1.104" type="L5" route="route_opposing" depart="0" departLane="1" departPos="72.2" departSpeed="15.2" insertionChecks="none" />
     <vehicle id="merge_opposing_L5_lane1.105" type="L5" route="route_opposing" depart="0" departLane="1" departPos="90.7" departSpeed="15.2" insertionChecks="none" />
     <vehicle id="merge_opposing_L4_lane1.106" type="L4" route="route_opposing" depart="0" departLane="1" departPos="108.5" departSpeed="16.45" insertionChecks="none" />
     <vehicle id="merge_opposing_L5_lane1.107" type="L5" route="route_opposing" depart="0" departLane="1" departPos="125.2" departSpeed="15.7" insertionChecks="none" />

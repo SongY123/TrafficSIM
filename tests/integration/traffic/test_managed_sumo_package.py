@@ -31,6 +31,15 @@ LOW_LEVEL_MERGE_CONFIG = (
 L5_MERGE_CONFIG = (
     REPOSITORY_ROOT / "configs/maps/mixed-automation-l5-merge" / "mixed-automation-l5-merge.sumocfg"
 )
+# Each pair is one 12 m rendered trailer beside one 4.55 m rendered sedan.
+_L5_VISUAL_ADJACENT_PAIRS = (
+    ("merge_main_L5_lane1.101", "merge_main_L3_lane1.102"),
+    ("merge_main_L4_lane1.104", "merge_main_L5_lane1.105"),
+    ("merge_opposing_L5_lane1.101", "merge_opposing_L4_lane1.102"),
+    ("merge_opposing_L5_lane1.103", "merge_opposing_L5_lane1.104"),
+    ("merge_opposing_L5_lane1.104", "merge_opposing_L5_lane1.105"),
+)
+_L5_VISUAL_PAIR_HALF_LENGTH_M = (12.0 + 4.55) / 2.0
 
 pytestmark = [pytest.mark.integration, pytest.mark.traffic]
 
@@ -46,6 +55,7 @@ class _DenseMergeResult:
     forward_average_speed_mps: float
     main_lane_speed_ranges_mps: tuple[float, float, float]
     ramp_speed_range_mps: float
+    minimum_visual_body_gap_m: float
     merge_entry_streams: tuple[str, ...]
     first_inner_vehicle_passed_merge: bool
     first_inner_vehicle_recovered_speed: bool
@@ -732,6 +742,7 @@ def _run_dense_merge_scenario(
     ramp_merge_time_by_vehicle_id: dict[str, int] = {}
     merge_entry_time_by_vehicle_id: dict[str, int] = {}
     ramp_speed_samples_mps: list[float] = []
+    minimum_visual_body_gap_m = float("inf")
     ramp_free_flow_speed_samples_mps: list[float] = []
     pre_merge_peak_lane_vehicle_counts = [0, 0, 0]
     phase_main_before_vehicle_count_samples: tuple[list[int], list[int], list[int]] = (
@@ -794,6 +805,19 @@ def _run_dense_merge_scenario(
             previous = adapter.step(target_time_ms)
             arrived_vehicle_ids.update(adapter.diagnostics().arrived_vehicle_ids)
             vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
+            for first_id, second_id in _L5_VISUAL_ADJACENT_PAIRS:
+                first = vehicles_by_id.get(first_id)
+                second = vehicles_by_id.get(second_id)
+                if first is None or second is None or first.lane_id != second.lane_id:
+                    continue
+                minimum_visual_body_gap_m = min(
+                    minimum_visual_body_gap_m,
+                    math.hypot(
+                        first.position.x - second.position.x,
+                        first.position.y - second.position.y,
+                    )
+                    - _L5_VISUAL_PAIR_HALF_LENGTH_M,
+                )
             for vehicle_id, (
                 request_time_ms,
                 _source_y_m,
@@ -1090,6 +1114,7 @@ def _run_dense_merge_scenario(
             if ramp_speed_samples_mps
             else 0.0
         ),
+        minimum_visual_body_gap_m=minimum_visual_body_gap_m,
         merge_entry_streams=tuple(
             "ramp" if vehicle_id.startswith("merge_ramp_") else "main"
             for vehicle_id, _time_ms in sorted(
@@ -1325,6 +1350,7 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     assert l5.forward_average_speed_mps >= 14.5, (low_level, l5)
     assert max(l5.main_lane_speed_ranges_mps) <= 3.0, (low_level, l5)
     assert l5.ramp_speed_range_mps <= 1.0, (low_level, l5)
+    assert l5.minimum_visual_body_gap_m >= 0.0, (low_level, l5)
     assert not l5.lane_change_request_observed, (low_level, l5)
     assert not l5.lane_change_observed, (low_level, l5)
     assert not l5.d1_to_d2_observed_vehicle_ids, (low_level, l5)
