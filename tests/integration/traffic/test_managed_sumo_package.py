@@ -61,6 +61,7 @@ class _DenseMergeResult:
     ramp_last_new_vehicle_time_ms: int
     opposing_last_new_vehicle_time_ms: int
     opposing_source_first_positions_x_m: tuple[float, ...]
+    opposing_source_refresh_batch_sizes: frozenset[int]
     initial_opposing_lane_counts: tuple[int, int, int]
     initial_opposing_position_spans_m: tuple[float, float, float]
     initial_opposing_lane_unique_speed_counts: tuple[int, int, int]
@@ -593,6 +594,7 @@ def _run_dense_merge_scenario(
     ramp_seen_vehicle_ids: set[str] = set()
     opposing_seen_vehicle_ids: set[str] = set()
     opposing_source_first_position_x_by_vehicle_id: dict[str, float] = {}
+    opposing_source_refresh_batch_sizes: set[int] = set()
     peak_ramp_vehicle_count = 0
     peak_main_before_vehicle_count = 0
     ramp_last_new_vehicle_time_ms = 0
@@ -696,6 +698,13 @@ def _run_dense_merge_scenario(
             if new_opposing_vehicle_ids:
                 opposing_last_new_vehicle_time_ms = target_time_ms
                 opposing_seen_vehicle_ids.update(new_opposing_vehicle_ids)
+                new_source_vehicle_ids = {
+                    vehicle_id
+                    for vehicle_id in new_opposing_vehicle_ids
+                    if int(vehicle_id.rsplit(".", maxsplit=1)[1]) < 100
+                }
+                if new_source_vehicle_ids:
+                    opposing_source_refresh_batch_sizes.add(len(new_source_vehicle_ids))
                 opposing_source_first_position_x_by_vehicle_id.update(
                     {
                         vehicle.vehicle_id: vehicle.position.x
@@ -952,6 +961,7 @@ def _run_dense_merge_scenario(
         opposing_source_first_positions_x_m=tuple(
             opposing_source_first_position_x_by_vehicle_id.values()
         ),
+        opposing_source_refresh_batch_sizes=frozenset(opposing_source_refresh_batch_sizes),
         initial_opposing_lane_counts=initial_opposing_lane_counts,
         initial_opposing_position_spans_m=initial_opposing_position_spans_m,
         initial_opposing_lane_unique_speed_counts=initial_opposing_lane_unique_speed_counts,
@@ -1047,10 +1057,11 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     assert len(low_level.ramp_seen_vehicle_ids) == 14, (low_level, l5)
     assert low_level.ramp_last_new_vehicle_time_ms >= 28_000, (low_level, l5)
     assert len(low_level.opposing_seen_vehicle_ids) == 99, (low_level, l5)
-    assert low_level.opposing_last_new_vehicle_time_ms >= 28_800, (low_level, l5)
+    assert low_level.opposing_last_new_vehicle_time_ms >= 28_300, (low_level, l5)
     assert low_level.opposing_source_first_positions_x_m
     assert min(low_level.opposing_source_first_positions_x_m) >= 318.0, (low_level, l5)
     assert max(low_level.opposing_source_first_positions_x_m) <= 320.0, (low_level, l5)
+    assert low_level.opposing_source_refresh_batch_sizes == {1, 2, 3}, (low_level, l5)
     assert low_level.initial_opposing_lane_counts == (18, 18, 18), (low_level, l5)
     assert min(low_level.initial_opposing_position_spans_m) >= 300.0, (low_level, l5)
     assert low_level.initial_opposing_lane_unique_speed_counts == (18, 18, 18), (

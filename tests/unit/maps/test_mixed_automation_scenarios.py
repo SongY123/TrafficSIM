@@ -463,20 +463,18 @@ def test_low_level_merge_sources_upper_lanes_from_merge_until_simulation_end() -
             )
         ]
         assert len(departure_times_s) == 15
-        assert departure_times_s[0] <= 1.0
+        assert departure_times_s[0] <= 2.0
         assert departure_times_s[-1] >= 28.0
         assert max(departure_intervals_s) <= 3.0
         assert max(departure_intervals_s) - min(departure_intervals_s) >= 0.8
         all_departure_times_by_lane_s[lane_index] = departure_times_s
-    rounded_departures_by_lane = {
-        lane_index: {round(time_s, 3) for time_s in departure_times_s}
-        for lane_index, departure_times_s in all_departure_times_by_lane_s.items()
-    }
-    assert not (
-        rounded_departures_by_lane[0] & rounded_departures_by_lane[1]
-        | rounded_departures_by_lane[0] & rounded_departures_by_lane[2]
-        | rounded_departures_by_lane[1] & rounded_departures_by_lane[2]
-    )
+    refresh_batch_sizes: dict[float, int] = {}
+    for departure_times_s in all_departure_times_by_lane_s.values():
+        for departure_time_s in departure_times_s:
+            rounded_time_s = round(departure_time_s, 3)
+            refresh_batch_sizes[rounded_time_s] = refresh_batch_sizes.get(rounded_time_s, 0) + 1
+    assert set(refresh_batch_sizes.values()) == {1, 2, 3}
+    assert max(refresh_batch_sizes.values()) == 3
 
 
 def test_low_level_merge_starts_with_irregular_moving_upper_lane_traffic() -> None:

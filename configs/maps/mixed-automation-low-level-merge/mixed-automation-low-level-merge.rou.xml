@@ -77,29 +77,29 @@
     <flow id="merge_main_L0_lane0" type="L0" route="route_main" begin="0" number="4" period="4.8" departLane="0" departPos="base" departSpeed="14.8" />
     <flow id="merge_main_L0_lane2" type="L0" route="route_main" begin="0" number="3" period="5.85" departLane="2" departPos="base" departSpeed="15.2" />
     <flow id="merge_ramp_L0" type="L0" route="route_merge" begin="0" number="4" period="8" departLane="0" departPos="base" departSpeed="14" />
-    <flow id="merge_opposing_L0_lane0" type="upper_L0" route="route_opposing" begin="0.1" number="4" period="8.1" departLane="0" departPos="0" departSpeed="14.6" />
-    <flow id="merge_opposing_L0_lane1" type="upper_L0" route="route_opposing" begin="0.25" number="4" period="7.9" departLane="1" departPos="0" departSpeed="15.1" />
-    <flow id="merge_opposing_L0_lane2" type="upper_L0" route="route_opposing" begin="0.4" number="4" period="8.05" departLane="2" departPos="0" departSpeed="14.8" />
+    <flow id="merge_opposing_L0_lane0" type="upper_L0" route="route_opposing" begin="0.4" number="4" period="7.5" departLane="0" departPos="0" departSpeed="14.6" />
+    <flow id="merge_opposing_L0_lane1" type="upper_L0" route="route_opposing" begin="0.4" number="4" period="7.5" departLane="1" departPos="0" departSpeed="15.1" />
     <flow id="merge_main_L0_lane1" type="L0" route="route_main" begin="0.6" number="4" period="5.5" departLane="1" departPos="base" departSpeed="15" />
     <flow id="merge_main_L1_lane0" type="L1" route="route_main" begin="1.2" number="4" period="4.8" departLane="0" departPos="base" departSpeed="14.8" />
     <flow id="merge_main_L1_lane2" type="L1" route="route_main" begin="1.2" number="4" period="4.45" departLane="2" departPos="base" departSpeed="15.2" />
+    <flow id="merge_opposing_L0_lane2" type="upper_L0" route="route_opposing" begin="1.7" number="4" period="7.5" departLane="2" departPos="0" departSpeed="14.8" />
     <flow id="merge_main_L1_lane1" type="L1" route="route_main" begin="1.8" number="3" period="4.8" departLane="1" departPos="base" departSpeed="15" />
     <flow id="merge_ramp_L1" type="L1" route="route_merge" begin="2" number="4" period="8" departLane="0" departPos="base" departSpeed="14" />
-    <flow id="merge_opposing_L1_lane1" type="upper_L1" route="route_opposing" begin="2.05" number="4" period="8.15" departLane="1" departPos="0" departSpeed="14.7" />
-    <flow id="merge_opposing_L1_lane2" type="upper_L1" route="route_opposing" begin="2.15" number="4" period="8.35" departLane="2" departPos="0" departSpeed="15" />
-    <flow id="merge_opposing_L1_lane0" type="upper_L1" route="route_opposing" begin="2.2" number="4" period="8.2" departLane="0" departPos="0" departSpeed="15.3" />
     <flow id="merge_main_L2_lane0" type="L2" route="route_main" begin="2.4" number="3" period="4.8" departLane="0" departPos="base" departSpeed="14.8" />
     <flow id="merge_main_L2_lane2" type="L2" route="route_main" begin="2.4" number="3" period="4.8" departLane="2" departPos="base" departSpeed="15.2" />
     <flow id="merge_main_L2_lane1" type="L2" route="route_main" begin="3.0" number="4" period="4.8" departLane="1" departPos="base" departSpeed="15" />
+    <flow id="merge_opposing_L1_lane0" type="upper_L1" route="route_opposing" begin="3.0" number="4" period="7.5" departLane="0" departPos="0" departSpeed="15.3" />
+    <flow id="merge_opposing_L1_lane1" type="upper_L1" route="route_opposing" begin="3.0" number="4" period="7.5" departLane="1" departPos="0" departSpeed="14.7" />
+    <flow id="merge_opposing_L1_lane2" type="upper_L1" route="route_opposing" begin="3.0" number="4" period="7.5" departLane="2" departPos="0" departSpeed="15" />
     <flow id="merge_main_L3_lane0" type="L3" route="route_main" begin="3.6" number="3" period="4.8" departLane="0" departPos="base" departSpeed="14.8" />
     <flow id="merge_main_L3_lane2" type="L3" route="route_main" begin="3.6" number="4" period="4.8" departLane="2" departPos="base" departSpeed="15.2" />
     <flow id="merge_ramp_L2" type="L2" route="route_merge" begin="4" number="3" period="8" departLane="0" departPos="base" departSpeed="14" />
-    <flow id="merge_opposing_L2_lane0" type="upper_L2" route="route_opposing" begin="4.05" number="4" period="8.3" departLane="0" departPos="0" departSpeed="14.5" />
-    <flow id="merge_opposing_L2_lane1" type="upper_L2" route="route_opposing" begin="4.1" number="4" period="8.23" departLane="1" departPos="0" departSpeed="15.2" />
-    <flow id="merge_opposing_L2_lane2" type="upper_L2" route="route_opposing" begin="4.15" number="4" period="8.17" departLane="2" departPos="0" departSpeed="14.9" />
     <flow id="merge_main_L3_lane1" type="L3" route="route_main" begin="4.2" number="3" period="4.8" departLane="1" departPos="base" departSpeed="15" />
+    <flow id="merge_opposing_L2_lane1" type="upper_L2" route="route_opposing" begin="5.6" number="4" period="7.5" departLane="1" departPos="0" departSpeed="15.2" />
+    <flow id="merge_opposing_L2_lane2" type="upper_L2" route="route_opposing" begin="5.6" number="4" period="7.5" departLane="2" departPos="0" departSpeed="14.9" />
+    <flow id="merge_opposing_L2_lane0" type="upper_L2" route="route_opposing" begin="5.8" number="4" period="7.5" departLane="0" departPos="0" departSpeed="14.5" />
     <flow id="merge_ramp_L3" type="L3" route="route_merge" begin="6" number="3" period="8" departLane="0" departPos="base" departSpeed="14" />
-    <flow id="merge_opposing_L3_lane0" type="upper_L3" route="route_opposing" begin="6.2" number="3" period="7.8" departLane="0" departPos="0" departSpeed="15.4" />
-    <flow id="merge_opposing_L3_lane1" type="upper_L3" route="route_opposing" begin="6.35" number="3" period="7.9" departLane="1" departPos="0" departSpeed="14.8" />
-    <flow id="merge_opposing_L3_lane2" type="upper_L3" route="route_opposing" begin="6.5" number="3" period="8" departLane="2" departPos="0" departSpeed="15.1" />
+    <flow id="merge_opposing_L3_lane0" type="upper_L3" route="route_opposing" begin="6.9" number="3" period="7.5" departLane="0" departPos="0" departSpeed="15.4" />
+    <flow id="merge_opposing_L3_lane1" type="upper_L3" route="route_opposing" begin="6.9" number="3" period="7.5" departLane="1" departPos="0" departSpeed="14.8" />
+    <flow id="merge_opposing_L3_lane2" type="upper_L3" route="route_opposing" begin="6.9" number="3" period="7.5" departLane="2" departPos="0" departSpeed="15.1" />
 </routes>
