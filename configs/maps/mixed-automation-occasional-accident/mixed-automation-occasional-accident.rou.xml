@@ -20,12 +20,12 @@
     <vehicle id="accident_background_L0_0" type="L0" route="route_main" depart="0" departLane="1" departPos="500" departSpeed="0" />
     <vehicle id="accident_background_L1_0" type="L1" route="route_main" depart="0" departLane="1" departPos="440" departSpeed="0" />
     <vehicle id="accident_background_L3_0" type="L3" route="route_main" depart="0" departLane="1" departPos="425" departSpeed="0" />
-    <vehicle id="accident_background_L0_1" type="L0" route="route_main" depart="0" departLane="0" departPos="385" departSpeed="0" />
-    <vehicle id="accident_background_L1_1" type="L1" route="route_main" depart="0" departLane="0" departPos="370" departSpeed="0" />
-    <vehicle id="accident_background_L3_1" type="L3" route="route_main" depart="0" departLane="0" departPos="355" departSpeed="0" />
-    <vehicle id="accident_background_L3_2" type="L3" route="route_main" depart="0" departLane="0" departPos="340" departSpeed="0" />
+    <vehicle id="accident_background_L0_1" type="L0" route="route_main" depart="0" departLane="0" departPos="300" departSpeed="0" />
+    <vehicle id="accident_background_L1_1" type="L1" route="route_main" depart="0" departLane="0" departPos="250" departSpeed="0" />
+    <vehicle id="accident_background_L3_1" type="L3" route="route_main" depart="0" departLane="0" departPos="60" departSpeed="0" />
+    <vehicle id="accident_background_L3_2" type="L3" route="route_main" depart="0" departLane="0" departPos="10" departSpeed="0" />
 
     <vehicle id="accident_background_L5_0" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="490" departSpeed="0" />
-    <vehicle id="accident_background_L5_1" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="430" departSpeed="0" />
-    <vehicle id="accident_background_L5_2" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="400" departSpeed="0" />
+    <vehicle id="accident_background_L5_1" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="200" departSpeed="0" />
+    <vehicle id="accident_background_L5_2" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="180" departSpeed="0" />
 </routes>

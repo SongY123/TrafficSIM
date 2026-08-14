@@ -306,10 +306,10 @@ def test_occasional_accident_background_traffic_changes_lanes_after_incident_the
         _vehicle("accident_background_L0_0", x_m=500.0, lane_index=1, speed_mps=8.0),
         _vehicle("accident_background_L1_0", x_m=440.0, lane_index=1, speed_mps=8.0),
         _vehicle("accident_background_L3_0", x_m=425.0, lane_index=1, speed_mps=8.0),
-        _vehicle("accident_background_L0_1", x_m=385.0, lane_index=0, speed_mps=8.0),
-        _vehicle("accident_background_L1_1", x_m=370.0, lane_index=0, speed_mps=8.0),
-        _vehicle("accident_background_L3_1", x_m=355.0, lane_index=0, speed_mps=8.0),
-        _vehicle("accident_background_L3_2", x_m=340.0, lane_index=0, speed_mps=8.0),
+        _vehicle("accident_background_L0_1", x_m=300.0, lane_index=0, speed_mps=16.0),
+        _vehicle("accident_background_L1_1", x_m=250.0, lane_index=0, speed_mps=16.0),
+        _vehicle("accident_background_L3_1", x_m=60.0, lane_index=0, speed_mps=16.0),
+        _vehicle("accident_background_L3_2", x_m=10.0, lane_index=0, speed_mps=16.0),
     )
 
     cruising = controller.step(_snapshot(*backgrounds, time_ms=4_000), 0.05)
@@ -354,9 +354,27 @@ def test_occasional_accident_background_traffic_changes_lanes_after_incident_the
         0.05,
     )
 
-    assert all(command.desired_speed_mps == 8.0 for command in cruising.values())
+    assert {vehicle_id: command.desired_speed_mps for vehicle_id, command in cruising.items()} == {
+        "accident_background_L0_0": 8.0,
+        "accident_background_L1_0": 8.0,
+        "accident_background_L3_0": 8.0,
+        "accident_background_L0_1": 16.0,
+        "accident_background_L1_1": 16.0,
+        "accident_background_L3_1": 16.0,
+        "accident_background_L3_2": 16.0,
+    }
     assert all(command.lane_change is LaneChangeDirection.NONE for command in cruising.values())
-    assert all(command.desired_acceleration_mps2 == -1.5 for command in braking.values())
+    assert {
+        vehicle_id: command.desired_acceleration_mps2 for vehicle_id, command in braking.items()
+    } == {
+        "accident_background_L0_0": -1.5,
+        "accident_background_L1_0": -1.5,
+        "accident_background_L3_0": -1.5,
+        "accident_background_L0_1": -6.0,
+        "accident_background_L1_1": -6.0,
+        "accident_background_L3_1": -6.0,
+        "accident_background_L3_2": -6.0,
+    }
     assert all(command.lane_change is LaneChangeDirection.NONE for command in braking.values())
     assert stopped[almost_stopped_l0.vehicle_id].desired_speed_mps == 0.0
 

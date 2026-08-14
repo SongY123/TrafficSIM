@@ -197,6 +197,16 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         "accident_background_L3_1",
         "accident_background_L3_2",
     }
+    background_fast_ids = {
+        "accident_background_L0_1",
+        "accident_background_L1_1",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+    }
+    background_cruise_speed_mps = {
+        vehicle_id: 16.0 if vehicle_id in background_fast_ids else 8.0
+        for vehicle_id in background_straight_ids
+    }
     background_l5_ids = {
         "accident_background_L5_0",
         "accident_background_L5_1",
@@ -205,6 +215,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     background_ids = background_straight_ids | background_l5_ids
     observed_background_ids: set[str] = set()
     background_initial_max_speed_mps = dict.fromkeys(background_ids, 0.0)
+    background_running_max_speed_mps = dict.fromkeys(background_straight_ids, 0.0)
     background_minimum_acceleration_mps2 = dict.fromkeys(background_straight_ids, 0.0)
     background_straight_lane_ids: dict[str, set[str]] = {
         vehicle_id: set() for vehicle_id in background_straight_ids
@@ -241,7 +252,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 freeze_collisions=True,
             )
         )
-        for target_time_ms in range(package.step_ms, 35_001, package.step_ms):
+        for target_time_ms in range(package.step_ms, 45_001, package.step_ms):
             controls = controller.step(previous, package.step_ms / 1000.0)
             l5_command = controls.get("accident_follow_L5_0")
             if (
@@ -323,6 +334,10 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                             vehicle.speed_mps,
                         )
                 if vehicle.vehicle_id in background_straight_ids:
+                    background_running_max_speed_mps[vehicle.vehicle_id] = max(
+                        background_running_max_speed_mps[vehicle.vehicle_id],
+                        vehicle.speed_mps,
+                    )
                     background_minimum_acceleration_mps2[vehicle.vehicle_id] = min(
                         background_minimum_acceleration_mps2[vehicle.vehicle_id],
                         vehicle.acceleration_mps2,
@@ -336,7 +351,11 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         background_stop_order.append(vehicle.vehicle_id)
                     if (
                         first_collision_time_ms is not None
-                        and vehicle.speed_mps == pytest.approx(8.0, abs=0.05)
+                        and vehicle.speed_mps
+                        == pytest.approx(
+                            background_cruise_speed_mps[vehicle.vehicle_id],
+                            abs=0.05,
+                        )
                         and abs(vehicle.acceleration_mps2) <= 0.05
                     ):
                         background_post_incident_cruise_ids.add(vehicle.vehicle_id)
@@ -515,8 +534,18 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     }
     assert background_post_incident_cruise_ids == background_straight_ids
     assert all(
-        -1.6 <= acceleration_mps2 <= -1.4
-        for acceleration_mps2 in background_minimum_acceleration_mps2.values()
+        background_running_max_speed_mps[vehicle_id]
+        == pytest.approx(background_cruise_speed_mps[vehicle_id], abs=0.05)
+        for vehicle_id in background_straight_ids
+    )
+    expected_background_deceleration_mps2 = {
+        vehicle_id: -6.0 if vehicle_id in background_fast_ids else -1.5
+        for vehicle_id in background_straight_ids
+    }
+    assert all(
+        background_minimum_acceleration_mps2[vehicle_id]
+        == pytest.approx(expected_background_deceleration_mps2[vehicle_id], abs=0.1)
+        for vehicle_id in background_straight_ids
     )
     background_lane_0_ids = {
         "accident_background_L0_0",
@@ -532,7 +561,18 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         "accident_background_L3_1",
     }
     assert background_lane_change_command_ids == expected_lane_change_ids
-    assert background_stop_order[:3] == [
+    assert set(background_stop_order) == background_straight_ids
+    original_front_stop_order = [
+        vehicle_id
+        for vehicle_id in background_stop_order
+        if vehicle_id
+        in {
+            "accident_background_L0_0",
+            "accident_background_L1_0",
+            "accident_background_L3_0",
+        }
+    ]
+    assert original_front_stop_order == [
         "accident_background_L0_0",
         "accident_background_L1_0",
         "accident_background_L3_0",

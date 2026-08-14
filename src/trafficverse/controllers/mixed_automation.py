@@ -44,9 +44,19 @@ _ACCIDENT_L1_GAP_OPENING_DECEL_MPS2 = 0.65
 _ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 1.75
 _ACCIDENT_PARKED_MANEUVER_TRIGGER_DISTANCE_M = 24.55
 _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS = 8.0
+_ACCIDENT_BACKGROUND_FAST_SPEED_MPS = 16.0
 _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2 = 1.5
+_ACCIDENT_BACKGROUND_FAST_BRAKING_DECEL_MPS2 = 6.0
 _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS = 0.05
 _ACCIDENT_BACKGROUND_BRAKING_BUFFER_M = 0.25
+_ACCIDENT_BACKGROUND_FAST_IDS = frozenset(
+    {
+        "accident_background_L0_1",
+        "accident_background_L1_1",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+    }
+)
 _ACCIDENT_BACKGROUND_QUEUE_TARGET_XY_M = {
     "accident_background_L0_0": (556.0, 145.56),
     "accident_background_L1_0": (549.0, 141.36),
@@ -463,7 +473,7 @@ class MixedAutomationScenarioController:
                     )
                 elif not incident_active:
                     commands[vehicle.vehicle_id] = ControlCommand(
-                        desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+                        desired_speed_mps=_accident_background_cruise_speed_mps(vehicle.vehicle_id),
                         safety_checks_override=True,
                     )
                 else:
@@ -575,14 +585,14 @@ class MixedAutomationScenarioController:
         target_lane_index = _ACCIDENT_BACKGROUND_QUEUE_TARGET_LANE_BY_ID.get(vehicle.vehicle_id)
         if target_xy_m is None or target_lane_index is None:
             return ControlCommand(
-                desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+                desired_speed_mps=_accident_background_cruise_speed_mps(vehicle.vehicle_id),
                 safety_checks_override=True,
             )
         current_lane_index = _lane_index(vehicle.lane_id)
         if current_lane_index is not None and current_lane_index != target_lane_index:
             if not self._accident_background_lane_change_ready(vehicle, vehicle_by_id):
                 return ControlCommand(
-                    desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+                    desired_speed_mps=_accident_background_cruise_speed_mps(vehicle.vehicle_id),
                     safety_checks_override=True,
                 )
             self._accident_background_lane_change_requested_ids.add(vehicle.vehicle_id)
@@ -635,6 +645,8 @@ class MixedAutomationScenarioController:
             target_xy_m[0] - vehicle.position.x,
             target_xy_m[1] - vehicle.position.y,
         )
+        cruise_speed_mps = _accident_background_cruise_speed_mps(vehicle.vehicle_id)
+        braking_decel_mps2 = _accident_background_braking_decel_mps2(vehicle.vehicle_id)
         if vehicle.speed_mps <= _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS:
             return ControlCommand(
                 desired_speed_mps=0.0,
@@ -642,22 +654,22 @@ class MixedAutomationScenarioController:
                 lane_change_duration_s=_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S,
                 safety_checks_override=True,
             )
-        braking_distance_m = vehicle.speed_mps**2 / (2.0 * _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2)
+        braking_distance_m = vehicle.speed_mps**2 / (2.0 * braking_decel_mps2)
         braking_started = (
             vehicle.vehicle_id in self._accident_background_braking_ids
-            or vehicle.speed_mps < _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS - 0.05
+            or vehicle.speed_mps < cruise_speed_mps - 0.05
             or distance_to_target_m <= braking_distance_m + _ACCIDENT_BACKGROUND_BRAKING_BUFFER_M
         )
         if braking_started:
             self._accident_background_braking_ids.add(vehicle.vehicle_id)
             return ControlCommand(
-                desired_acceleration_mps2=-_ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2,
+                desired_acceleration_mps2=-braking_decel_mps2,
                 lane_change=lane_change,
                 lane_change_duration_s=_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S,
                 safety_checks_override=True,
             )
         return ControlCommand(
-            desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+            desired_speed_mps=cruise_speed_mps,
             lane_change=lane_change,
             lane_change_duration_s=_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S,
             safety_checks_override=True,
@@ -1066,6 +1078,18 @@ def _low_merge_lane_change_is_safe(
         if not (stays_ahead or stays_behind):
             return False
     return True
+
+
+def _accident_background_cruise_speed_mps(vehicle_id: str) -> float:
+    if vehicle_id in _ACCIDENT_BACKGROUND_FAST_IDS:
+        return _ACCIDENT_BACKGROUND_FAST_SPEED_MPS
+    return _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS
+
+
+def _accident_background_braking_decel_mps2(vehicle_id: str) -> float:
+    if vehicle_id in _ACCIDENT_BACKGROUND_FAST_IDS:
+        return _ACCIDENT_BACKGROUND_FAST_BRAKING_DECEL_MPS2
+    return _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2
 
 
 def _low_merge_should_change_lane(lane_index: int, level: int, sequence: int) -> bool:
