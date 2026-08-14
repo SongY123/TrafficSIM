@@ -1,16 +1,81 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <routes>
-    <vType id="L5" vClass="passenger" length="4.8" minGap="0.9" accel="3.4" decel="5.0" emergencyDecel="8.0" sigma="0" tau="0.6" maxSpeed="22.22" color="0,0,0" lcStrategic="0" lcCooperative="1" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L3" vClass="passenger" length="4.8" minGap="0.3" accel="3.4" decel="5.0" emergencyDecel="8.0" sigma="0" tau="0.05" maxSpeed="22.22" color="192,38,211" lcStrategic="0" lcCooperative="1" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L4" vClass="passenger" length="4.8" minGap="0.3" accel="3.4" decel="5.0" emergencyDecel="8.0" sigma="0" tau="0.05" maxSpeed="22.22" color="120,53,15" lcStrategic="0" lcCooperative="1" lcSpeedGain="0" lcKeepRight="0" />
+    <vType id="L5" vClass="passenger" length="4.8" minGap="0.3" accel="3.4" decel="5.0" emergencyDecel="8.0" sigma="0" tau="0.05" maxSpeed="22.22" color="0,0,0" lcStrategic="0" lcCooperative="1" lcSpeedGain="0" lcKeepRight="0" />
 
     <route id="route_main" edges="main_before main_after" />
     <route id="route_merge" edges="merge_ramp main_after" />
     <route id="route_opposing" edges="opposing_before opposing_after" />
 
-    <flow id="merge_main_L5_lane0" type="L5" route="route_main" begin="0" number="10" period="0.9" departLane="0" departPos="90" departSpeed="max" />
-    <flow id="merge_main_L5_lane1" type="L5" route="route_main" begin="0" number="13" period="0.7" departLane="1" departSpeed="max" />
-    <flow id="merge_main_L5_lane2" type="L5" route="route_main" begin="0" number="13" period="0.7" departLane="2" departSpeed="max" />
-    <flow id="merge_ramp_L5" type="L5" route="route_merge" begin="0" number="4" period="1" departLane="0" departPos="last" departSpeed="max" />
-    <flow id="merge_opposing_L5_lane0" type="L5" route="route_opposing" begin="0.45" number="10" period="0.9" departLane="0" departSpeed="max" />
-    <flow id="merge_opposing_L5_lane1" type="L5" route="route_opposing" begin="0.45" number="10" period="0.9" departLane="1" departSpeed="max" />
-    <flow id="merge_opposing_L5_lane2" type="L5" route="route_opposing" begin="0.45" number="10" period="0.9" departLane="2" departSpeed="max" />
+    <vehicle id="merge_main_L5_lane0.0" type="L5" route="route_main" depart="0" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.0" type="L5" route="route_main" depart="0" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.0" type="L5" route="route_opposing" depart="0" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.0" type="L5" route="route_opposing" depart="0.12" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.0" type="L5" route="route_main" depart="0.15" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.0" type="L5" route="route_opposing" depart="0.24" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_ramp_L5.0" type="L5" route="route_merge" depart="0.25" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L4_lane0.0" type="L4" route="route_main" depart="0.9" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L4_lane1.0" type="L4" route="route_main" depart="0.9" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L4_lane0.0" type="L4" route="route_opposing" depart="0.95" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L4_lane1.0" type="L4" route="route_opposing" depart="1.02" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L4_lane2.0" type="L4" route="route_main" depart="1.05" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L4_lane2.0" type="L4" route="route_opposing" depart="1.14" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_ramp_L4.0" type="L4" route="route_merge" depart="1.15" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane0.1" type="L5" route="route_main" depart="1.8" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.1" type="L5" route="route_main" depart="1.8" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.1" type="L5" route="route_opposing" depart="1.9" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.1" type="L5" route="route_main" depart="1.95" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.1" type="L5" route="route_opposing" depart="2.02" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_ramp_L5.1" type="L5" route="route_merge" depart="2.05" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.1" type="L5" route="route_opposing" depart="2.14" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_ramp_L3.0" type="L3" route="route_merge" depart="2.45" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L3_lane1.0" type="L3" route="route_main" depart="2.7" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L3_lane0.0" type="L3" route="route_opposing" depart="2.85" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L3_lane2.0" type="L3" route="route_main" depart="2.85" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L3_lane1.0" type="L3" route="route_opposing" depart="2.97" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L3_lane2.0" type="L3" route="route_opposing" depart="3.09" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L3_lane0.0" type="L3" route="route_main" depart="3.1" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.2" type="L5" route="route_main" depart="3.6" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.2" type="L5" route="route_main" depart="3.75" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.2" type="L5" route="route_opposing" depart="3.8" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.2" type="L5" route="route_opposing" depart="3.92" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane0.2" type="L5" route="route_main" depart="4" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.2" type="L5" route="route_opposing" depart="4.04" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.3" type="L5" route="route_main" depart="4.5" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.3" type="L5" route="route_main" depart="4.65" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.3" type="L5" route="route_opposing" depart="4.75" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.3" type="L5" route="route_opposing" depart="4.87" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L4_lane0.1" type="L4" route="route_main" depart="4.9" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.3" type="L5" route="route_opposing" depart="4.99" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L4_lane1.1" type="L4" route="route_main" depart="5.4" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L4_lane2.1" type="L4" route="route_main" depart="5.55" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.4" type="L5" route="route_opposing" depart="5.7" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane0.3" type="L5" route="route_main" depart="5.8" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.4" type="L5" route="route_opposing" depart="5.82" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.4" type="L5" route="route_opposing" depart="5.94" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.4" type="L5" route="route_main" depart="6.3" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.4" type="L5" route="route_main" depart="6.45" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.5" type="L5" route="route_opposing" depart="6.65" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L3_lane0.1" type="L3" route="route_main" depart="6.7" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.5" type="L5" route="route_opposing" depart="6.77" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.5" type="L5" route="route_opposing" depart="6.89" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L3_lane1.1" type="L3" route="route_main" depart="7.2" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L3_lane2.1" type="L3" route="route_main" depart="7.35" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane0.4" type="L5" route="route_main" depart="7.6" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.6" type="L5" route="route_opposing" depart="7.6" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.5" type="L5" route="route_main" depart="7.6" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.5" type="L5" route="route_main" depart="7.65" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.6" type="L5" route="route_opposing" depart="7.72" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.6" type="L5" route="route_opposing" depart="7.84" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.6" type="L5" route="route_main" depart="8.1" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.6" type="L5" route="route_main" depart="8.25" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane0.5" type="L5" route="route_main" depart="8.5" departLane="0" departPos="50" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane0.7" type="L5" route="route_opposing" depart="8.55" departLane="0" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane1.7" type="L5" route="route_opposing" depart="8.67" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_opposing_L5_lane2.7" type="L5" route="route_opposing" depart="8.79" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.7" type="L5" route="route_main" depart="9" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.7" type="L5" route="route_main" depart="9.15" departLane="2" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane1.8" type="L5" route="route_main" depart="9.9" departLane="1" departPos="0" departSpeed="16" />
+    <vehicle id="merge_main_L5_lane2.8" type="L5" route="route_main" depart="10.05" departLane="2" departPos="0" departSpeed="16" />
 </routes>

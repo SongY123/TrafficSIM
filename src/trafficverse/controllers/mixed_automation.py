@@ -45,14 +45,36 @@ _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2 = 1.5
 _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS = 0.05
 _ACCIDENT_BACKGROUND_BRAKING_BUFFER_M = 0.25
 _ACCIDENT_BACKGROUND_QUEUE_TARGET_XY_M = {
-    "accident_background_L0_0": (538.0, 138.84),
-    "accident_background_L1_0": (531.0, 134.64),
-    "accident_background_L3_0": (524.0, 130.44),
-    "accident_background_L0_1": (556.0, 145.56),
-    "accident_background_L1_1": (549.0, 141.36),
-    "accident_background_L3_1": (542.0, 137.16),
+    "accident_background_L0_0": (556.0, 145.56),
+    "accident_background_L1_0": (549.0, 141.36),
+    "accident_background_L3_0": (538.0, 138.84),
+    "accident_background_L0_1": (531.0, 134.64),
+    "accident_background_L1_1": (542.0, 137.16),
+    "accident_background_L3_1": (524.0, 130.44),
     "accident_background_L3_2": (535.0, 132.96),
 }
+_ACCIDENT_BACKGROUND_QUEUE_TARGET_LANE_BY_ID = {
+    "accident_background_L0_0": 0,
+    "accident_background_L1_0": 0,
+    "accident_background_L3_0": 1,
+    "accident_background_L0_1": 1,
+    "accident_background_L1_1": 0,
+    "accident_background_L3_1": 1,
+    "accident_background_L3_2": 0,
+}
+_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S = 1.5
+_ACCIDENT_BACKGROUND_FOLLOW_TRIGGER_DISTANCE_M = 35.0
+_ACCIDENT_BACKGROUND_LANE_CHANGE_LEADER_BY_ID = {
+    "accident_background_L0_0": "accident_follow_L3_0",
+    "accident_background_L1_0": "accident_background_L0_0",
+}
+_ACCIDENT_BACKGROUND_CURVE_LANE_CHANGE_IDS = frozenset(
+    {
+        "accident_background_L0_1",
+        "accident_background_L3_1",
+    }
+)
+_ACCIDENT_BACKGROUND_CURVE_ENTRY_X_M = 500.0
 _LOW_MERGE_STABLE_END_MS = 10_000
 _LOW_MERGE_DISTURBANCE_END_MS = 22_000
 _LOW_MERGE_RAMP_CRUISE_SPEED_MPS = 14.0
@@ -70,11 +92,7 @@ _LOW_MERGE_CASCADE_DECEL_MPS2 = {1: 3.5, 2: 2.4}
 _LOW_MERGE_LANE_CHANGE_DURATION_S = 1.0
 _LOW_MERGE_LANE_CHANGE_CLEARANCE_M = {1: 7.5, 2: 9.0}
 _LOW_MERGE_LANE_CHANGE_ZONE_X_M = {1: (58.0, 94.0), 2: (58.0, 98.0)}
-_L5_MERGE_MAIN_SPEED_MPS = 20.0
-_L5_MERGE_RAMP_SPEED_MPS = 19.0
-_L5_MERGE_GAP_SPEED_MPS = 8.0
-_L5_MERGE_RAMP_NEAR_X_M = 78.0
-_L5_MERGE_GAP_ZONE_X_M = (20.0, 120.0)
+_L5_MERGE_CRUISE_SPEED_MPS = 16.0
 _SCENARIO_IDS = frozenset(
     {
         "mixed-automation-obstacle",
@@ -97,14 +115,13 @@ class MixedAutomationScenarioController:
         self._accident_l1_emergency_observed = False
         self._accident_l5_lane_change_started = False
         self._accident_background_braking_ids: set[str] = set()
+        self._accident_background_lane_change_requested_ids: set[str] = set()
         self._low_merge_gap_provider_id: str | None = None
         self._low_merge_served_ramp_id: str | None = None
         self._low_merge_conflict_started_ms: int | None = None
         self._low_merge_lane_change_requested_ids: set[str] = set()
         self._low_merge_d1_lane_change_request_count = 0
         self._low_merge_d2_lane_change_requested = False
-        self._l5_merge_gap_provider_id: str | None = None
-        self._l5_merge_served_ramp_id: str | None = None
 
     def step(self, previous: TrafficSnapshot | None, dt_s: float) -> Mapping[str, ControlCommand]:
         if previous is None:
@@ -444,7 +461,10 @@ class MixedAutomationScenarioController:
                         safety_checks_override=True,
                     )
                 else:
-                    commands[vehicle.vehicle_id] = self._accident_background_queue_command(vehicle)
+                    commands[vehicle.vehicle_id] = self._accident_background_queue_command(
+                        vehicle,
+                        vehicle_by_id,
+                    )
                 continue
 
             match = _ACCIDENT_FOLLOWER_PATTERN.match(vehicle.vehicle_id)
@@ -531,21 +551,91 @@ class MixedAutomationScenarioController:
                 commands[vehicle.vehicle_id] = ControlCommand(
                     desired_speed_mps={1: 15.2, 3: 13.0}.get(level, 16.0)
                 )
-        return _lock_lane_changes(commands, snapshot, prefixes, mode=0)
+        commands = _lock_lane_changes(commands, snapshot, prefixes, mode=0)
+        for vehicle_id, command in tuple(commands.items()):
+            if (
+                vehicle_id.startswith("accident_background_")
+                and command.lane_change is not LaneChangeDirection.NONE
+            ):
+                commands[vehicle_id] = command.model_copy(update={"lane_change_mode": 512})
+        return commands
 
-    def _accident_background_queue_command(self, vehicle: VehicleState) -> ControlCommand:
+    def _accident_background_queue_command(
+        self,
+        vehicle: VehicleState,
+        vehicle_by_id: Mapping[str, VehicleState],
+    ) -> ControlCommand:
         target_xy_m = _ACCIDENT_BACKGROUND_QUEUE_TARGET_XY_M.get(vehicle.vehicle_id)
-        if target_xy_m is None:
+        target_lane_index = _ACCIDENT_BACKGROUND_QUEUE_TARGET_LANE_BY_ID.get(vehicle.vehicle_id)
+        if target_xy_m is None or target_lane_index is None:
             return ControlCommand(
                 desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
                 safety_checks_override=True,
             )
+        current_lane_index = _lane_index(vehicle.lane_id)
+        if current_lane_index is not None and current_lane_index != target_lane_index:
+            if not self._accident_background_lane_change_ready(vehicle, vehicle_by_id):
+                return ControlCommand(
+                    desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+                    safety_checks_override=True,
+                )
+            self._accident_background_lane_change_requested_ids.add(vehicle.vehicle_id)
+            lane_change = (
+                LaneChangeDirection.LEFT
+                if target_lane_index > current_lane_index
+                else LaneChangeDirection.RIGHT
+            )
+            return self._accident_background_target_command(
+                vehicle,
+                target_xy_m,
+                lane_change=lane_change,
+            )
+        return self._accident_background_target_command(vehicle, target_xy_m)
+
+    def _accident_background_lane_change_ready(
+        self,
+        vehicle: VehicleState,
+        vehicle_by_id: Mapping[str, VehicleState],
+    ) -> bool:
+        if vehicle.vehicle_id in self._accident_background_lane_change_requested_ids:
+            return True
+        if vehicle.vehicle_id in _ACCIDENT_BACKGROUND_CURVE_LANE_CHANGE_IDS:
+            return vehicle.lane_id.startswith("road_curve_") or (
+                vehicle.lane_id.startswith("road_approach_")
+                and vehicle.position.x >= _ACCIDENT_BACKGROUND_CURVE_ENTRY_X_M
+            )
+        leader_id = _ACCIDENT_BACKGROUND_LANE_CHANGE_LEADER_BY_ID.get(vehicle.vehicle_id)
+        if leader_id is None:
+            return False
+        leader = vehicle_by_id.get(leader_id)
+        if leader is None or leader.position.x <= vehicle.position.x:
+            return False
+        if vehicle.vehicle_id == "accident_background_L1_0" and _lane_index(leader.lane_id) != 0:
+            return False
+        distance_to_leader_m = math.hypot(
+            leader.position.x - vehicle.position.x,
+            leader.position.y - vehicle.position.y,
+        )
+        return distance_to_leader_m <= _ACCIDENT_BACKGROUND_FOLLOW_TRIGGER_DISTANCE_M
+
+    def _accident_background_target_command(
+        self,
+        vehicle: VehicleState,
+        target_xy_m: tuple[float, float],
+        *,
+        lane_change: LaneChangeDirection = LaneChangeDirection.NONE,
+    ) -> ControlCommand:
         distance_to_target_m = math.hypot(
             target_xy_m[0] - vehicle.position.x,
             target_xy_m[1] - vehicle.position.y,
         )
         if vehicle.speed_mps <= _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS:
-            return ControlCommand(desired_speed_mps=0.0, safety_checks_override=True)
+            return ControlCommand(
+                desired_speed_mps=0.0,
+                lane_change=lane_change,
+                lane_change_duration_s=_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S,
+                safety_checks_override=True,
+            )
         braking_distance_m = vehicle.speed_mps**2 / (2.0 * _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2)
         braking_started = (
             vehicle.vehicle_id in self._accident_background_braking_ids
@@ -556,10 +646,14 @@ class MixedAutomationScenarioController:
             self._accident_background_braking_ids.add(vehicle.vehicle_id)
             return ControlCommand(
                 desired_acceleration_mps2=-_ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2,
+                lane_change=lane_change,
+                lane_change_duration_s=_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S,
                 safety_checks_override=True,
             )
         return ControlCommand(
             desired_speed_mps=_ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS,
+            lane_change=lane_change,
+            lane_change_duration_s=_ACCIDENT_BACKGROUND_LANE_CHANGE_DURATION_S,
             safety_checks_override=True,
         )
 
@@ -793,46 +887,13 @@ class MixedAutomationScenarioController:
         dt_s: float,
     ) -> dict[str, ControlCommand]:
         del dt_s
-        active_ramp_vehicles = tuple(
-            vehicle
-            for vehicle in snapshot.vehicles
-            if _is_active_merge_ramp_vehicle(vehicle)
-            and vehicle.position.x >= _L5_MERGE_RAMP_NEAR_X_M
-        )
-        active_ramp_ids = {vehicle.vehicle_id for vehicle in active_ramp_vehicles}
-        if self._l5_merge_served_ramp_id not in active_ramp_ids:
-            self._l5_merge_gap_provider_id = None
-            self._l5_merge_served_ramp_id = None
-        if self._l5_merge_served_ramp_id is None and active_ramp_vehicles:
-            ramp_vehicle = max(active_ramp_vehicles, key=lambda vehicle: vehicle.position.x)
-            gap_candidates = tuple(
-                vehicle
-                for vehicle in snapshot.vehicles
-                if vehicle.vehicle_id.startswith("merge_main_L5_lane0")
-                and vehicle.lane_id == "main_before_0"
-                and _L5_MERGE_GAP_ZONE_X_M[0] <= vehicle.position.x < _L5_MERGE_GAP_ZONE_X_M[1]
-                and vehicle.position.x <= ramp_vehicle.position.x - 15.0
-            )
-            if gap_candidates:
-                gap_provider = min(
-                    gap_candidates,
-                    key=lambda vehicle: abs(vehicle.position.x - ramp_vehicle.position.x),
-                )
-                self._l5_merge_gap_provider_id = gap_provider.vehicle_id
-                self._l5_merge_served_ramp_id = ramp_vehicle.vehicle_id
         commands: dict[str, ControlCommand] = {}
         for vehicle in snapshot.vehicles:
             match = _MERGE_VEHICLE_PATTERN.match(vehicle.vehicle_id)
             if match is None:
                 continue
-            stream, _level_text, _lane_text, _sequence_text = match.groups()
-            desired_speed_mps = _L5_MERGE_MAIN_SPEED_MPS
-            if stream == "ramp":
-                desired_speed_mps = _L5_MERGE_RAMP_SPEED_MPS
-            elif stream == "main" and vehicle.vehicle_id == self._l5_merge_gap_provider_id:
-                desired_speed_mps = _L5_MERGE_GAP_SPEED_MPS
             commands[vehicle.vehicle_id] = ControlCommand(
-                desired_speed_mps=desired_speed_mps,
+                desired_speed_mps=_L5_MERGE_CRUISE_SPEED_MPS,
                 lane_change_mode=0,
             )
         return commands

@@ -141,7 +141,7 @@ def _emergency_preview() -> tuple[Vehicle, ...]:
 
 
 def _occasional_accident_preview() -> tuple[Vehicle, ...]:
-    # Display the deterministic final key frame from the scripted SUMO run. These coordinates
+    # Display the deterministic 25 s key frame from the scripted SUMO run. These coordinates
     # include the native network offset and keep the two impacts visually distinct.
     vehicles = [
         _preview_vehicle(
@@ -230,12 +230,12 @@ def _occasional_accident_preview() -> tuple[Vehicle, ...]:
         ),
     ]
     straight_specs = (
-        ("L0", 0, 538.0, 138.84, 0.5404, 1),
-        ("L1", 0, 531.0, 134.64, 0.5404, 1),
-        ("L3", 0, 524.0, 130.44, 0.5404, 1),
-        ("L0", 1, 556.0, 145.56, 0.5404, 0),
-        ("L1", 1, 549.0, 141.36, 0.5404, 0),
-        ("L3", 1, 542.0, 137.16, 0.5404, 0),
+        ("L0", 0, 556.0, 145.56, 0.5404, 0),
+        ("L1", 0, 549.0, 141.36, 0.5404, 0),
+        ("L3", 0, 538.0, 138.84, 0.5404, 1),
+        ("L0", 1, 531.0, 134.64, 0.5404, 1),
+        ("L1", 1, 542.0, 137.16, 0.5404, 0),
+        ("L3", 1, 524.0, 130.44, 0.5404, 1),
         ("L3", 2, 535.0, 132.96, 0.5404, 0),
     )
     for sequence, (level, index, x_m, y_m, heading_rad, lane_index) in enumerate(
@@ -281,6 +281,7 @@ def _occasional_accident_preview() -> tuple[Vehicle, ...]:
 
 def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
     low_levels = ("L0", "L1", "L2", "L3")
+    cooperative_levels = ("L5", "L4", "L5", "L3", "L5")
     vehicles: list[Vehicle] = []
     sequence = 0
     main_positions_m = (
@@ -288,11 +289,12 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
     )
     for lane_index, y_m in enumerate((11.25, 14.75, 18.25)):
         for index, x_m in enumerate(main_positions_m):
-            level = "L5" if l5_only else low_levels[(lane_index + index) % len(low_levels)]
-            if l5_only:
-                speed_mps = 8.0 if lane_index == 0 and index == 2 else 20.0
-            else:
-                speed_mps = (5.0, 8.5, 12.5)[lane_index] if x_m >= 50.0 else 15.0
+            level = (
+                cooperative_levels[sequence % len(cooperative_levels)]
+                if l5_only
+                else low_levels[(lane_index + index) % len(low_levels)]
+            )
+            speed_mps = 16.0 if l5_only else (5.0, 8.5, 12.5)[lane_index] if x_m >= 50.0 else 15.0
             vehicles.append(
                 _preview_vehicle(
                     f"merge_preview_main_{level}_{sequence}",
@@ -303,9 +305,7 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
                     speed_mps,
                     y_m=y_m,
                     action=(
-                        "YIELD"
-                        if l5_only and speed_mps == 8.0
-                        else "LANE_CHANGE_LEFT"
+                        "LANE_CHANGE_LEFT"
                         if not l5_only
                         and ((lane_index == 0 and x_m == 86.0) or (lane_index == 1 and x_m == 68.0))
                         else "BRAKE"
@@ -330,7 +330,11 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
         )
     )
     for index, (x_m, y_m) in enumerate(ramp_points):
-        level = "L5" if l5_only else low_levels[index % len(low_levels)]
+        level = (
+            cooperative_levels[sequence % len(cooperative_levels)]
+            if l5_only
+            else low_levels[index % len(low_levels)]
+        )
         vehicles.append(
             _preview_vehicle(
                 f"merge_preview_ramp_{level}_{index}",
@@ -338,7 +342,7 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
                 sequence,
                 x_m,
                 0,
-                19.0 if l5_only else (3.2 if x_m >= 80.0 else 14.0),
+                16.0 if l5_only else (3.2 if x_m >= 80.0 else 14.0),
                 y_m=y_m,
                 heading_rad=0.0 if x_m <= 70.0 else 0.3948,
                 action="MERGE",
@@ -416,7 +420,11 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
         zip((28.75, 25.25, 21.75), opposing_positions_by_lane_m, strict=True)
     ):
         for index, x_m in enumerate(opposing_positions_m):
-            level = "L5" if l5_only else low_levels[(lane_index + index + 2) % len(low_levels)]
+            level = (
+                cooperative_levels[sequence % len(cooperative_levels)]
+                if l5_only
+                else low_levels[(lane_index + index + 2) % len(low_levels)]
+            )
             vehicles.append(
                 _preview_vehicle(
                     f"merge_preview_opposing_{level}_{lane_index}_{index}",
@@ -424,7 +432,7 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
                     sequence,
                     x_m,
                     lane_index,
-                    20.0 if l5_only else 13.4 + index * 0.035 + lane_index * 0.05,
+                    16.0 if l5_only else 13.4 + index * 0.035 + lane_index * 0.05,
                     y_m=y_m,
                     heading_rad=3.1416,
                     lane_prefix=("opposing_before" if l5_only or index < 10 else "opposing_after"),
@@ -552,8 +560,9 @@ TRAFFIC_SCENARIO_PRESETS = (
             "保持为原布局的40%；L1先紧急制动，L3检测到L1真实急刹后缓慢制动，最终均"
             "留出约一个车长且未发生碰撞。L5从继续前移30米后的上方车道出发，先静止3秒，"
             "随后以翻倍后的恒定速度接近路口，首次碰撞发生后向下方车道变道并右转绕行。"
-            "双车道另加入10辆保持安全间距的背景车：L0、L1、L3直行并在两条车道交替"
-            "形成停车队列，3辆新增L5均从右转支路绕行；原有7辆场景车的状态和时序保持不变。"
+            "双车道另加入10辆保持安全间距的背景车：L0、L1、L3保留原发车顺序，事故后"
+            "部分车辆通过变道在两条车道形成停车队列；3辆新增L5仍从右转支路绕行，"
+            "原有7辆场景车的状态和时序保持不变。"
         ),
         map_id="mixed-automation-occasional-accident",
         duration_s=60,
@@ -606,23 +615,23 @@ TRAFFIC_SCENARIO_PRESETS = (
         name="L5会车",
         incident=(
             "使用与低智驾场景完全相同的正向3车道、单汇入车道和对向3车道路网，"
-            "全部车辆均为具备协同汇流能力的L5。"
+            "以L5车辆为主，并混入少量采用同一协同汇流策略的L3和L4车辆。"
         ),
         behavior_summary=(
-            "主路车辆提前识别汇入需求，选择车辆短时协调降速并主动形成可用车隙。"
-            "汇入车辆有序插入后恢复巡航，中间与最外侧车道速度保持稳定，整体通过率明显提高。"
+            "交汇侧D3车道与支路通过预设车隙连续交替通行，偶尔允许两辆支路车连续插入。"
+            "全程保持稳定巡航，不触发D1到D2或D2到D3的跨车道避让。"
         ),
         map_id="mixed-automation-l5-merge",
         duration_s=20,
-        automation_counts=(("L5", 70),),
+        automation_counts=(("L3", 10), ("L4", 10), ("L5", 50)),
         scene_type="L5协同密集汇入",
         level_behaviors=(
             ("L0", "本场景未配置该等级车辆。"),
             ("L1", "本场景未配置该等级车辆。"),
             ("L2", "本场景未配置该等级车辆。"),
-            ("L3", "本场景未配置该等级车辆。"),
-            ("L4", "本场景未配置该等级车辆。"),
-            ("L5", "通过车车协同提前预留汇入间隙，减少制动波并保持三条主车道稳定通行。"),
+            ("L3", "少量混入车流，按统一车隙时序稳定跟驰并完成汇入。"),
+            ("L4", "少量混入车流，保持巡航速度并遵循交替通行次序。"),
+            ("L5", "作为主体车流提前预留汇入间隙，保持三条主车道稳定通行。"),
         ),
     ),
 )

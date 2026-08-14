@@ -41,9 +41,11 @@ class _DenseMergeResult:
     forward_arrived_vehicle_ids: frozenset[str] = field(repr=False)
     merged_ramp_vehicle_ids: frozenset[str] = field(repr=False)
     collision_vehicle_ids: frozenset[str] = field(repr=False)
+    automation_levels: frozenset[int]
     forward_average_speed_mps: float
     main_lane_speed_ranges_mps: tuple[float, float, float]
-    cooperative_gap_observed: bool
+    ramp_speed_range_mps: float
+    merge_entry_streams: tuple[str, ...]
     first_inner_vehicle_passed_merge: bool
     first_inner_vehicle_recovered_speed: bool
     initial_inner_to_ramp_gap_m: float | None
@@ -207,9 +209,10 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     background_straight_lane_ids: dict[str, set[str]] = {
         vehicle_id: set() for vehicle_id in background_straight_ids
     }
-    background_moving_ids: set[str] = set()
-    background_first_stopped_time_ms: dict[str, int] = {}
-    maximum_background_stopped_lane_imbalance = 0
+    background_lane_change_command_ids: set[str] = set()
+    background_lane_change_command_lane_ids: dict[str, str] = {}
+    background_lane_change_command_positions_x_m: dict[str, float] = {}
+    background_stop_order: list[str] = []
     background_post_incident_cruise_ids: set[str] = set()
     background_l5_initial_lane_ids: dict[str, str] = {}
     background_l5_right_turn_ids: set[str] = set()
@@ -253,6 +256,28 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 )
                 l5_lane_change_command_count += 1
                 l5_lane_change_command_position_x_m = commanded_l5.position.x
+            background_lane_change_command_ids.update(
+                vehicle_id
+                for vehicle_id in background_straight_ids
+                if (command := controls.get(vehicle_id)) is not None
+                and command.lane_change is not LaneChangeDirection.NONE
+            )
+            if previous is not None:
+                previous_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
+                for vehicle_id in background_straight_ids:
+                    command = controls.get(vehicle_id)
+                    if (
+                        command is not None
+                        and command.lane_change is not LaneChangeDirection.NONE
+                        and vehicle_id not in background_lane_change_command_lane_ids
+                        and vehicle_id in previous_by_id
+                    ):
+                        background_lane_change_command_lane_ids[vehicle_id] = previous_by_id[
+                            vehicle_id
+                        ].lane_id
+                        background_lane_change_command_positions_x_m[vehicle_id] = previous_by_id[
+                            vehicle_id
+                        ].position.x
             adapter.apply_controls(controls)
             previous = adapter.step(target_time_ms)
             vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
@@ -298,13 +323,17 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                             vehicle.speed_mps,
                         )
                 if vehicle.vehicle_id in background_straight_ids:
-                    if target_time_ms > 3_000 and vehicle.speed_mps > 1.0:
-                        background_moving_ids.add(vehicle.vehicle_id)
                     background_minimum_acceleration_mps2[vehicle.vehicle_id] = min(
                         background_minimum_acceleration_mps2[vehicle.vehicle_id],
                         vehicle.acceleration_mps2,
                     )
                     background_straight_lane_ids[vehicle.vehicle_id].add(vehicle.lane_id)
+                    if (
+                        first_collision_time_ms is not None
+                        and vehicle.speed_mps < 0.5
+                        and vehicle.vehicle_id not in background_stop_order
+                    ):
+                        background_stop_order.append(vehicle.vehicle_id)
                     if (
                         first_collision_time_ms is not None
                         and vehicle.speed_mps == pytest.approx(8.0, abs=0.05)
@@ -359,27 +388,6 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         for vehicle in previous.vehicles
                         if vehicle.vehicle_id == "accident_follow_L0_0"
                     )
-            if first_collision_time_ms is not None:
-                stopped_background_by_lane = [0, 0]
-                for vehicle_id in background_moving_ids:
-                    background_vehicle = vehicles_by_id.get(vehicle_id)
-                    lane_index = (
-                        int(background_vehicle.lane_id.rsplit("_", maxsplit=1)[-1])
-                        if background_vehicle is not None
-                        and background_vehicle.lane_id.rsplit("_", maxsplit=1)[-1] in {"0", "1"}
-                        else None
-                    )
-                    if (
-                        background_vehicle is not None
-                        and lane_index in {0, 1}
-                        and background_vehicle.speed_mps <= 0.05
-                    ):
-                        stopped_background_by_lane[lane_index] += 1
-                        background_first_stopped_time_ms.setdefault(vehicle_id, target_time_ms)
-                maximum_background_stopped_lane_imbalance = max(
-                    maximum_background_stopped_lane_imbalance,
-                    abs(stopped_background_by_lane[0] - stopped_background_by_lane[1]),
-                )
     finally:
         adapter.close()
 
@@ -500,19 +508,38 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         for acceleration_mps2 in background_minimum_acceleration_mps2.values()
     )
     background_lane_0_ids = {
-        "accident_background_L0_1",
+        "accident_background_L0_0",
+        "accident_background_L1_0",
         "accident_background_L1_1",
-        "accident_background_L3_1",
         "accident_background_L3_2",
     }
     background_lane_1_ids = background_straight_ids - background_lane_0_ids
+    expected_lane_change_ids = {
+        "accident_background_L0_0",
+        "accident_background_L1_0",
+        "accident_background_L0_1",
+        "accident_background_L3_1",
+    }
+    assert background_lane_change_command_ids == expected_lane_change_ids
+    assert background_stop_order[:3] == [
+        "accident_background_L0_0",
+        "accident_background_L1_0",
+        "accident_background_L3_0",
+    ]
+    for vehicle_id in ("accident_background_L0_1", "accident_background_L3_1"):
+        lane_id = background_lane_change_command_lane_ids[vehicle_id]
+        position_x_m = background_lane_change_command_positions_x_m[vehicle_id]
+        assert lane_id == "road_curve_0" or (lane_id == "road_approach_0" and position_x_m >= 500.0)
     assert all(
-        background_straight_lane_ids[vehicle_id] <= {"road_approach_0", ":turn_1_0", "road_curve_0"}
-        for vehicle_id in background_lane_0_ids
-    )
-    assert all(
-        background_straight_lane_ids[vehicle_id] <= {"road_approach_1", ":turn_1_1", "road_curve_1"}
-        for vehicle_id in background_lane_1_ids
+        len(
+            {
+                lane_id.rsplit("_", maxsplit=1)[-1]
+                for lane_id in background_straight_lane_ids[vehicle_id]
+                if lane_id.rsplit("_", maxsplit=1)[-1] in {"0", "1"}
+            }
+        )
+        == 2
+        for vehicle_id in expected_lane_change_ids
     )
     assert all(
         vehicles[vehicle_id].lane_id == "road_curve_0" for vehicle_id in background_lane_0_ids
@@ -520,14 +547,13 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert all(
         vehicles[vehicle_id].lane_id == "road_curve_1" for vehicle_id in background_lane_1_ids
     )
-    assert maximum_background_stopped_lane_imbalance <= 1, background_first_stopped_time_ms
     queue_target_xy_m = {
-        "accident_background_L0_0": (538.0, 138.84),
-        "accident_background_L1_0": (531.0, 134.64),
-        "accident_background_L3_0": (524.0, 130.44),
-        "accident_background_L0_1": (556.0, 145.56),
-        "accident_background_L1_1": (549.0, 141.36),
-        "accident_background_L3_1": (542.0, 137.16),
+        "accident_background_L0_0": (556.0, 145.56),
+        "accident_background_L1_0": (549.0, 141.36),
+        "accident_background_L3_0": (538.0, 138.84),
+        "accident_background_L0_1": (531.0, 134.64),
+        "accident_background_L1_1": (542.0, 137.16),
+        "accident_background_L3_1": (524.0, 130.44),
         "accident_background_L3_2": (535.0, 132.96),
     }
     queue_target_errors_m = {
@@ -550,16 +576,16 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     }
     queue_ids_by_lane = (
         (
-            "accident_background_L0_1",
+            "accident_background_L0_0",
+            "accident_background_L1_0",
             "accident_background_L1_1",
-            "accident_background_L3_1",
             "accident_background_L3_2",
         ),
         (
             "accident_follow_L3_0",
-            "accident_background_L0_0",
-            "accident_background_L1_0",
             "accident_background_L3_0",
+            "accident_background_L0_1",
+            "accident_background_L3_1",
         ),
     )
     queue_body_gaps_m = [
@@ -610,7 +636,6 @@ def _run_dense_merge_scenario(
     merged_ramp_vehicle_ids: set[str] = set()
     forward_speed_samples_mps: list[float] = []
     main_lane_speed_samples_mps: tuple[list[float], list[float], list[float]] = ([], [], [])
-    cooperative_gap_observed = False
     first_inner_vehicle_passed_merge = False
     first_inner_vehicle_recovered_speed = False
     initial_inner_to_ramp_gap_m: float | None = None
@@ -651,6 +676,8 @@ def _run_dense_merge_scenario(
     first_d1_slowdown_time_ms: int | None = None
     first_d1_slowdown_position_x_m: float | None = None
     ramp_merge_time_by_vehicle_id: dict[str, int] = {}
+    merge_entry_time_by_vehicle_id: dict[str, int] = {}
+    ramp_speed_samples_mps: list[float] = []
     ramp_free_flow_speed_samples_mps: list[float] = []
     pre_merge_peak_lane_vehicle_counts = [0, 0, 0]
     phase_main_before_vehicle_count_samples: tuple[list[int], list[int], list[int]] = (
@@ -709,11 +736,6 @@ def _run_dense_merge_scenario(
                     lane_index_text = vehicle.lane_id.rsplit("_", maxsplit=1)[-1]
                     if lane_index_text in {"1", "2"}:
                         cascade_slowdown_lane_indices.add(int(lane_index_text))
-            cooperative_gap_observed = cooperative_gap_observed or any(
-                vehicle_id.startswith("merge_main_L5_lane0")
-                and command.desired_speed_mps == pytest.approx(8.0, abs=0.05)
-                for vehicle_id, command in controls.items()
-            )
             adapter.apply_controls(controls)
             previous = adapter.step(target_time_ms)
             arrived_vehicle_ids.update(adapter.diagnostics().arrived_vehicle_ids)
@@ -890,6 +912,7 @@ def _run_dense_merge_scenario(
                     if target_time_ms < 22_000:
                         ramp_disturbance_crossing_speeds_mps.append(vehicle.speed_mps)
                 if vehicle.vehicle_id.startswith("merge_ramp_"):
+                    ramp_speed_samples_mps.append(vehicle.speed_mps)
                     if vehicle.lane_id == "merge_ramp_0":
                         if target_time_ms < 10_000 and vehicle.position.x < 80.0:
                             ramp_free_flow_speed_samples_mps.append(vehicle.speed_mps)
@@ -916,6 +939,10 @@ def _run_dense_merge_scenario(
                 ):
                     merged_ramp_vehicle_ids.add(vehicle.vehicle_id)
                     ramp_merge_time_by_vehicle_id.setdefault(vehicle.vehicle_id, target_time_ms)
+                if vehicle.lane_id == "main_after_0" and vehicle.vehicle_id.startswith(
+                    ("merge_main_", "merge_ramp_")
+                ):
+                    merge_entry_time_by_vehicle_id.setdefault(vehicle.vehicle_id, target_time_ms)
                 if target_time_ms < 5_000 or not vehicle.vehicle_id.startswith(
                     ("merge_main_", "merge_ramp_")
                 ):
@@ -946,7 +973,9 @@ def _run_dense_merge_scenario(
 
     assert previous is not None
     assert forward_speed_samples_mps
-    assert all(main_lane_speed_samples_mps)
+    assert all(main_lane_speed_samples_mps), tuple(
+        len(samples) for samples in main_lane_speed_samples_mps
+    )
     assert initial_inner_to_ramp_gap_m is not None
     assert first_inner_pre_merge_speeds_mps
     main_lane_speed_ranges_mps = tuple(
@@ -988,13 +1017,28 @@ def _run_dense_merge_scenario(
         ),
         merged_ramp_vehicle_ids=frozenset(merged_ramp_vehicle_ids),
         collision_vehicle_ids=frozenset(previous.collision_vehicle_ids),
+        automation_levels=frozenset(
+            int(vehicle_id.partition("_L")[2].split("_", maxsplit=1)[0].split(".", maxsplit=1)[0])
+            for vehicle_id in seen_vehicle_ids
+        ),
         forward_average_speed_mps=sum(forward_speed_samples_mps) / len(forward_speed_samples_mps),
         main_lane_speed_ranges_mps=(
             main_lane_speed_ranges_mps[0],
             main_lane_speed_ranges_mps[1],
             main_lane_speed_ranges_mps[2],
         ),
-        cooperative_gap_observed=cooperative_gap_observed,
+        ramp_speed_range_mps=(
+            max(ramp_speed_samples_mps) - min(ramp_speed_samples_mps)
+            if ramp_speed_samples_mps
+            else 0.0
+        ),
+        merge_entry_streams=tuple(
+            "ramp" if vehicle_id.startswith("merge_ramp_") else "main"
+            for vehicle_id, _time_ms in sorted(
+                merge_entry_time_by_vehicle_id.items(),
+                key=lambda item: (item[1], item[0]),
+            )
+        ),
         first_inner_vehicle_passed_merge=first_inner_vehicle_passed_merge,
         first_inner_vehicle_recovered_speed=first_inner_vehicle_recovered_speed,
         initial_inner_to_ramp_gap_m=initial_inner_to_ramp_gap_m,
@@ -1216,4 +1260,20 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
         low_level.phase_main_before_average_vehicle_counts
     )
     assert recovery_density < disturbance_density * 0.7, (low_level, l5)
-    assert l5.cooperative_gap_observed
+    assert l5.automation_levels == {3, 4, 5}, (low_level, l5)
+    assert max(l5.main_lane_speed_ranges_mps) <= 0.1, (low_level, l5)
+    assert l5.ramp_speed_range_mps <= 0.1, (low_level, l5)
+    assert not l5.lane_change_request_observed, (low_level, l5)
+    assert not l5.lane_change_observed, (low_level, l5)
+    assert not l5.d1_to_d2_observed_vehicle_ids, (low_level, l5)
+    assert not l5.d2_to_d3_observed_vehicle_ids, (low_level, l5)
+    assert l5.merge_entry_streams[:8] == (
+        "main",
+        "ramp",
+        "main",
+        "ramp",
+        "main",
+        "ramp",
+        "ramp",
+        "main",
+    ), (low_level, l5)

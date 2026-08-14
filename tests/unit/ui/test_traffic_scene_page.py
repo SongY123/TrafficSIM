@@ -168,7 +168,7 @@ def test_occasional_accident_level_average_speeds_are_close_but_not_identical() 
         (
             5,
             {"merge_preview_main_L5_0", "merge_preview_ramp_L5_0"},
-            {"L5"},
+            {"L3", "L4", "L5"},
         ),
     ),
 )
@@ -197,7 +197,7 @@ def test_dense_merge_presets_expose_configured_demand_and_distinct_automation_le
     assert l5.vehicle_total == 70
     assert low_level.duration_s == 30
     assert dict(low_level.automation_counts) == {"L0": 40, "L1": 41, "L2": 39, "L3": 35}
-    assert dict(l5.automation_counts) == {"L5": 70}
+    assert dict(l5.automation_counts) == {"L3": 10, "L4": 10, "L5": 50}
     assert any(vehicle.action == "LANE_CHANGE_LEFT" for vehicle in low_level_preview)
     upper_lane_vehicles = [
         vehicle for vehicle in low_level_preview if vehicle.lane_id.startswith("opposing_")
@@ -233,6 +233,11 @@ def test_dense_merge_presets_expose_configured_demand_and_distinct_automation_le
             )
             == 18
         )
+
+    l5_preview = scenario_preview_vehicles(l5)
+    assert all(vehicle.speed_mps == pytest.approx(16.0) for vehicle in l5_preview)
+    assert not any(vehicle.action == "LANE_CHANGE_LEFT" for vehicle in l5_preview)
+    assert not any(vehicle.action == "YIELD" for vehicle in l5_preview)
 
 
 def _distance_to_lane_m(vehicle: Vehicle, lane_shape: str) -> float:
@@ -291,6 +296,26 @@ def test_occasional_accident_preview_shows_a_lane_aligned_three_car_two_impact_s
         vehicles[vehicle_id].lane_id == "right_exit_0"
         for vehicle_id in background_ids_by_level["L5"]
     )
+    assert {
+        vehicle_id: vehicles[vehicle_id].lane_id
+        for vehicle_id in {
+            "accident_background_L0_0",
+            "accident_background_L1_0",
+            "accident_background_L3_0",
+            "accident_background_L0_1",
+            "accident_background_L1_1",
+            "accident_background_L3_1",
+            "accident_background_L3_2",
+        }
+    } == {
+        "accident_background_L0_0": "road_curve_0",
+        "accident_background_L1_0": "road_curve_0",
+        "accident_background_L3_0": "road_curve_1",
+        "accident_background_L0_1": "road_curve_1",
+        "accident_background_L1_1": "road_curve_0",
+        "accident_background_L3_1": "road_curve_1",
+        "accident_background_L3_2": "road_curve_0",
+    }
     network_path = (
         REPOSITORY_ROOT
         / "configs/maps/mixed-automation-occasional-accident"

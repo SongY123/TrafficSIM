@@ -300,36 +300,50 @@ def test_all_scenes_hold_vehicles_during_initial_layout() -> None:
     assert accident[vehicles[7].vehicle_id].desired_speed_mps == 0.0
 
 
-def test_occasional_accident_background_traffic_cruises_then_brakes_into_queue_slots() -> None:
+def test_occasional_accident_background_traffic_changes_lanes_after_incident_then_brakes() -> None:
     controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
-    l0 = _vehicle("accident_background_L0_0", x_m=500.0, lane_index=1, speed_mps=8.0)
-    l1 = _vehicle("accident_background_L1_0", x_m=440.0, lane_index=1, speed_mps=8.0)
-    l3 = _vehicle("accident_background_L3_1", x_m=355.0, lane_index=0, speed_mps=8.0)
-
-    cruising = controller.step(_snapshot(l0, l1, l3, time_ms=4_000), 0.05)
-    post_incident_cruising = controller.step(
-        _snapshot(
-            l0,
-            l1,
-            l3,
-            time_ms=5_000,
-            collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
-        ),
-        0.05,
+    backgrounds = (
+        _vehicle("accident_background_L0_0", x_m=500.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_background_L1_0", x_m=440.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_background_L3_0", x_m=425.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_background_L0_1", x_m=385.0, lane_index=0, speed_mps=8.0),
+        _vehicle("accident_background_L1_1", x_m=370.0, lane_index=0, speed_mps=8.0),
+        _vehicle("accident_background_L3_1", x_m=355.0, lane_index=0, speed_mps=8.0),
+        _vehicle("accident_background_L3_2", x_m=340.0, lane_index=0, speed_mps=8.0),
     )
-    near_l0 = l0.model_copy(update={"position": Vector3(x=518.0, y=138.84)})
-    near_l3 = l3.model_copy(update={"position": Vector3(x=522.0, y=137.16)})
+
+    cruising = controller.step(_snapshot(*backgrounds, time_ms=4_000), 0.05)
+    near_targets = tuple(
+        vehicle.model_copy(
+            update={
+                "lane_id": f"road_curve_{target_lane_index}",
+                "position": Vector3(x=target_x_m - 6.0, y=target_y_m),
+            }
+        )
+        for vehicle, (target_x_m, target_y_m, target_lane_index) in zip(
+            backgrounds,
+            (
+                (556.0, 145.56, 0),
+                (549.0, 141.36, 0),
+                (538.0, 138.84, 1),
+                (531.0, 134.64, 1),
+                (542.0, 137.16, 0),
+                (524.0, 130.44, 1),
+                (535.0, 132.96, 0),
+            ),
+            strict=True,
+        )
+    )
     braking = controller.step(
         _snapshot(
-            near_l0,
-            near_l3,
+            *near_targets,
             time_ms=9_000,
             collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
         ),
         0.05,
     )
-    almost_stopped_l0 = near_l0.model_copy(
-        update={"position": Vector3(x=538.0, y=138.84), "speed_mps": 0.04}
+    almost_stopped_l0 = near_targets[0].model_copy(
+        update={"position": Vector3(x=556.0, y=145.56), "speed_mps": 0.04}
     )
     stopped = controller.step(
         _snapshot(
@@ -342,14 +356,122 @@ def test_occasional_accident_background_traffic_cruises_then_brakes_into_queue_s
 
     assert all(command.desired_speed_mps == 8.0 for command in cruising.values())
     assert all(command.lane_change is LaneChangeDirection.NONE for command in cruising.values())
-    assert all(command.desired_speed_mps == 8.0 for command in post_incident_cruising.values())
-    assert all(
-        command.lane_change is LaneChangeDirection.NONE
-        for command in post_incident_cruising.values()
-    )
     assert all(command.desired_acceleration_mps2 == -1.5 for command in braking.values())
     assert all(command.lane_change is LaneChangeDirection.NONE for command in braking.values())
-    assert stopped[l0.vehicle_id].desired_speed_mps == 0.0
+    assert stopped[almost_stopped_l0.vehicle_id].desired_speed_mps == 0.0
+
+
+def test_occasional_accident_background_lane_changes_follow_queue_and_curve_triggers() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    collision_ids = ("accident_actor_L0_0", "accident_victim_L0_0")
+    front_l3 = _vehicle(
+        "accident_follow_L3_0",
+        x_m=540.0,
+        lane_index=1,
+        speed_mps=0.0,
+    )
+    first_l0_far = _vehicle(
+        "accident_background_L0_0",
+        x_m=480.0,
+        lane_index=1,
+        speed_mps=8.0,
+    )
+    following_l1 = _vehicle(
+        "accident_background_L1_0",
+        x_m=440.0,
+        lane_index=1,
+        speed_mps=8.0,
+    )
+    staying_l3 = _vehicle(
+        "accident_background_L3_0",
+        x_m=425.0,
+        lane_index=1,
+        speed_mps=8.0,
+    )
+    later_l0 = _vehicle(
+        "accident_background_L0_1",
+        x_m=385.0,
+        lane_index=0,
+        speed_mps=8.0,
+    )
+    later_l3 = _vehicle(
+        "accident_background_L3_1",
+        x_m=355.0,
+        lane_index=0,
+        speed_mps=8.0,
+    )
+
+    before_triggers = controller.step(
+        _snapshot(
+            front_l3,
+            first_l0_far,
+            following_l1,
+            staying_l3,
+            later_l0,
+            later_l3,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
+    first_l0_near = first_l0_far.model_copy(update={"position": Vector3(x=510.0, y=3.5)})
+    first_l0_change = controller.step(
+        _snapshot(
+            front_l3,
+            first_l0_near,
+            following_l1,
+            staying_l3,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
+    first_l0_in_target_lane = first_l0_near.model_copy(
+        update={"lane_id": "road_curve_0", "position": Vector3(x=520.0, y=0.0)}
+    )
+    following_l1_near = following_l1.model_copy(
+        update={"lane_id": "road_curve_1", "position": Vector3(x=490.0, y=3.5)}
+    )
+    following_l1_change = controller.step(
+        _snapshot(
+            front_l3,
+            first_l0_in_target_lane,
+            following_l1_near,
+            staying_l3,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
+    later_l0_on_curve = later_l0.model_copy(
+        update={"lane_id": "road_approach_0", "position": Vector3(x=500.0, y=0.0)}
+    )
+    later_l3_on_curve = later_l3.model_copy(update={"lane_id": "road_curve_0"})
+    curve_changes = controller.step(
+        _snapshot(
+            later_l0_on_curve,
+            later_l3_on_curve,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
+
+    assert all(
+        command.lane_change is LaneChangeDirection.NONE for command in before_triggers.values()
+    )
+    assert first_l0_change[first_l0_near.vehicle_id].lane_change is LaneChangeDirection.RIGHT
+    assert following_l1_change[following_l1_near.vehicle_id].lane_change is (
+        LaneChangeDirection.RIGHT
+    )
+    assert following_l1_change[staying_l3.vehicle_id].lane_change is LaneChangeDirection.NONE
+    assert curve_changes[later_l0_on_curve.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert curve_changes[later_l3_on_curve.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert all(
+        command.lane_change_mode == 512
+        for command in (
+            first_l0_change[first_l0_near.vehicle_id],
+            following_l1_change[following_l1_near.vehicle_id],
+            curve_changes[later_l0_on_curve.vehicle_id],
+            curve_changes[later_l3_on_curve.vehicle_id],
+        )
+    )
 
 
 def test_occasional_accident_background_l5_keeps_constant_speed_on_right_turn_route() -> None:
@@ -952,37 +1074,28 @@ def test_low_level_merge_stops_lane_changes_and_recovers_after_twenty_two_second
     assert all(command.lane_change_mode == 0 for command in commands.values())
 
 
-def test_l5_merge_opens_a_gap_only_when_a_ramp_vehicle_is_near() -> None:
+def test_l5_merge_keeps_mixed_levels_at_constant_speed_and_locks_lane_changes() -> None:
     controller = MixedAutomationScenarioController("mixed-automation-l5-merge")
-    gap_provider = _vehicle(
-        "merge_main_L5_lane0.2",
+    main_l3 = _vehicle(
+        "merge_main_L3_lane0.0",
         x_m=90.0,
         lane_index=0,
-        speed_mps=20.0,
+        speed_mps=16.0,
     ).model_copy(update={"lane_id": "main_before_0"})
-    regular_main = _vehicle(
-        "merge_main_L5_lane0.3",
+    main_l4 = _vehicle(
+        "merge_main_L4_lane1.0",
         x_m=70.0,
-        lane_index=0,
-        speed_mps=20.0,
-    ).model_copy(update={"lane_id": "main_before_0"})
-    ramp_near = _vehicle("merge_ramp_L5.1", x_m=110.0, lane_index=0, speed_mps=19.0).model_copy(
+        lane_index=1,
+        speed_mps=16.0,
+    ).model_copy(update={"lane_id": "main_before_1"})
+    ramp_l5 = _vehicle("merge_ramp_L5.1", x_m=110.0, lane_index=0, speed_mps=16.0).model_copy(
         update={"lane_id": "merge_ramp_0"}
     )
 
-    coordinated = controller.step(
-        _snapshot(gap_provider, regular_main, ramp_near, time_ms=10_000),
-        0.05,
-    )
-    ramp_far = ramp_near.model_copy(update={"position": Vector3(x=40.0, y=0.0)})
-    cruising = controller.step(
-        _snapshot(gap_provider, regular_main, ramp_far, time_ms=11_000),
-        0.05,
-    )
+    commands = controller.step(_snapshot(main_l3, main_l4, ramp_l5, time_ms=10_000), 0.05)
 
-    assert coordinated[gap_provider.vehicle_id].desired_speed_mps == 8.0
-    assert coordinated[regular_main.vehicle_id].desired_speed_mps == 20.0
-    assert coordinated[ramp_near.vehicle_id].desired_speed_mps == 19.0
-    assert cruising[gap_provider.vehicle_id].desired_speed_mps == 20.0
-    assert all(command.lane_change_mode == 0 for command in coordinated.values())
-    assert not any(command.safety_checks_override for command in coordinated.values())
+    assert set(commands) == {main_l3.vehicle_id, main_l4.vehicle_id, ramp_l5.vehicle_id}
+    assert all(command.desired_speed_mps == 16.0 for command in commands.values())
+    assert all(command.lane_change is LaneChangeDirection.NONE for command in commands.values())
+    assert all(command.lane_change_mode == 0 for command in commands.values())
+    assert not any(command.safety_checks_override for command in commands.values())

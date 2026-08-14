@@ -258,13 +258,13 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         vehicle_id: float(vehicles[vehicle_id]["departPos"])
         for vehicle_id in straight_background_ids
     } == {
-        "accident_background_L0_0": 372.0,
-        "accident_background_L0_1": 390.0,
-        "accident_background_L1_0": 360.0,
-        "accident_background_L1_1": 378.0,
-        "accident_background_L3_0": 343.0,
-        "accident_background_L3_1": 361.0,
-        "accident_background_L3_2": 344.0,
+        "accident_background_L0_0": 500.0,
+        "accident_background_L0_1": 385.0,
+        "accident_background_L1_0": 440.0,
+        "accident_background_L1_1": 370.0,
+        "accident_background_L3_0": 425.0,
+        "accident_background_L3_1": 355.0,
+        "accident_background_L3_2": 340.0,
     }
     assert all(
         routes[vehicles[vehicle_id]["route"]] == "road_approach right_exit"
@@ -346,7 +346,7 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     ),
     (
         ("mixed-automation-low-level-merge", {"L0", "L1", "L2", "L3"}, 28, 155, 14),
-        ("mixed-automation-l5-merge", {"L5"}, 7, 70, 4),
+        ("mixed-automation-l5-merge", {"L3", "L4", "L5"}, 0, 70, 4),
     ),
 )
 def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_lanes(
@@ -399,20 +399,55 @@ def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_
     assert sum(int(flow.attrib["number"]) for flow in flows) + len(vehicles) == (
         expected_vehicle_count
     )
-    assert (
-        sum(int(flow.attrib["number"]) for flow in flows if flow.attrib["route"] == "route_merge")
-        == expected_merge_vehicle_count
+    assert sum(
+        int(flow.attrib["number"]) for flow in flows if flow.attrib["route"] == "route_merge"
+    ) + sum(vehicle.attrib["route"] == "route_merge" for vehicle in vehicles) == (
+        expected_merge_vehicle_count
     )
     departure_times_s = [float(flow.attrib["begin"]) for flow in flows]
     assert departure_times_s == sorted(departure_times_s)
-    assert {
-        flow.attrib["id"].split("_L", maxsplit=1)[1].split("_", maxsplit=1)[0] for flow in flows
-    } == {level.removeprefix("L") for level in expected_levels}
+    assert {item.attrib["type"].rsplit("_", maxsplit=1)[-1] for item in (*flows, *vehicles)} == (
+        expected_levels
+    )
     assert all(
         flow.attrib["departSpeed"] == "max" or float(flow.attrib["departSpeed"]) > 0.0
         for flow in flows
     )
     assert all(flow.attrib["departLane"] in {"0", "1", "2"} for flow in flows)
+
+
+def test_l5_merge_uses_a_mixed_constant_speed_zipper_schedule() -> None:
+    scenario_id = "mixed-automation-l5-merge"
+    route_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.rou.xml").getroot()
+    flows = route_root.findall("flow")
+    vehicles = route_root.findall("vehicle")
+    demand = (*flows, *vehicles)
+    counts_by_level = {
+        level: sum(
+            int(item.attrib.get("number", "1")) for item in demand if item.attrib["type"] == level
+        )
+        for level in ("L3", "L4", "L5")
+    }
+    main_d3 = [
+        vehicle
+        for vehicle in vehicles
+        if vehicle.attrib["route"] == "route_main" and vehicle.attrib["departLane"] == "0"
+    ]
+    ramp = [vehicle for vehicle in vehicles if vehicle.attrib["route"] == "route_merge"]
+
+    assert counts_by_level == {"L3": 10, "L4": 10, "L5": 50}
+    assert len(main_d3) == 10
+    assert len(ramp) == 4
+    assert all(item.attrib["departSpeed"] == "16" for item in demand)
+    assert [float(vehicle.attrib["depart"]) for vehicle in main_d3] == sorted(
+        float(vehicle.attrib["depart"]) for vehicle in main_d3
+    )
+    assert [float(vehicle.attrib["depart"]) for vehicle in ramp] == sorted(
+        float(vehicle.attrib["depart"]) for vehicle in ramp
+    )
+    assert [float(vehicle.attrib["depart"]) for vehicle in vehicles] == sorted(
+        float(vehicle.attrib["depart"]) for vehicle in vehicles
+    )
 
 
 def test_low_level_merge_uses_continuous_one_second_lane_changes() -> None:
