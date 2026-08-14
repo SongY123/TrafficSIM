@@ -187,18 +187,52 @@ def test_scenario_preview_is_a_feature_key_frame(
     assert len({vehicle.lane_id for vehicle in vehicles}) >= minimum_lane_count
 
 
-def test_dense_merge_presets_expose_equal_demand_and_distinct_automation_levels() -> None:
+def test_dense_merge_presets_expose_configured_demand_and_distinct_automation_levels() -> None:
     low_level, l5 = TRAFFIC_SCENARIO_PRESETS[4:6]
+    low_level_preview = scenario_preview_vehicles(low_level)
 
     assert low_level.name == "低智驾等级会车（L0-L3）"
     assert l5.name == "L5会车"
-    assert low_level.vehicle_total == l5.vehicle_total == 70
+    assert low_level.vehicle_total == 155
+    assert l5.vehicle_total == 70
     assert low_level.duration_s == 30
-    assert dict(low_level.automation_counts) == {"L0": 21, "L1": 21, "L2": 14, "L3": 14}
+    assert dict(low_level.automation_counts) == {"L0": 40, "L1": 41, "L2": 39, "L3": 35}
     assert dict(l5.automation_counts) == {"L5": 70}
-    assert any(
-        vehicle.action == "LANE_CHANGE_LEFT" for vehicle in scenario_preview_vehicles(low_level)
-    )
+    assert any(vehicle.action == "LANE_CHANGE_LEFT" for vehicle in low_level_preview)
+    upper_lane_vehicles = [
+        vehicle for vehicle in low_level_preview if vehicle.lane_id.startswith("opposing_")
+    ]
+    assert len(upper_lane_vehicles) == 54
+    assert max(vehicle.position.x for vehicle in upper_lane_vehicles) >= 310.0
+    assert all(vehicle.speed_mps > 0.0 for vehicle in upper_lane_vehicles)
+    assert len({vehicle.speed_mps for vehicle in upper_lane_vehicles}) >= 8
+    for lane_index in range(3):
+        lane_positions_m = sorted(
+            vehicle.position.x
+            for vehicle in upper_lane_vehicles
+            if int(vehicle.lane_id.rsplit("_", maxsplit=1)[1]) == lane_index
+        )
+        position_intervals_m = [
+            later_position_m - earlier_position_m
+            for earlier_position_m, later_position_m in zip(
+                lane_positions_m,
+                lane_positions_m[1:],
+                strict=False,
+            )
+        ]
+        assert len(lane_positions_m) == 18
+        assert lane_positions_m[-1] - lane_positions_m[0] >= 300.0
+        assert max(position_intervals_m) - min(position_intervals_m) >= 8.0
+        assert (
+            len(
+                {
+                    vehicle.speed_mps
+                    for vehicle in upper_lane_vehicles
+                    if int(vehicle.lane_id.rsplit("_", maxsplit=1)[1]) == lane_index
+                }
+            )
+            == 18
+        )
 
 
 def _distance_to_lane_m(vehicle: Vehicle, lane_shape: str) -> float:

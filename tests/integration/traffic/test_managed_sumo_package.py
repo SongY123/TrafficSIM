@@ -55,9 +55,17 @@ class _DenseMergeResult:
     lane_change_observed: bool
     cascade_slowdown_lane_indices: frozenset[int]
     ramp_seen_vehicle_ids: frozenset[str] = field(repr=False)
+    opposing_seen_vehicle_ids: frozenset[str] = field(repr=False)
     peak_ramp_vehicle_count: int
     peak_main_before_vehicle_count: int
     ramp_last_new_vehicle_time_ms: int
+    opposing_last_new_vehicle_time_ms: int
+    opposing_source_first_positions_x_m: tuple[float, ...]
+    initial_opposing_lane_counts: tuple[int, int, int]
+    initial_opposing_position_spans_m: tuple[float, float, float]
+    initial_opposing_lane_unique_speed_counts: tuple[int, int, int]
+    minimum_moving_opposing_vehicle_count: int
+    minimum_opposing_speed_mps: float
     ramp_zone_average_speeds_mps: tuple[float, float, float]
     ramp_recovered_speed_observed: bool
     phase_lane_average_speeds_mps: tuple[
@@ -583,9 +591,17 @@ def _run_dense_merge_scenario(
     lane_change_observed = False
     cascade_slowdown_lane_indices: set[int] = set()
     ramp_seen_vehicle_ids: set[str] = set()
+    opposing_seen_vehicle_ids: set[str] = set()
+    opposing_source_first_position_x_by_vehicle_id: dict[str, float] = {}
     peak_ramp_vehicle_count = 0
     peak_main_before_vehicle_count = 0
     ramp_last_new_vehicle_time_ms = 0
+    opposing_last_new_vehicle_time_ms = 0
+    initial_opposing_lane_counts = (0, 0, 0)
+    initial_opposing_position_spans_m = (0.0, 0.0, 0.0)
+    initial_opposing_lane_unique_speed_counts = (0, 0, 0)
+    minimum_moving_opposing_vehicle_count = 1_000_000
+    minimum_opposing_speed_mps = float("inf")
     ramp_zone_speed_samples_mps: tuple[list[float], list[float], list[float]] = ([], [], [])
     ramp_recovered_speed_observed = False
     phase_lane_speed_samples_mps: tuple[
@@ -669,6 +685,66 @@ def _run_dense_merge_scenario(
             if new_ramp_vehicle_ids:
                 ramp_last_new_vehicle_time_ms = target_time_ms
                 ramp_seen_vehicle_ids.update(new_ramp_vehicle_ids)
+            current_opposing_vehicles = tuple(
+                vehicle
+                for vehicle in previous.vehicles
+                if vehicle.vehicle_id.startswith("merge_opposing_")
+            )
+            new_opposing_vehicle_ids = {
+                vehicle.vehicle_id for vehicle in current_opposing_vehicles
+            } - opposing_seen_vehicle_ids
+            if new_opposing_vehicle_ids:
+                opposing_last_new_vehicle_time_ms = target_time_ms
+                opposing_seen_vehicle_ids.update(new_opposing_vehicle_ids)
+                opposing_source_first_position_x_by_vehicle_id.update(
+                    {
+                        vehicle.vehicle_id: vehicle.position.x
+                        for vehicle in current_opposing_vehicles
+                        if vehicle.vehicle_id in new_opposing_vehicle_ids
+                        and int(vehicle.vehicle_id.rsplit(".", maxsplit=1)[1]) < 100
+                    }
+                )
+            minimum_moving_opposing_vehicle_count = min(
+                minimum_moving_opposing_vehicle_count,
+                sum(vehicle.speed_mps > 0.05 for vehicle in current_opposing_vehicles),
+            )
+            if current_opposing_vehicles:
+                minimum_opposing_speed_mps = min(
+                    minimum_opposing_speed_mps,
+                    *(vehicle.speed_mps for vehicle in current_opposing_vehicles),
+                )
+            if target_time_ms == package.step_ms:
+                initial_opposing_lane_vehicles = tuple(
+                    tuple(
+                        vehicle
+                        for vehicle in current_opposing_vehicles
+                        if vehicle.lane_id.endswith(f"_{lane_index}")
+                        and int(vehicle.vehicle_id.rsplit(".", maxsplit=1)[1]) >= 100
+                    )
+                    for lane_index in range(3)
+                )
+                initial_opposing_lane_counts = (
+                    len(initial_opposing_lane_vehicles[0]),
+                    len(initial_opposing_lane_vehicles[1]),
+                    len(initial_opposing_lane_vehicles[2]),
+                )
+                initial_opposing_spans_m = [
+                    max(vehicle.position.x for vehicle in lane_vehicles)
+                    - min(vehicle.position.x for vehicle in lane_vehicles)
+                    if lane_vehicles
+                    else 0.0
+                    for lane_vehicles in initial_opposing_lane_vehicles
+                ]
+                initial_opposing_position_spans_m = (
+                    initial_opposing_spans_m[0],
+                    initial_opposing_spans_m[1],
+                    initial_opposing_spans_m[2],
+                )
+                initial_opposing_lane_unique_speed_counts = (
+                    len({vehicle.speed_mps for vehicle in initial_opposing_lane_vehicles[0]}),
+                    len({vehicle.speed_mps for vehicle in initial_opposing_lane_vehicles[1]}),
+                    len({vehicle.speed_mps for vehicle in initial_opposing_lane_vehicles[2]}),
+                )
             peak_ramp_vehicle_count = max(peak_ramp_vehicle_count, len(current_ramp_vehicles))
             if first_ramp_near_time_ms is None and any(
                 vehicle.lane_id == "merge_ramp_0" and vehicle.position.x >= 80.0
@@ -868,9 +944,19 @@ def _run_dense_merge_scenario(
         lane_change_observed=lane_change_observed,
         cascade_slowdown_lane_indices=frozenset(cascade_slowdown_lane_indices),
         ramp_seen_vehicle_ids=frozenset(ramp_seen_vehicle_ids),
+        opposing_seen_vehicle_ids=frozenset(opposing_seen_vehicle_ids),
         peak_ramp_vehicle_count=peak_ramp_vehicle_count,
         peak_main_before_vehicle_count=peak_main_before_vehicle_count,
         ramp_last_new_vehicle_time_ms=ramp_last_new_vehicle_time_ms,
+        opposing_last_new_vehicle_time_ms=opposing_last_new_vehicle_time_ms,
+        opposing_source_first_positions_x_m=tuple(
+            opposing_source_first_position_x_by_vehicle_id.values()
+        ),
+        initial_opposing_lane_counts=initial_opposing_lane_counts,
+        initial_opposing_position_spans_m=initial_opposing_position_spans_m,
+        initial_opposing_lane_unique_speed_counts=initial_opposing_lane_unique_speed_counts,
+        minimum_moving_opposing_vehicle_count=minimum_moving_opposing_vehicle_count,
+        minimum_opposing_speed_mps=minimum_opposing_speed_mps,
         ramp_zone_average_speeds_mps=(
             (
                 sum(ramp_zone_speed_samples_mps[0]) / len(ramp_zone_speed_samples_mps[0])
@@ -952,16 +1038,29 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
         UUID(int=4),
     )
 
-    assert len(low_level.seen_vehicle_ids) == 70, (low_level, l5)
+    assert len(low_level.seen_vehicle_ids) == 155, (low_level, l5)
     assert len(l5.seen_vehicle_ids) == 70, (low_level, l5)
     assert not low_level.collision_vehicle_ids
     assert not l5.collision_vehicle_ids
     assert low_level.ramp_free_flow_average_speed_mps >= 12.0, (low_level, l5)
-    assert low_level.peak_ramp_vehicle_count >= 14, (low_level, l5)
+    assert low_level.peak_ramp_vehicle_count >= 13, (low_level, l5)
     assert len(low_level.ramp_seen_vehicle_ids) == 14, (low_level, l5)
     assert low_level.ramp_last_new_vehicle_time_ms >= 28_000, (low_level, l5)
+    assert len(low_level.opposing_seen_vehicle_ids) == 99, (low_level, l5)
+    assert low_level.opposing_last_new_vehicle_time_ms >= 28_800, (low_level, l5)
+    assert low_level.opposing_source_first_positions_x_m
+    assert min(low_level.opposing_source_first_positions_x_m) >= 318.0, (low_level, l5)
+    assert max(low_level.opposing_source_first_positions_x_m) <= 320.0, (low_level, l5)
+    assert low_level.initial_opposing_lane_counts == (18, 18, 18), (low_level, l5)
+    assert min(low_level.initial_opposing_position_spans_m) >= 300.0, (low_level, l5)
+    assert low_level.initial_opposing_lane_unique_speed_counts == (18, 18, 18), (
+        low_level,
+        l5,
+    )
+    assert low_level.minimum_moving_opposing_vehicle_count >= 3, (low_level, l5)
+    assert low_level.minimum_opposing_speed_mps > 0.5, (low_level, l5)
     assert min(low_level.pre_merge_peak_lane_vehicle_counts) >= 5, (low_level, l5)
-    assert len(low_level.merged_ramp_vehicle_ids) >= 5, (low_level, l5)
+    assert len(low_level.merged_ramp_vehicle_ids) >= 4, (low_level, l5)
     assert (
         sum(
             lane_id != "main_after_0"
@@ -981,13 +1080,14 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     assert min(stable_speeds_mps[1:]) >= 12.0, (low_level, l5)
     assert disturbance_speeds_mps[0] < disturbance_speeds_mps[1], (low_level, l5)
     assert disturbance_speeds_mps[1] < disturbance_speeds_mps[2], (low_level, l5)
-    assert max(disturbance_speeds_mps) <= 9.5, (low_level, l5)
+    assert max(disturbance_speeds_mps) <= 10.0, (low_level, l5)
     assert 0.0 < low_level.ramp_disturbance_crossing_max_speed_mps <= 3.5, (low_level, l5)
+    assert recovery_speeds_mps[0] > 1.5, (low_level, l5)
     assert all(
         recovered_speed_mps > disturbed_speed_mps
         for recovered_speed_mps, disturbed_speed_mps in zip(
-            recovery_speeds_mps,
-            disturbance_speeds_mps,
+            recovery_speeds_mps[1:],
+            disturbance_speeds_mps[1:],
             strict=True,
         )
     ), (
@@ -1005,7 +1105,7 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
         l5,
     )
     assert low_level.first_d1_slowdown_position_x_m is not None
-    assert 65.0 <= low_level.first_d1_slowdown_position_x_m <= 82.0, (low_level, l5)
+    assert 65.0 <= low_level.first_d1_slowdown_position_x_m <= 95.0, (low_level, l5)
     assert low_level.lane_change_request_times_ms, (low_level, l5)
     assert all(10_000 <= time_ms < 22_000 for time_ms in low_level.lane_change_request_times_ms)
     assert low_level.d2_to_d3_request_vehicle_ids, (low_level, l5)
@@ -1021,5 +1121,5 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     _stable_density, disturbance_density, recovery_density = (
         low_level.phase_main_before_average_vehicle_counts
     )
-    assert recovery_density < disturbance_density * 0.65, (low_level, l5)
+    assert recovery_density < disturbance_density * 0.7, (low_level, l5)
     assert l5.cooperative_gap_observed

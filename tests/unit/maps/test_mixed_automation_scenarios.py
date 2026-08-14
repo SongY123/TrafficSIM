@@ -343,7 +343,7 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         "expected_merge_vehicle_count",
     ),
     (
-        ("mixed-automation-low-level-merge", {"L0", "L1", "L2", "L3"}, 24, 70, 14),
+        ("mixed-automation-low-level-merge", {"L0", "L1", "L2", "L3"}, 28, 155, 14),
         ("mixed-automation-l5-merge", {"L5"}, 7, 70, 4),
     ),
 )
@@ -383,14 +383,20 @@ def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_
         for connection in network_root.findall("connection")
     )
     routes = {route.attrib["id"]: route.attrib["edges"] for route in route_root.findall("route")}
-    assert routes == {
+    expected_routes = {
         "route_main": "main_before main_after",
         "route_merge": "merge_ramp main_after",
         "route_opposing": "opposing_before opposing_after",
     }
+    if scenario_id == "mixed-automation-low-level-merge":
+        expected_routes["route_opposing_after"] = "opposing_after"
+    assert routes == expected_routes
     flows = route_root.findall("flow")
+    vehicles = route_root.findall("vehicle")
     assert len(flows) == expected_flow_count
-    assert sum(int(flow.attrib["number"]) for flow in flows) == expected_vehicle_count
+    assert sum(int(flow.attrib["number"]) for flow in flows) + len(vehicles) == (
+        expected_vehicle_count
+    )
     assert (
         sum(int(flow.attrib["number"]) for flow in flows if flow.attrib["route"] == "route_merge")
         == expected_merge_vehicle_count
@@ -427,4 +433,117 @@ def test_low_level_merge_keeps_supplying_ramp_vehicles_for_the_full_run() -> Non
             ramp_departure_times_s[1:],
             strict=False,
         )
+    )
+
+
+def test_low_level_merge_sources_upper_lanes_from_merge_until_simulation_end() -> None:
+    scenario_id = "mixed-automation-low-level-merge"
+    route_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.rou.xml").getroot()
+    opposing_flows = [
+        flow for flow in route_root.findall("flow") if flow.attrib["route"] == "route_opposing"
+    ]
+
+    assert len(opposing_flows) == 12
+    assert sum(int(flow.attrib["number"]) for flow in opposing_flows) == 45
+    assert all(float(flow.attrib["departPos"]) == pytest.approx(0.0) for flow in opposing_flows)
+    all_departure_times_by_lane_s: dict[int, list[float]] = {}
+    for lane_index in range(3):
+        departure_times_s = sorted(
+            float(flow.attrib["begin"]) + index * float(flow.attrib["period"])
+            for flow in opposing_flows
+            if flow.attrib["departLane"] == str(lane_index)
+            for index in range(int(flow.attrib["number"]))
+        )
+        departure_intervals_s = [
+            later_time_s - earlier_time_s
+            for earlier_time_s, later_time_s in zip(
+                departure_times_s,
+                departure_times_s[1:],
+                strict=False,
+            )
+        ]
+        assert len(departure_times_s) == 15
+        assert departure_times_s[0] <= 1.0
+        assert departure_times_s[-1] >= 28.0
+        assert max(departure_intervals_s) <= 3.0
+        assert max(departure_intervals_s) - min(departure_intervals_s) >= 0.8
+        all_departure_times_by_lane_s[lane_index] = departure_times_s
+    rounded_departures_by_lane = {
+        lane_index: {round(time_s, 3) for time_s in departure_times_s}
+        for lane_index, departure_times_s in all_departure_times_by_lane_s.items()
+    }
+    assert not (
+        rounded_departures_by_lane[0] & rounded_departures_by_lane[1]
+        | rounded_departures_by_lane[0] & rounded_departures_by_lane[2]
+        | rounded_departures_by_lane[1] & rounded_departures_by_lane[2]
+    )
+
+
+def test_low_level_merge_starts_with_irregular_moving_upper_lane_traffic() -> None:
+    scenario_id = "mixed-automation-low-level-merge"
+    route_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.rou.xml").getroot()
+    upper_vehicle_types = [
+        vehicle_type
+        for vehicle_type in route_root.findall("vType")
+        if vehicle_type.attrib["id"].startswith("upper_")
+    ]
+    initial_upper_vehicles = [
+        vehicle
+        for vehicle in route_root.findall("vehicle")
+        if vehicle.attrib["route"] in {"route_opposing", "route_opposing_after"}
+    ]
+
+    assert len(upper_vehicle_types) == 4
+    assert all(vehicle_type.attrib["sigma"] == "0" for vehicle_type in upper_vehicle_types)
+    assert all(vehicle_type.attrib["speedFactor"] == "1.0" for vehicle_type in upper_vehicle_types)
+    assert len(initial_upper_vehicles) == 54
+    assert all(float(vehicle.attrib["depart"]) == 0.0 for vehicle in initial_upper_vehicles)
+    assert all(float(vehicle.attrib["departSpeed"]) > 0.0 for vehicle in initial_upper_vehicles)
+    for lane_index in range(3):
+        lane_vehicles = [
+            vehicle
+            for vehicle in initial_upper_vehicles
+            if vehicle.attrib["departLane"] == str(lane_index)
+        ]
+        positions_m = sorted(
+            (
+                320.0 - float(vehicle.attrib["departPos"])
+                if vehicle.attrib["route"] == "route_opposing"
+                else 100.54 - float(vehicle.attrib["departPos"])
+            )
+            for vehicle in lane_vehicles
+        )
+        position_intervals_m = [
+            later_position_m - earlier_position_m
+            for earlier_position_m, later_position_m in zip(
+                positions_m,
+                positions_m[1:],
+                strict=False,
+            )
+        ]
+        assert len(lane_vehicles) == 18
+        assert positions_m[0] <= 7.0
+        assert positions_m[-1] >= 310.0
+        assert positions_m[-1] - positions_m[0] >= 300.0
+        assert max(position_intervals_m) - min(position_intervals_m) >= 2.0
+        assert len({float(vehicle.attrib["departSpeed"]) for vehicle in lane_vehicles}) == 18
+
+
+def test_low_level_merge_keeps_lower_main_and_ramp_demands_unchanged() -> None:
+    scenario_id = "mixed-automation-low-level-merge"
+    route_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.rou.xml").getroot()
+    flows = route_root.findall("flow")
+
+    assert not [
+        vehicle
+        for vehicle in route_root.findall("vehicle")
+        if vehicle.attrib["route"] == "route_main"
+    ]
+    assert (
+        sum(int(flow.attrib["number"]) for flow in flows if flow.attrib["route"] == "route_main")
+        == 42
+    )
+    assert (
+        sum(int(flow.attrib["number"]) for flow in flows if flow.attrib["route"] == "route_merge")
+        == 14
     )

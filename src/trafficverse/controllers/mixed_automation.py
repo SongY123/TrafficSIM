@@ -68,7 +68,7 @@ _LOW_MERGE_CASCADE_DELAY_MS = {1: 500, 2: 1_200}
 _LOW_MERGE_CASCADE_SPEED_MPS = {1: 6.0, 2: 5.2}
 _LOW_MERGE_CASCADE_DECEL_MPS2 = {1: 3.5, 2: 2.4}
 _LOW_MERGE_LANE_CHANGE_DURATION_S = 1.0
-_LOW_MERGE_LANE_CHANGE_CLEARANCE_M = {1: 6.5, 2: 9.0}
+_LOW_MERGE_LANE_CHANGE_CLEARANCE_M = {1: 7.5, 2: 9.0}
 _LOW_MERGE_LANE_CHANGE_ZONE_X_M = {1: (58.0, 94.0), 2: (58.0, 98.0)}
 _L5_MERGE_MAIN_SPEED_MPS = 20.0
 _L5_MERGE_RAMP_SPEED_MPS = 19.0
@@ -628,7 +628,16 @@ class MixedAutomationScenarioController:
             level = int(level_text)
             sequence = int(sequence_text)
             if stream == "opposing":
-                desired_speed_mps = _low_merge_main_cruise_speed_mps(2, level)
+                actual_lane_index = _lane_index(vehicle.lane_id)
+                lane_index = (
+                    actual_lane_index if actual_lane_index is not None else int(lane_text or 0)
+                )
+                desired_speed_mps = _low_merge_opposing_cruise_speed_mps(
+                    lane_index,
+                    level,
+                    sequence,
+                    starts_after_merge=vehicle.lane_id.startswith("opposing_after_"),
+                )
             elif stream == "ramp":
                 if vehicle.lane_id == "main_after_0":
                     desired_speed_mps = _low_merge_main_cruise_speed_mps(0, level)
@@ -869,6 +878,24 @@ def _low_merge_main_cruise_speed_mps(lane_index: int, level: int) -> float:
     return base_speed_mps + level * 0.1
 
 
+def _low_merge_opposing_cruise_speed_mps(
+    lane_index: int,
+    level: int,
+    sequence: int,
+    *,
+    starts_after_merge: bool,
+) -> float:
+    if sequence >= 100:
+        rank = (
+            10 + (sequence - 120) * 4 + level
+            if starts_after_merge
+            else (sequence - 100) * 4 + level
+        )
+    else:
+        rank = 24 + level * 4 + sequence
+    return 13.4 + lane_index * 0.05 + rank * 0.035
+
+
 def _low_merge_slowdown_command(
     vehicle: VehicleState,
     *,
@@ -924,19 +951,26 @@ def _low_merge_lane_change_is_safe(
     target_lane_id = f"main_before_{target_lane_index}"
     clearance_m = _LOW_MERGE_LANE_CHANGE_CLEARANCE_M[target_lane_index]
     projected_vehicle_x_m = (
-        vehicle.position.x + vehicle.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
+        vehicle.position.x
+        + vehicle.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
+        - 0.5
+        * _LOW_MERGE_CASCADE_DECEL_MPS2[target_lane_index]
+        * _LOW_MERGE_LANE_CHANGE_DURATION_S**2
     )
-    return all(
-        abs(other.position.x - vehicle.position.x) >= clearance_m
-        and abs(
+    for other in snapshot.vehicles:
+        if other.vehicle_id == vehicle.vehicle_id or other.lane_id != target_lane_id:
+            continue
+        current_delta_m = other.position.x - vehicle.position.x
+        projected_delta_m = (
             other.position.x
             + other.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
             - projected_vehicle_x_m
         )
-        >= clearance_m
-        for other in snapshot.vehicles
-        if other.vehicle_id != vehicle.vehicle_id and other.lane_id == target_lane_id
-    )
+        stays_ahead = current_delta_m >= clearance_m and projected_delta_m >= clearance_m
+        stays_behind = current_delta_m <= -clearance_m and projected_delta_m <= -clearance_m
+        if not (stays_ahead or stays_behind):
+            return False
+    return True
 
 
 def _low_merge_should_change_lane(lane_index: int, level: int, sequence: int) -> bool:

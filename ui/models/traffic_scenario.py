@@ -346,8 +346,76 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
             )
         )
         sequence += 1
-    for lane_index, y_m in enumerate((28.75, 25.25, 21.75)):
-        for index, x_m in enumerate((180.0, 210.0, 240.0, 270.0)):
+    opposing_positions_by_lane_m = (
+        ((180.0, 210.0, 240.0, 270.0),) * 3
+        if l5_only
+        else (
+            (
+                314.0,
+                293.0,
+                272.0,
+                251.0,
+                229.0,
+                207.0,
+                184.0,
+                161.0,
+                138.0,
+                115.0,
+                95.54,
+                84.04,
+                71.34,
+                59.54,
+                46.04,
+                34.54,
+                20.34,
+                6.54,
+            ),
+            (
+                312.0,
+                291.0,
+                269.0,
+                247.0,
+                226.0,
+                204.0,
+                181.0,
+                159.0,
+                136.0,
+                117.0,
+                96.74,
+                84.84,
+                72.04,
+                58.34,
+                47.14,
+                32.64,
+                21.44,
+                5.34,
+            ),
+            (
+                315.5,
+                295.0,
+                274.0,
+                252.0,
+                230.0,
+                209.0,
+                186.0,
+                163.0,
+                140.0,
+                116.0,
+                94.34,
+                81.64,
+                69.44,
+                57.54,
+                42.94,
+                31.54,
+                17.04,
+                4.34,
+            ),
+        )
+    )
+    for lane_index, (y_m, opposing_positions_m) in enumerate(
+        zip((28.75, 25.25, 21.75), opposing_positions_by_lane_m, strict=True)
+    ):
+        for index, x_m in enumerate(opposing_positions_m):
             level = "L5" if l5_only else low_levels[(lane_index + index + 2) % len(low_levels)]
             vehicles.append(
                 _preview_vehicle(
@@ -356,10 +424,10 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
                     sequence,
                     x_m,
                     lane_index,
-                    20.0 if l5_only else 18.0 + int(level[1:]) * 0.4,
+                    20.0 if l5_only else 13.4 + index * 0.035 + lane_index * 0.05,
                     y_m=y_m,
                     heading_rad=3.1416,
-                    lane_prefix="opposing_before",
+                    lane_prefix=("opposing_before" if l5_only or index < 10 else "opposing_after"),
                 )
             )
             sequence += 1
@@ -514,14 +582,14 @@ TRAFFIC_SCENARIO_PRESETS = (
             "包含3条行驶车道。L0-L3混合车流从主路、支路和对向道路连续进入。"
         ),
         behavior_summary=(
-            "支路从0秒开始每2秒持续来车，并一直延续到仿真末段。10～22秒只有支路车辆"
-            "真正进入汇入口附近后，D1才开始明显减速，部分车辆被动进入D2，扰动范围"
-            "随后向D2、D3扩大。22秒后支路车源仍然存在，但采用恢复速度继续汇入，"
-            "主路车流在持续汇入中逐步恢复。"
+            "第0秒时画面最上方3条对向车道已经由随机错位、不同初速度的车流铺满整段"
+            "道路；后续车辆从地图最右端按车道错峰、非等时间间隔持续进入。下方3条"
+            "主路和支路需求保持不变。10～22秒支路汇入使D1首先减速，扰动随后向D2、"
+            "D3扩大，22秒后主路逐步恢复。"
         ),
         map_id="mixed-automation-low-level-merge",
         duration_s=30,
-        automation_counts=(("L0", 21), ("L1", 21), ("L2", 14), ("L3", 14)),
+        automation_counts=(("L0", 40), ("L1", 41), ("L2", 39), ("L3", 35)),
         scene_type="低智驾被动汇流",
         level_behaviors=(
             ("L0", "依赖基础跟车和临近冲突反应，只在汇入口附近减速或被动变道。"),
@@ -537,7 +605,7 @@ TRAFFIC_SCENARIO_PRESETS = (
         name="L5会车",
         incident=(
             "使用与低智驾场景完全相同的正向3车道、单汇入车道和对向3车道路网，"
-            "车辆总数与发车窗口保持一致，全部车辆替换为L5。"
+            "全部车辆均为具备协同汇流能力的L5。"
         ),
         behavior_summary=(
             "主路车辆提前识别汇入需求，选择车辆短时协调降速并主动形成可用车隙。"
