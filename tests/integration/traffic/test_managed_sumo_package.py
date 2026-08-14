@@ -79,6 +79,8 @@ class _DenseMergeResult:
     d2_to_d3_request_vehicle_ids: frozenset[str]
     d1_to_d2_observed_vehicle_ids: frozenset[str]
     d2_to_d3_observed_vehicle_ids: frozenset[str]
+    lane_change_intermediate_pose_vehicle_ids: frozenset[str]
+    lane_change_heading_vehicle_ids: frozenset[str]
     first_ramp_near_time_ms: int | None
     first_d1_slowdown_time_ms: int | None
     first_d1_slowdown_position_x_m: float | None
@@ -205,6 +207,9 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     background_straight_lane_ids: dict[str, set[str]] = {
         vehicle_id: set() for vehicle_id in background_straight_ids
     }
+    background_moving_ids: set[str] = set()
+    background_first_stopped_time_ms: dict[str, int] = {}
+    maximum_background_stopped_lane_imbalance = 0
     background_post_incident_cruise_ids: set[str] = set()
     background_l5_initial_lane_ids: dict[str, str] = {}
     background_l5_right_turn_ids: set[str] = set()
@@ -293,6 +298,8 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                             vehicle.speed_mps,
                         )
                 if vehicle.vehicle_id in background_straight_ids:
+                    if target_time_ms > 3_000 and vehicle.speed_mps > 1.0:
+                        background_moving_ids.add(vehicle.vehicle_id)
                     background_minimum_acceleration_mps2[vehicle.vehicle_id] = min(
                         background_minimum_acceleration_mps2[vehicle.vehicle_id],
                         vehicle.acceleration_mps2,
@@ -352,6 +359,27 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         for vehicle in previous.vehicles
                         if vehicle.vehicle_id == "accident_follow_L0_0"
                     )
+            if first_collision_time_ms is not None:
+                stopped_background_by_lane = [0, 0]
+                for vehicle_id in background_moving_ids:
+                    background_vehicle = vehicles_by_id.get(vehicle_id)
+                    lane_index = (
+                        int(background_vehicle.lane_id.rsplit("_", maxsplit=1)[-1])
+                        if background_vehicle is not None
+                        and background_vehicle.lane_id.rsplit("_", maxsplit=1)[-1] in {"0", "1"}
+                        else None
+                    )
+                    if (
+                        background_vehicle is not None
+                        and lane_index in {0, 1}
+                        and background_vehicle.speed_mps <= 0.05
+                    ):
+                        stopped_background_by_lane[lane_index] += 1
+                        background_first_stopped_time_ms.setdefault(vehicle_id, target_time_ms)
+                maximum_background_stopped_lane_imbalance = max(
+                    maximum_background_stopped_lane_imbalance,
+                    abs(stopped_background_by_lane[0] - stopped_background_by_lane[1]),
+                )
     finally:
         adapter.close()
 
@@ -492,6 +520,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert all(
         vehicles[vehicle_id].lane_id == "road_curve_1" for vehicle_id in background_lane_1_ids
     )
+    assert maximum_background_stopped_lane_imbalance <= 1, background_first_stopped_time_ms
     queue_target_xy_m = {
         "accident_background_L0_0": (538.0, 138.84),
         "accident_background_L1_0": (531.0, 134.64),
@@ -616,6 +645,8 @@ def _run_dense_merge_scenario(
     d2_to_d3_request_vehicle_ids: set[str] = set()
     d1_to_d2_observed_vehicle_ids: set[str] = set()
     d2_to_d3_observed_vehicle_ids: set[str] = set()
+    lane_change_request_metadata: dict[str, tuple[int, float, float]] = {}
+    lane_change_pose_samples: dict[str, list[tuple[float, float]]] = {}
     first_ramp_near_time_ms: int | None = None
     first_d1_slowdown_time_ms: int | None = None
     first_d1_slowdown_position_x_m: float | None = None
@@ -653,8 +684,19 @@ def _run_dense_merge_scenario(
                         lane_change_request_times_ms.append(previous.simulation_time_ms)
                         if vehicle.lane_id == "main_before_0":
                             d1_to_d2_request_vehicle_ids.add(vehicle_id)
+                            target_y_m = 14.75
                         elif vehicle.lane_id == "main_before_1":
                             d2_to_d3_request_vehicle_ids.add(vehicle_id)
+                            target_y_m = 18.25
+                        else:
+                            continue
+                        lane_change_request_metadata.setdefault(
+                            vehicle_id,
+                            (previous.simulation_time_ms, vehicle.position.y, target_y_m),
+                        )
+                        lane_change_pose_samples.setdefault(vehicle_id, []).append(
+                            (vehicle.position.y, vehicle.heading_rad)
+                        )
                     if (
                         vehicle is None
                         or command.desired_acceleration_mps2 is None
@@ -676,6 +718,20 @@ def _run_dense_merge_scenario(
             previous = adapter.step(target_time_ms)
             arrived_vehicle_ids.update(adapter.diagnostics().arrived_vehicle_ids)
             vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
+            for vehicle_id, (
+                request_time_ms,
+                _source_y_m,
+                _target_y_m,
+            ) in lane_change_request_metadata.items():
+                vehicle = vehicles_by_id.get(vehicle_id)
+                if (
+                    vehicle is not None
+                    and target_time_ms <= request_time_ms + 1_500
+                    and vehicle.lane_id.startswith("main_before_")
+                ):
+                    lane_change_pose_samples.setdefault(vehicle_id, []).append(
+                        (vehicle.position.y, vehicle.heading_rad)
+                    )
             current_ramp_vehicles = tuple(
                 vehicle
                 for vehicle in previous.vehicles
@@ -909,6 +965,19 @@ def _run_dense_merge_scenario(
         sum(samples) / len(samples) if samples else 0.0
         for samples in phase_main_before_vehicle_count_samples
     ]
+    lane_change_intermediate_pose_vehicle_ids: set[str] = set()
+    for vehicle_id, samples in lane_change_pose_samples.items():
+        _request_time_ms, source_y_m, target_y_m = lane_change_request_metadata[vehicle_id]
+        if any(
+            min(source_y_m, target_y_m) + 0.1 < sample_y_m < max(source_y_m, target_y_m) - 0.1
+            for sample_y_m, _heading_rad in samples
+        ):
+            lane_change_intermediate_pose_vehicle_ids.add(vehicle_id)
+    lane_change_heading_vehicle_ids = {
+        vehicle_id
+        for vehicle_id, samples in lane_change_pose_samples.items()
+        if any(abs(heading_rad) >= math.radians(1.0) for _sample_y_m, heading_rad in samples)
+    }
 
     return _DenseMergeResult(
         seen_vehicle_ids=frozenset(seen_vehicle_ids),
@@ -995,6 +1064,10 @@ def _run_dense_merge_scenario(
         d2_to_d3_request_vehicle_ids=frozenset(d2_to_d3_request_vehicle_ids),
         d1_to_d2_observed_vehicle_ids=frozenset(d1_to_d2_observed_vehicle_ids),
         d2_to_d3_observed_vehicle_ids=frozenset(d2_to_d3_observed_vehicle_ids),
+        lane_change_intermediate_pose_vehicle_ids=frozenset(
+            lane_change_intermediate_pose_vehicle_ids
+        ),
+        lane_change_heading_vehicle_ids=frozenset(lane_change_heading_vehicle_ids),
         first_ramp_near_time_ms=first_ramp_near_time_ms,
         first_d1_slowdown_time_ms=first_d1_slowdown_time_ms,
         first_d1_slowdown_position_x_m=first_d1_slowdown_position_x_m,
@@ -1129,6 +1202,16 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     assert len(low_level.d1_to_d2_observed_vehicle_ids) >= len(
         low_level.d2_to_d3_observed_vehicle_ids
     ), (low_level, l5)
+    requested_lane_change_vehicle_ids = (
+        low_level.d1_to_d2_request_vehicle_ids | low_level.d2_to_d3_request_vehicle_ids
+    )
+    assert (
+        requested_lane_change_vehicle_ids <= low_level.lane_change_intermediate_pose_vehicle_ids
+    ), (low_level, l5)
+    assert requested_lane_change_vehicle_ids <= low_level.lane_change_heading_vehicle_ids, (
+        low_level,
+        l5,
+    )
     _stable_density, disturbance_density, recovery_density = (
         low_level.phase_main_before_average_vehicle_counts
     )

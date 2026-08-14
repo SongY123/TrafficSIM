@@ -141,7 +141,7 @@ def _emergency_preview() -> tuple[Vehicle, ...]:
 
 
 def _occasional_accident_preview() -> tuple[Vehicle, ...]:
-    # Display the deterministic 25 s key frame from the scripted SUMO run. These coordinates
+    # Display the deterministic final key frame from the scripted SUMO run. These coordinates
     # include the native network offset and keep the two impacts visually distinct.
     vehicles = [
         _preview_vehicle(
@@ -552,8 +552,8 @@ TRAFFIC_SCENARIO_PRESETS = (
             "保持为原布局的40%；L1先紧急制动，L3检测到L1真实急刹后缓慢制动，最终均"
             "留出约一个车长且未发生碰撞。L5从继续前移30米后的上方车道出发，先静止3秒，"
             "随后以翻倍后的恒定速度接近路口，首次碰撞发生后向下方车道变道并右转绕行。"
-            "双车道另加入10辆保持安全间距的背景车：L0、L1、L3直行并正常制动，3辆新增"
-            "L5均从右转支路绕行；原有7辆场景车的状态和时序保持不变。"
+            "双车道另加入10辆保持安全间距的背景车：L0、L1、L3直行并在两条车道交替"
+            "形成停车队列，3辆新增L5均从右转支路绕行；原有7辆场景车的状态和时序保持不变。"
         ),
         map_id="mixed-automation-occasional-accident",
         duration_s=60,

@@ -257,12 +257,14 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     assert {
         vehicle_id: float(vehicles[vehicle_id]["departPos"])
         for vehicle_id in straight_background_ids
-        if expected_straight_lanes[vehicle_id] == "0"
     } == {
-        "accident_background_L0_1": 385.0,
-        "accident_background_L1_1": 370.0,
-        "accident_background_L3_1": 355.0,
-        "accident_background_L3_2": 340.0,
+        "accident_background_L0_0": 372.0,
+        "accident_background_L0_1": 390.0,
+        "accident_background_L1_0": 360.0,
+        "accident_background_L1_1": 378.0,
+        "accident_background_L3_0": 343.0,
+        "accident_background_L3_1": 361.0,
+        "accident_background_L3_2": 344.0,
     }
     assert all(
         routes[vehicles[vehicle_id]["route"]] == "road_approach right_exit"
@@ -411,6 +413,17 @@ def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_
         for flow in flows
     )
     assert all(flow.attrib["departLane"] in {"0", "1", "2"} for flow in flows)
+
+
+def test_low_level_merge_uses_continuous_one_second_lane_changes() -> None:
+    scenario_id = "mixed-automation-low-level-merge"
+    config_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.sumocfg").getroot()
+
+    processing = config_root.find("processing")
+    assert processing is not None
+    lane_change_duration = processing.find("lanechange.duration")
+    assert lane_change_duration is not None
+    assert lane_change_duration.attrib["value"] == "1.0"
 
 
 def test_low_level_merge_keeps_supplying_ramp_vehicles_for_the_full_run() -> None:
