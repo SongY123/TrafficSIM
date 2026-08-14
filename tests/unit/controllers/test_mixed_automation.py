@@ -499,7 +499,7 @@ def test_occasional_accident_background_l5_keeps_constant_speed_on_right_turn_ro
 
 def test_occasional_accident_scripts_right_to_left_collision_then_stops_both_cars() -> None:
     controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
-    parked = _vehicle("accident_parked_L0_0", x_m=595.0, lane_index=0, speed_mps=0.0)
+    parked = _vehicle("accident_parked_L0_0", x_m=582.0, lane_index=0, speed_mps=0.0)
     actor = _vehicle("accident_actor_L0_0", x_m=540.0, lane_index=0, speed_mps=14.0)
     victim = _vehicle("accident_victim_L0_0", x_m=555.0, lane_index=1, speed_mps=10.0)
 

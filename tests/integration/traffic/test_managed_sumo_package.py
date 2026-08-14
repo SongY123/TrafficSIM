@@ -440,6 +440,17 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert vehicles["accident_actor_L0_0"].speed_mps < 0.5
     assert vehicles["accident_victim_L0_0"].speed_mps < 0.5
     assert vehicles["accident_follow_L0_0"].speed_mps < 0.5
+    collision_midpoint_x_m = (
+        vehicles["accident_actor_L0_0"].position.x + vehicles["accident_victim_L0_0"].position.x
+    ) / 2.0
+    collision_midpoint_y_m = (
+        vehicles["accident_actor_L0_0"].position.y + vehicles["accident_victim_L0_0"].position.y
+    ) / 2.0
+    parked_to_collision_distance_m = math.hypot(
+        vehicles["accident_parked_L0_0"].position.x - collision_midpoint_x_m,
+        vehicles["accident_parked_L0_0"].position.y - collision_midpoint_y_m,
+    )
+    assert parked_to_collision_distance_m == pytest.approx(14.0, abs=0.75)
     final_lateral_separation_m = _lateral_separation_m(
         vehicles["accident_actor_L0_0"],
         vehicles["accident_victim_L0_0"],

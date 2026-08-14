@@ -311,7 +311,8 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     )
     parked_position_m = global_position_m(vehicles["accident_parked_L0_0"])
     actor_position_m = global_position_m(vehicles["accident_actor_L0_0"])
-    assert parked_position_m - actor_position_m <= 50.0
+    assert float(vehicles["accident_parked_L0_0"]["departPos"]) == 71.0
+    assert parked_position_m - actor_position_m == pytest.approx(31.0)
     assert actor_position_m - follower_positions[0] <= 75.0
     assert follower_positions == [528.4, 521.6, 510.0, 460.4]
     compressed_gaps_m = [

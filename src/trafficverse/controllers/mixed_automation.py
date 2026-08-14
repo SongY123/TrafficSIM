@@ -40,6 +40,7 @@ _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M = 475.0
 _ACCIDENT_L5_LANE_CHANGE_DURATION_S = 1.0
 _ACCIDENT_L1_GAP_OPENING_DECEL_MPS2 = 0.65
 _ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 1.75
+_ACCIDENT_PARKED_MANEUVER_TRIGGER_DISTANCE_M = 24.55
 _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS = 8.0
 _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2 = 1.5
 _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS = 0.05
@@ -412,7 +413,7 @@ class MixedAutomationScenarioController:
             if parked is not None and actor is not None
             else float("inf")
         )
-        maneuver_started = parked_distance_m <= 38.0
+        maneuver_started = parked_distance_m <= _ACCIDENT_PARKED_MANEUVER_TRIGGER_DISTANCE_M
 
         for vehicle in snapshot.vehicles:
             if vehicle.vehicle_id == "accident_parked_L0_0":
