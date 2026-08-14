@@ -9,6 +9,8 @@ from collections.abc import Mapping
 from trafficverse.domain.enums import LaneChangeDirection
 from trafficverse.domain.models import ControlCommand, TrafficSnapshot, VehicleState
 
+from .merge_profiles import l5_merge_cruise_speed_mps
+
 _LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:_|$)")
 _OBSTACLE_TARGET_PATTERN = re.compile(r"^target_L([0-5])_(\d+)$")
 _CUTIN_ACTOR_PATTERN = re.compile(r"^cutin_actor_L([0-5])_(\d+)$")
@@ -96,7 +98,6 @@ _LOW_MERGE_LANE_CHANGE_CLEARANCE_M = {1: 7.5, 2: 9.0}
 _LOW_MERGE_LANE_CHANGE_ZONE_X_M = {1: (58.0, 94.0), 2: (58.0, 98.0)}
 _LOW_MERGE_CLEAR_D2_SPEED_MPS = 7.5
 _LOW_MERGE_CLEAR_AHEAD_DISTANCE_M = 24.0
-_L5_MERGE_CRUISE_SPEED_MPS = 16.0
 _SCENARIO_IDS = frozenset(
     {
         "mixed-automation-obstacle",
@@ -931,7 +932,7 @@ class MixedAutomationScenarioController:
             if match is None:
                 continue
             commands[vehicle.vehicle_id] = ControlCommand(
-                desired_speed_mps=_L5_MERGE_CRUISE_SPEED_MPS,
+                desired_speed_mps=l5_merge_cruise_speed_mps(vehicle.vehicle_id),
                 lane_change_mode=0,
             )
         return commands

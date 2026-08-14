@@ -347,7 +347,7 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     ),
     (
         ("mixed-automation-low-level-merge", {"L0", "L1", "L2", "L3"}, 28, 155, 14),
-        ("mixed-automation-l5-merge", {"L3", "L4", "L5"}, 0, 70, 4),
+        ("mixed-automation-l5-merge", {"L3", "L4", "L5"}, 0, 131, 18),
     ),
 )
 def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_lanes(
@@ -417,7 +417,7 @@ def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_
     assert all(flow.attrib["departLane"] in {"0", "1", "2"} for flow in flows)
 
 
-def test_l5_merge_uses_a_mixed_constant_speed_zipper_schedule() -> None:
+def test_l5_merge_starts_dense_and_uses_varied_safe_demand() -> None:
     scenario_id = "mixed-automation-l5-merge"
     route_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.rou.xml").getroot()
     flows = route_root.findall("flow")
@@ -429,19 +429,79 @@ def test_l5_merge_uses_a_mixed_constant_speed_zipper_schedule() -> None:
         )
         for level in ("L3", "L4", "L5")
     }
-    main_d3 = [
+    initial_main_by_lane = {
+        lane_index: [
+            vehicle
+            for vehicle in vehicles
+            if vehicle.attrib["route"] == "route_main"
+            and vehicle.attrib["departLane"] == str(lane_index)
+            and float(vehicle.attrib["depart"]) == 0.0
+        ]
+        for lane_index in range(3)
+    }
+    initial_opposing_by_lane = {
+        lane_index: [
+            vehicle
+            for vehicle in vehicles
+            if vehicle.attrib["route"] == "route_opposing"
+            and vehicle.attrib["departLane"] == str(lane_index)
+            and float(vehicle.attrib["depart"]) == 0.0
+        ]
+        for lane_index in range(3)
+    }
+    main_d1 = [
         vehicle
         for vehicle in vehicles
         if vehicle.attrib["route"] == "route_main" and vehicle.attrib["departLane"] == "0"
     ]
     ramp = [vehicle for vehicle in vehicles if vehicle.attrib["route"] == "route_merge"]
 
-    assert counts_by_level == {"L3": 10, "L4": 10, "L5": 50}
-    assert len(main_d3) == 10
-    assert len(ramp) == 4
-    assert all(item.attrib["departSpeed"] == "16" for item in demand)
-    assert [float(vehicle.attrib["depart"]) for vehicle in main_d3] == sorted(
-        float(vehicle.attrib["depart"]) for vehicle in main_d3
+    def unique_gap_count(items: list[ElementTree.Element]) -> int:
+        positions_m = sorted(float(item.attrib["departPos"]) for item in items)
+        return len(
+            {
+                round(later - earlier, 2)
+                for earlier, later in zip(positions_m, positions_m[1:], strict=False)
+            }
+        )
+
+    assert counts_by_level["L5"] > counts_by_level["L3"]
+    assert counts_by_level["L5"] > counts_by_level["L4"]
+    assert min(counts_by_level["L3"], counts_by_level["L4"]) >= 15
+    assert {lane_index: len(items) for lane_index, items in initial_main_by_lane.items()} == {
+        0: 7,
+        1: 9,
+        2: 9,
+    }
+    assert all(
+        max(float(item.attrib["departPos"]) for item in items)
+        - min(float(item.attrib["departPos"]) for item in items)
+        >= 90.0
+        for items in initial_main_by_lane.values()
+    )
+    assert all(unique_gap_count(items) >= 4 for items in initial_main_by_lane.values())
+    assert all(
+        len({float(item.attrib["departSpeed"]) for item in items}) >= 4
+        for items in initial_main_by_lane.values()
+    )
+    assert all(len(items) == 12 for items in initial_opposing_by_lane.values())
+    assert all(
+        max(float(item.attrib["departPos"]) for item in items)
+        - min(float(item.attrib["departPos"]) for item in items)
+        >= 195.0
+        for items in initial_opposing_by_lane.values()
+    )
+    assert all(unique_gap_count(items) >= 4 for items in initial_opposing_by_lane.values())
+    assert all(
+        len({float(item.attrib["departSpeed"]) for item in items}) >= 4
+        for items in initial_opposing_by_lane.values()
+    )
+    assert len(main_d1) == 19
+    assert len(ramp) == 18
+    assert sum(float(vehicle.attrib["depart"]) == 0.0 for vehicle in ramp) == 6
+    assert all(15.2 <= float(item.attrib["departSpeed"]) <= 16.8 for item in demand)
+    assert [float(vehicle.attrib["depart"]) for vehicle in main_d1] == sorted(
+        float(vehicle.attrib["depart"]) for vehicle in main_d1
     )
     assert [float(vehicle.attrib["depart"]) for vehicle in ramp] == sorted(
         float(vehicle.attrib["depart"]) for vehicle in ramp

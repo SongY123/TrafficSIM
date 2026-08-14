@@ -1145,7 +1145,7 @@ def test_low_level_merge_stops_lane_changes_and_recovers_after_twenty_two_second
     assert all(command.lane_change_mode == 0 for command in commands.values())
 
 
-def test_l5_merge_keeps_mixed_levels_at_constant_speed_and_locks_lane_changes() -> None:
+def test_l5_merge_uses_stable_varied_speeds_and_locks_lane_changes() -> None:
     controller = MixedAutomationScenarioController("mixed-automation-l5-merge")
     main_l3 = _vehicle(
         "merge_main_L3_lane0.0",
@@ -1166,7 +1166,11 @@ def test_l5_merge_keeps_mixed_levels_at_constant_speed_and_locks_lane_changes() 
     commands = controller.step(_snapshot(main_l3, main_l4, ramp_l5, time_ms=10_000), 0.05)
 
     assert set(commands) == {main_l3.vehicle_id, main_l4.vehicle_id, ramp_l5.vehicle_id}
-    assert all(command.desired_speed_mps == 16.0 for command in commands.values())
+    speeds_mps = {command.desired_speed_mps for command in commands.values()}
+    assert None not in speeds_mps
+    assert len(speeds_mps) == 3
+    assert min(speed for speed in speeds_mps if speed is not None) >= 15.2
+    assert max(speed for speed in speeds_mps if speed is not None) <= 16.8
     assert all(command.lane_change is LaneChangeDirection.NONE for command in commands.values())
     assert all(command.lane_change_mode == 0 for command in commands.values())
     assert not any(command.safety_checks_override for command in commands.values())

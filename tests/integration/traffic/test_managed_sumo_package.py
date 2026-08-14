@@ -1177,7 +1177,7 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     )
 
     assert len(low_level.seen_vehicle_ids) == 155, (low_level, l5)
-    assert len(l5.seen_vehicle_ids) == 70, (low_level, l5)
+    assert len(l5.seen_vehicle_ids) == 131, (low_level, l5)
     assert not low_level.collision_vehicle_ids
     assert not l5.collision_vehicle_ids
     assert low_level.ramp_free_flow_average_speed_mps >= 12.0, (low_level, l5)
@@ -1207,7 +1207,8 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
         )
         >= 8
     ), (low_level, l5)
-    assert len(l5.merged_ramp_vehicle_ids) == 4, (
+    assert len(l5.ramp_seen_vehicle_ids) == 18, (low_level, l5)
+    assert len(l5.merged_ramp_vehicle_ids) == 18, (
         low_level,
         l5,
     )
@@ -1272,19 +1273,22 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     )
     assert recovery_density < disturbance_density * 0.7, (low_level, l5)
     assert l5.automation_levels == {3, 4, 5}, (low_level, l5)
-    assert max(l5.main_lane_speed_ranges_mps) <= 0.1, (low_level, l5)
-    assert l5.ramp_speed_range_mps <= 0.1, (low_level, l5)
+    assert l5.peak_main_before_vehicle_count >= 25, (low_level, l5)
+    assert l5.forward_average_speed_mps >= 14.5, (low_level, l5)
+    assert max(l5.main_lane_speed_ranges_mps) <= 3.0, (low_level, l5)
+    assert l5.ramp_speed_range_mps <= 1.0, (low_level, l5)
     assert not l5.lane_change_request_observed, (low_level, l5)
     assert not l5.lane_change_observed, (low_level, l5)
     assert not l5.d1_to_d2_observed_vehicle_ids, (low_level, l5)
     assert not l5.d2_to_d3_observed_vehicle_ids, (low_level, l5)
-    assert l5.merge_entry_streams[:8] == (
-        "main",
-        "ramp",
-        "main",
-        "ramp",
-        "main",
-        "ramp",
-        "ramp",
-        "main",
+    first_l5_merge_entries = l5.merge_entry_streams[:24]
+    assert first_l5_merge_entries.count("ramp") >= 10, (low_level, l5)
+    assert not any(
+        first == second == third
+        for first, second, third in zip(
+            first_l5_merge_entries,
+            first_l5_merge_entries[1:],
+            first_l5_merge_entries[2:],
+            strict=False,
+        )
     ), (low_level, l5)
