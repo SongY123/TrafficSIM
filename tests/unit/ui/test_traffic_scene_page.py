@@ -190,6 +190,7 @@ def test_scenario_preview_is_a_feature_key_frame(
 def test_dense_merge_presets_expose_configured_demand_and_distinct_automation_levels() -> None:
     low_level, l5 = TRAFFIC_SCENARIO_PRESETS[4:6]
     low_level_preview = scenario_preview_vehicles(low_level)
+    l5_preview = scenario_preview_vehicles(l5)
 
     assert low_level.name == "低智驾等级会车（L0-L3）"
     assert l5.name == "L5会车"
@@ -198,6 +199,11 @@ def test_dense_merge_presets_expose_configured_demand_and_distinct_automation_le
     assert low_level.duration_s == 30
     assert dict(low_level.automation_counts) == {"L0": 40, "L1": 41, "L2": 39, "L3": 35}
     assert dict(l5.automation_counts) == {"L3": 10, "L4": 10, "L5": 50}
+    assert {
+        vehicle.automation_level
+        for vehicle in l5_preview
+        if vehicle.lane_id.startswith("merge_ramp_")
+    } == {"L4", "L5"}
     assert any(vehicle.action == "LANE_CHANGE_LEFT" for vehicle in low_level_preview)
     upper_lane_vehicles = [
         vehicle for vehicle in low_level_preview if vehicle.lane_id.startswith("opposing_")

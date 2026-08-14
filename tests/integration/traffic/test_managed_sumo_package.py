@@ -42,6 +42,7 @@ class _DenseMergeResult:
     merged_ramp_vehicle_ids: frozenset[str] = field(repr=False)
     collision_vehicle_ids: frozenset[str] = field(repr=False)
     automation_levels: frozenset[int]
+    ramp_automation_levels: frozenset[int]
     forward_average_speed_mps: float
     main_lane_speed_ranges_mps: tuple[float, float, float]
     ramp_speed_range_mps: float
@@ -683,6 +684,8 @@ def _run_dense_merge_scenario(
     )
     previous = None
     seen_vehicle_ids: set[str] = set()
+    automation_levels: set[int] = set()
+    ramp_automation_levels: set[int] = set()
     arrived_vehicle_ids: set[str] = set()
     merged_ramp_vehicle_ids: set[str] = set()
     forward_speed_samples_mps: list[float] = []
@@ -939,6 +942,12 @@ def _run_dense_merge_scenario(
                 first_inner_pre_merge_speeds_mps.append(first_inner.speed_mps)
             for vehicle in previous.vehicles:
                 seen_vehicle_ids.add(vehicle.vehicle_id)
+                level_text = vehicle.automation_level.value
+                if level_text.startswith("L"):
+                    level = int(level_text.removeprefix("L"))
+                    automation_levels.add(level)
+                    if vehicle.vehicle_id.startswith("merge_ramp_"):
+                        ramp_automation_levels.add(level)
                 lane_change_observed = lane_change_observed or (
                     "_lane0." in vehicle.vehicle_id
                     and vehicle.lane_id in {"main_before_1", "main_after_1"}
@@ -1068,10 +1077,8 @@ def _run_dense_merge_scenario(
         ),
         merged_ramp_vehicle_ids=frozenset(merged_ramp_vehicle_ids),
         collision_vehicle_ids=frozenset(previous.collision_vehicle_ids),
-        automation_levels=frozenset(
-            int(vehicle_id.partition("_L")[2].split("_", maxsplit=1)[0].split(".", maxsplit=1)[0])
-            for vehicle_id in seen_vehicle_ids
-        ),
+        automation_levels=frozenset(automation_levels),
+        ramp_automation_levels=frozenset(ramp_automation_levels),
         forward_average_speed_mps=sum(forward_speed_samples_mps) / len(forward_speed_samples_mps),
         main_lane_speed_ranges_mps=(
             main_lane_speed_ranges_mps[0],
@@ -1313,6 +1320,7 @@ def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
     )
     assert recovery_density < disturbance_density * 0.7, (low_level, l5)
     assert l5.automation_levels == {3, 4, 5}, (low_level, l5)
+    assert l5.ramp_automation_levels == {4, 5}, (low_level, l5)
     assert l5.peak_main_before_vehicle_count >= 25, (low_level, l5)
     assert l5.forward_average_speed_mps >= 14.5, (low_level, l5)
     assert max(l5.main_lane_speed_ranges_mps) <= 3.0, (low_level, l5)

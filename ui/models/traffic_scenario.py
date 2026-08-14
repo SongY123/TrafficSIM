@@ -282,6 +282,7 @@ def _occasional_accident_preview() -> tuple[Vehicle, ...]:
 def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
     low_levels = ("L0", "L1", "L2", "L3")
     cooperative_levels = ("L5", "L4", "L5", "L3", "L5")
+    cooperative_ramp_levels = ("L5", "L4")
     vehicles: list[Vehicle] = []
     sequence = 0
     main_positions_m = (
@@ -331,7 +332,7 @@ def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
     )
     for index, (x_m, y_m) in enumerate(ramp_points):
         level = (
-            cooperative_levels[sequence % len(cooperative_levels)]
+            cooperative_ramp_levels[index % len(cooperative_ramp_levels)]
             if l5_only
             else low_levels[index % len(low_levels)]
         )

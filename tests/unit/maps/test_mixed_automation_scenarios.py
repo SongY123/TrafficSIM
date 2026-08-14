@@ -516,6 +516,7 @@ def test_l5_merge_starts_dense_and_uses_varied_safe_demand() -> None:
     )
     assert len(main_d1) == 19
     assert len(ramp) == 18
+    assert {vehicle.attrib["type"] for vehicle in ramp} == {"L4", "L5"}
     assert sum(float(vehicle.attrib["depart"]) == 0.0 for vehicle in ramp) == 6
     assert all(15.2 <= float(item.attrib["departSpeed"]) <= 16.8 for item in demand)
     assert [float(vehicle.attrib["depart"]) for vehicle in main_d1] == sorted(

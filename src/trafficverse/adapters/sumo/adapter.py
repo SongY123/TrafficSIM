@@ -28,7 +28,7 @@ from trafficverse.domain.models import (
     VehicleState,
 )
 
-_AUTOMATION_LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:_|$)")
+_AUTOMATION_LEVEL_PATTERN = re.compile(r"(?:^|_)L([0-5])(?:[._]|$)")
 
 
 @dataclass(frozen=True, slots=True)

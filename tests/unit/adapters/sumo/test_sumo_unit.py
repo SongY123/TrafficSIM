@@ -268,14 +268,25 @@ def test_close_is_idempotent() -> None:
     assert runtime.closed
 
 
-def test_vehicle_id_exposes_documented_automation_level() -> None:
+@pytest.mark.parametrize(
+    ("vehicle_id", "expected_level"),
+    (
+        ("target_L5_001", AutomationLevel.L5),
+        ("merge_ramp_L4.2", AutomationLevel.L4),
+        ("merge_ramp_L5.0", AutomationLevel.L5),
+    ),
+)
+def test_vehicle_id_exposes_documented_automation_level(
+    vehicle_id: str,
+    expected_level: AutomationLevel,
+) -> None:
     runtime = FakeSumoRuntime()
     adapter = SumoTrafficEngineAdapter(UUID(int=9), runtime)
     adapter.load(_config())
     sample = runtime.vehicle_samples()[0]
     runtime.vehicle_samples = lambda: (  # type: ignore[method-assign]
         SumoVehicleSample(
-            vehicle_id="target_L5_001",
+            vehicle_id=vehicle_id,
             x_m=sample.x_m,
             y_m=sample.y_m,
             z_m=sample.z_m,
@@ -289,4 +300,4 @@ def test_vehicle_id_exposes_documented_automation_level() -> None:
 
     snapshot = adapter.step(50)
 
-    assert snapshot.vehicles[0].automation_level is AutomationLevel.L5
+    assert snapshot.vehicles[0].automation_level is expected_level

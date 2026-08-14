@@ -12,6 +12,7 @@ OUTPUT_PATH = (
     REPOSITORY_ROOT / "configs/maps/mixed-automation-l5-merge" / "mixed-automation-l5-merge.rou.xml"
 )
 LEVEL_SEQUENCE = (5, 5, 4, 5, 3, 5, 4, 5)
+RAMP_LEVEL_SEQUENCE = (5, 5, 4, 5, 4, 5, 4, 5)
 MAIN_INITIAL_POSITIONS_M = {
     0: (2.5, 18.3, 34.8, 50.1, 66.7, 82.6, 98.0),
     1: (3.2, 14.1, 25.8, 37.0, 48.9, 60.0, 71.8, 83.1, 95.4),
@@ -38,6 +39,10 @@ class VehicleDemand:
 
 def _level(index: int, offset: int = 0) -> int:
     return LEVEL_SEQUENCE[(index + offset) % len(LEVEL_SEQUENCE)]
+
+
+def _ramp_level(index: int, offset: int = 0) -> int:
+    return RAMP_LEVEL_SEQUENCE[(index + offset) % len(RAMP_LEVEL_SEQUENCE)]
 
 
 def _vehicle_id(stream: str, level: int, lane_index: int, sequence: int) -> str:
@@ -88,7 +93,7 @@ def build_demand() -> tuple[VehicleDemand, ...]:
     demand.extend(
         _demand(
             "ramp",
-            _level(index, 1),
+            _ramp_level(index, 1),
             0,
             100 + index,
             route_id="route_merge",
@@ -116,7 +121,7 @@ def build_demand() -> tuple[VehicleDemand, ...]:
     demand.extend(
         _demand(
             "ramp",
-            _level(index),
+            _ramp_level(index),
             0,
             index,
             route_id="route_merge",

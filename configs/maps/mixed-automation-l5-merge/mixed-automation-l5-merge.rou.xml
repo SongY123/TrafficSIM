@@ -37,7 +37,7 @@
     <vehicle id="merge_ramp_L5.100" type="L5" route="route_merge" depart="0" departLane="0" departPos="12.5" departSpeed="16" insertionChecks="none" />
     <vehicle id="merge_ramp_L4.101" type="L4" route="route_merge" depart="0" departLane="0" departPos="28.5" departSpeed="15.8" insertionChecks="none" />
     <vehicle id="merge_ramp_L5.102" type="L5" route="route_merge" depart="0" departLane="0" departPos="44.5" departSpeed="16.2" insertionChecks="none" />
-    <vehicle id="merge_ramp_L3.103" type="L3" route="route_merge" depart="0" departLane="0" departPos="60.5" departSpeed="16.2" insertionChecks="none" />
+    <vehicle id="merge_ramp_L4.103" type="L4" route="route_merge" depart="0" departLane="0" departPos="60.5" departSpeed="16" insertionChecks="none" />
     <vehicle id="merge_ramp_L5.104" type="L5" route="route_merge" depart="0" departLane="0" departPos="76.5" departSpeed="15.9" insertionChecks="none" />
     <vehicle id="merge_ramp_L4.105" type="L4" route="route_merge" depart="0" departLane="0" departPos="92.5" departSpeed="16.2" insertionChecks="none" />
     <vehicle id="merge_opposing_L5_lane0.100" type="L5" route="route_opposing" depart="0" departLane="0" departPos="4" departSpeed="15.2" insertionChecks="none" />
@@ -101,7 +101,7 @@
     <vehicle id="merge_main_L5_lane0.3" type="L5" route="route_main" depart="3.65" departLane="0" departPos="0" departSpeed="16.1" />
     <vehicle id="merge_opposing_L5_lane0.3" type="L5" route="route_opposing" depart="3.8" departLane="0" departPos="0" departSpeed="15.45" />
     <vehicle id="merge_opposing_L5_lane1.3" type="L5" route="route_opposing" depart="3.98" departLane="1" departPos="0" departSpeed="15.95" />
-    <vehicle id="merge_ramp_L3.4" type="L3" route="route_merge" depart="4.1" departLane="0" departPos="0" departSpeed="15.8" />
+    <vehicle id="merge_ramp_L4.4" type="L4" route="route_merge" depart="4.1" departLane="0" departPos="0" departSpeed="16.1" />
     <vehicle id="merge_opposing_L4_lane2.3" type="L4" route="route_opposing" depart="4.16" departLane="2" departPos="0" departSpeed="15.7" />
     <vehicle id="merge_main_L5_lane1.3" type="L5" route="route_main" depart="4.25" departLane="1" departPos="0" departSpeed="16.7" />
     <vehicle id="merge_main_L4_lane2.3" type="L4" route="route_main" depart="4.45" departLane="2" departPos="0" departSpeed="16.45" />
