@@ -18,6 +18,8 @@ MAP_ROOT = REPOSITORY_ROOT / "configs/maps"
         "mixed-automation-cutin",
         "mixed-automation-emergency-yield",
         "mixed-automation-occasional-accident",
+        "mixed-automation-low-level-merge",
+        "mixed-automation-l5-merge",
     ),
 )
 def test_mixed_automation_package_is_self_contained_and_uses_core_step(
@@ -178,8 +180,10 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     right_exit = next(
         edge for edge in network_root.findall("edge") if edge.attrib["id"] == "right_exit"
     )
+    right_exit_lane = right_exit.find("lane")
+    assert right_exit_lane is not None
     assert len(right_exit.findall("lane")) == 1
-    right_exit_shape = right_exit.find("lane").attrib["shape"]
+    right_exit_shape = right_exit_lane.attrib["shape"]
     right_exit_y = [float(point.split(",")[1]) for point in right_exit_shape.split()]
     assert right_exit_y[-1] < right_exit_y[0]
 
@@ -325,4 +329,102 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     assert turn_x_m - follower_positions[-1] == pytest.approx(49.6)
     processing = config_root.find("processing")
     assert processing is not None
-    assert processing.find("collision.mingap-factor").attrib["value"] == "0"
+    minimum_gap_factor = processing.find("collision.mingap-factor")
+    assert minimum_gap_factor is not None
+    assert minimum_gap_factor.attrib["value"] == "0"
+
+
+@pytest.mark.parametrize(
+    (
+        "scenario_id",
+        "expected_levels",
+        "expected_flow_count",
+        "expected_vehicle_count",
+        "expected_merge_vehicle_count",
+    ),
+    (
+        ("mixed-automation-low-level-merge", {"L0", "L1", "L2", "L3"}, 24, 70, 14),
+        ("mixed-automation-l5-merge", {"L5"}, 7, 70, 4),
+    ),
+)
+def test_dense_merge_scenarios_use_three_main_lanes_one_ramp_and_three_opposing_lanes(
+    scenario_id: str,
+    expected_levels: set[str],
+    expected_flow_count: int,
+    expected_vehicle_count: int,
+    expected_merge_vehicle_count: int,
+) -> None:
+    directory = MAP_ROOT / scenario_id
+    network_root = ElementTree.parse(directory / f"{scenario_id}.net.xml").getroot()
+    route_root = ElementTree.parse(directory / f"{scenario_id}.rou.xml").getroot()
+
+    lane_counts = {
+        edge.attrib["id"]: len(edge.findall("lane"))
+        for edge in network_root.findall("edge")
+        if not edge.attrib["id"].startswith(":")
+    }
+    assert lane_counts == {
+        "main_before": 3,
+        "main_after": 3,
+        "merge_ramp": 1,
+        "opposing_before": 3,
+        "opposing_after": 3,
+    }
+    merge_ramp = next(
+        edge for edge in network_root.findall("edge") if edge.attrib["id"] == "merge_ramp"
+    )
+    merge_ramp_lane = merge_ramp.find("lane")
+    assert merge_ramp_lane is not None
+    assert float(merge_ramp_lane.attrib["length"]) >= 100.0
+    assert any(
+        connection.attrib.get("from") == "merge_ramp"
+        and connection.attrib.get("to") == "main_after"
+        and connection.attrib.get("toLane") == "0"
+        for connection in network_root.findall("connection")
+    )
+    routes = {route.attrib["id"]: route.attrib["edges"] for route in route_root.findall("route")}
+    assert routes == {
+        "route_main": "main_before main_after",
+        "route_merge": "merge_ramp main_after",
+        "route_opposing": "opposing_before opposing_after",
+    }
+    flows = route_root.findall("flow")
+    assert len(flows) == expected_flow_count
+    assert sum(int(flow.attrib["number"]) for flow in flows) == expected_vehicle_count
+    assert (
+        sum(int(flow.attrib["number"]) for flow in flows if flow.attrib["route"] == "route_merge")
+        == expected_merge_vehicle_count
+    )
+    departure_times_s = [float(flow.attrib["begin"]) for flow in flows]
+    assert departure_times_s == sorted(departure_times_s)
+    assert {
+        flow.attrib["id"].split("_L", maxsplit=1)[1].split("_", maxsplit=1)[0] for flow in flows
+    } == {level.removeprefix("L") for level in expected_levels}
+    assert all(
+        flow.attrib["departSpeed"] == "max" or float(flow.attrib["departSpeed"]) > 0.0
+        for flow in flows
+    )
+    assert all(flow.attrib["departLane"] in {"0", "1", "2"} for flow in flows)
+
+
+def test_low_level_merge_keeps_supplying_ramp_vehicles_for_the_full_run() -> None:
+    scenario_id = "mixed-automation-low-level-merge"
+    route_root = ElementTree.parse(MAP_ROOT / scenario_id / f"{scenario_id}.rou.xml").getroot()
+    ramp_departure_times_s = sorted(
+        float(flow.attrib["begin"]) + index * float(flow.attrib["period"])
+        for flow in route_root.findall("flow")
+        if flow.attrib["route"] == "route_merge"
+        for index in range(int(flow.attrib["number"]))
+    )
+
+    assert len(ramp_departure_times_s) == 14
+    assert ramp_departure_times_s[0] == pytest.approx(0.0)
+    assert ramp_departure_times_s[-1] == pytest.approx(26.0)
+    assert all(
+        later_time_s - earlier_time_s == pytest.approx(2.0)
+        for earlier_time_s, later_time_s in zip(
+            ramp_departure_times_s,
+            ramp_departure_times_s[1:],
+            strict=False,
+        )
+    )

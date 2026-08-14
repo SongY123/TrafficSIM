@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edges>
+    <edge id="main_before" from="west" to="merge" type="arterial_three" />
+    <edge id="main_after" from="merge" to="east" type="arterial_three" />
+    <edge id="opposing_before" from="east" to="merge" type="arterial_three" />
+    <edge id="opposing_after" from="merge" to="west" type="arterial_three" />
+    <edge
+        id="merge_ramp"
+        from="ramp_start"
+        to="merge"
+        type="merge_lane"
+        shape="0.0,-20.0 30.0,-20.0 55.0,-20.0 70.0,-20.0 88.0,-18.0 103.0,-12.0 113.0,-6.0 120.0,0.0" />
+</edges>

@@ -1,0 +1,8 @@
+{
+  "apiVersion": "trafficverse/v1",
+  "kind": "SumoScenarioPackage",
+  "spec": {
+    "name": "低智驾等级会车（L0-L3）",
+    "trafficDemandMode": "scripted"
+  }
+}

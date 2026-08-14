@@ -279,6 +279,93 @@ def _occasional_accident_preview() -> tuple[Vehicle, ...]:
     return tuple(vehicles)
 
 
+def _dense_merge_preview(*, l5_only: bool) -> tuple[Vehicle, ...]:
+    low_levels = ("L0", "L1", "L2", "L3")
+    vehicles: list[Vehicle] = []
+    sequence = 0
+    main_positions_m = (
+        (65.0, 48.0, 31.0, 14.0) if l5_only else (104.0, 86.0, 68.0, 50.0, 32.0, 14.0)
+    )
+    for lane_index, y_m in enumerate((11.25, 14.75, 18.25)):
+        for index, x_m in enumerate(main_positions_m):
+            level = "L5" if l5_only else low_levels[(lane_index + index) % len(low_levels)]
+            if l5_only:
+                speed_mps = 8.0 if lane_index == 0 and index == 2 else 20.0
+            else:
+                speed_mps = (5.0, 8.5, 12.5)[lane_index] if x_m >= 50.0 else 15.0
+            vehicles.append(
+                _preview_vehicle(
+                    f"merge_preview_main_{level}_{sequence}",
+                    level,
+                    sequence,
+                    x_m,
+                    lane_index,
+                    speed_mps,
+                    y_m=y_m,
+                    action=(
+                        "YIELD"
+                        if l5_only and speed_mps == 8.0
+                        else "LANE_CHANGE_LEFT"
+                        if not l5_only
+                        and ((lane_index == 0 and x_m == 86.0) or (lane_index == 1 and x_m == 68.0))
+                        else "BRAKE"
+                        if not l5_only and x_m >= 50.0
+                        else "CRUISE"
+                    ),
+                    lane_prefix="main_before",
+                )
+            )
+            sequence += 1
+    ramp_points = (
+        ((75.0, 1.0), (88.0, 3.0), (100.0, 7.0), (111.0, 13.0))
+        if l5_only
+        else (
+            (10.0, 0.0),
+            (25.0, 0.0),
+            (40.0, 0.0),
+            (55.0, 0.0),
+            (70.0, 0.0),
+            (83.0, 1.5),
+            (95.0, 4.8),
+        )
+    )
+    for index, (x_m, y_m) in enumerate(ramp_points):
+        level = "L5" if l5_only else low_levels[index % len(low_levels)]
+        vehicles.append(
+            _preview_vehicle(
+                f"merge_preview_ramp_{level}_{index}",
+                level,
+                sequence,
+                x_m,
+                0,
+                19.0 if l5_only else (3.2 if x_m >= 80.0 else 14.0),
+                y_m=y_m,
+                heading_rad=0.0 if x_m <= 70.0 else 0.3948,
+                action="MERGE",
+                lane_prefix="merge_ramp",
+            )
+        )
+        sequence += 1
+    for lane_index, y_m in enumerate((28.75, 25.25, 21.75)):
+        for index, x_m in enumerate((180.0, 210.0, 240.0, 270.0)):
+            level = "L5" if l5_only else low_levels[(lane_index + index + 2) % len(low_levels)]
+            vehicles.append(
+                _preview_vehicle(
+                    f"merge_preview_opposing_{level}_{lane_index}_{index}",
+                    level,
+                    sequence,
+                    x_m,
+                    lane_index,
+                    20.0 if l5_only else 18.0 + int(level[1:]) * 0.4,
+                    y_m=y_m,
+                    heading_rad=3.1416,
+                    lane_prefix="opposing_before",
+                )
+            )
+            sequence += 1
+    return tuple(vehicles)
+
+
 def scenario_preview_vehicles(preset: TrafficScenarioPreset) -> tuple[Vehicle, ...]:
     """Return a deterministic, non-authoritative key frame for a scene detail preview."""
     if preset.scenario_id == "mixed-automation-obstacle":
@@ -289,6 +376,10 @@ def scenario_preview_vehicles(preset: TrafficScenarioPreset) -> tuple[Vehicle, .
         return _emergency_preview()
     if preset.scenario_id == "mixed-automation-occasional-accident":
         return _occasional_accident_preview()
+    if preset.scenario_id == "mixed-automation-low-level-merge":
+        return _dense_merge_preview(l5_only=False)
+    if preset.scenario_id == "mixed-automation-l5-merge":
+        return _dense_merge_preview(l5_only=True)
     return ()
 
 
@@ -413,6 +504,56 @@ TRAFFIC_SCENARIO_PRESETS = (
                 "L5",
                 "原有L5维持既定变道时序，另3辆L5保持安全间距并以12m/s恒速右转绕行。",
             ),
+        ),
+    ),
+    TrafficScenarioPreset(
+        scenario_id="mixed-automation-low-level-merge",
+        name="低智驾等级会车（L0-L3）",
+        incident=(
+            "双向城市快速路的正向道路包含3条主车道，右侧另有1条汇入车道；对向道路"
+            "包含3条行驶车道。L0-L3混合车流从主路、支路和对向道路连续进入。"
+        ),
+        behavior_summary=(
+            "支路从0秒开始每2秒持续来车，并一直延续到仿真末段。10～22秒只有支路车辆"
+            "真正进入汇入口附近后，D1才开始明显减速，部分车辆被动进入D2，扰动范围"
+            "随后向D2、D3扩大。22秒后支路车源仍然存在，但采用恢复速度继续汇入，"
+            "主路车流在持续汇入中逐步恢复。"
+        ),
+        map_id="mixed-automation-low-level-merge",
+        duration_s=30,
+        automation_counts=(("L0", 21), ("L1", 21), ("L2", 14), ("L3", 14)),
+        scene_type="低智驾被动汇流",
+        level_behaviors=(
+            ("L0", "依赖基础跟车和临近冲突反应，只在汇入口附近减速或被动变道。"),
+            ("L1", "具备基础辅助能力，但不会远距离协同规划，仍受D1汇流扰动影响。"),
+            ("L2", "能够较稳定地纵向跟车，但对相邻车道插入仍表现出滞后减速。"),
+            ("L3", "保持基本稳定跟车，不参与车队协同，受到的外溢扰动相对较小。"),
+            ("L4", "本场景未配置该等级车辆。"),
+            ("L5", "本场景未配置该等级车辆。"),
+        ),
+    ),
+    TrafficScenarioPreset(
+        scenario_id="mixed-automation-l5-merge",
+        name="L5会车",
+        incident=(
+            "使用与低智驾场景完全相同的正向3车道、单汇入车道和对向3车道路网，"
+            "车辆总数与发车窗口保持一致，全部车辆替换为L5。"
+        ),
+        behavior_summary=(
+            "主路车辆提前识别汇入需求，选择车辆短时协调降速并主动形成可用车隙。"
+            "汇入车辆有序插入后恢复巡航，中间与最外侧车道速度保持稳定，整体通过率明显提高。"
+        ),
+        map_id="mixed-automation-l5-merge",
+        duration_s=20,
+        automation_counts=(("L5", 70),),
+        scene_type="L5协同密集汇入",
+        level_behaviors=(
+            ("L0", "本场景未配置该等级车辆。"),
+            ("L1", "本场景未配置该等级车辆。"),
+            ("L2", "本场景未配置该等级车辆。"),
+            ("L3", "本场景未配置该等级车辆。"),
+            ("L4", "本场景未配置该等级车辆。"),
+            ("L5", "通过车车协同提前预留汇入间隙，减少制动波并保持三条主车道稳定通行。"),
         ),
     ),
 )

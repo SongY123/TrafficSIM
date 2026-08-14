@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nodes>
+    <node id="west" x="0.0" y="0.0" type="dead_end" />
+    <node id="merge" x="120.0" y="0.0" type="zipper" />
+    <node id="east" x="320.0" y="0.0" type="dead_end" />
+    <node id="ramp_start" x="0.0" y="-20.0" type="dead_end" />
+</nodes>

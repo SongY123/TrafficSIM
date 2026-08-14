@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vType id="L5" vClass="passenger" length="4.8" minGap="0.9" accel="3.4" decel="5.0" emergencyDecel="8.0" sigma="0" tau="0.6" maxSpeed="22.22" color="0,0,0" lcStrategic="0" lcCooperative="1" lcSpeedGain="0" lcKeepRight="0" />
+
+    <route id="route_main" edges="main_before main_after" />
+    <route id="route_merge" edges="merge_ramp main_after" />
+    <route id="route_opposing" edges="opposing_before opposing_after" />
+
+    <flow id="merge_main_L5_lane0" type="L5" route="route_main" begin="0" number="10" period="0.9" departLane="0" departPos="90" departSpeed="max" />
+    <flow id="merge_main_L5_lane1" type="L5" route="route_main" begin="0" number="13" period="0.7" departLane="1" departSpeed="max" />
+    <flow id="merge_main_L5_lane2" type="L5" route="route_main" begin="0" number="13" period="0.7" departLane="2" departSpeed="max" />
+    <flow id="merge_ramp_L5" type="L5" route="route_merge" begin="0" number="4" period="1" departLane="0" departPos="last" departSpeed="max" />
+    <flow id="merge_opposing_L5_lane0" type="L5" route="route_opposing" begin="0.45" number="10" period="0.9" departLane="0" departSpeed="max" />
+    <flow id="merge_opposing_L5_lane1" type="L5" route="route_opposing" begin="0.45" number="10" period="0.9" departLane="1" departSpeed="max" />
+    <flow id="merge_opposing_L5_lane2" type="L5" route="route_opposing" begin="0.45" number="10" period="0.9" departLane="2" departSpeed="max" />
+</routes>

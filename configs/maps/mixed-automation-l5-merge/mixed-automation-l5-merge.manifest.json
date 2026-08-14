@@ -1,0 +1,8 @@
+{
+  "apiVersion": "trafficverse/v1",
+  "kind": "SumoScenarioPackage",
+  "spec": {
+    "name": "L5会车",
+    "trafficDemandMode": "scripted"
+  }
+}

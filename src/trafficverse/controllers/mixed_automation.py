@@ -17,6 +17,9 @@ _CUTIN_FOLLOWER_PATTERN = re.compile(r"^cutin_follower_L([0-5])_(\d+)$")
 _YIELD_PATTERN = re.compile(r"^yield_L([0-5])_(\d+)$")
 _ACCIDENT_FOLLOWER_PATTERN = re.compile(r"^accident_follow_L([0135])_(\d+)$")
 _ACCIDENT_BACKGROUND_PATTERN = re.compile(r"^accident_background_L([0135])_(\d+)$")
+_MERGE_VEHICLE_PATTERN = re.compile(
+    r"^merge_(main|ramp|opposing)_L([0-5])(?:_lane([0-2]))?\.(\d+)$"
+)
 _AUTOMATION_LEVEL_COUNT = 6
 _UNSAFE_CUTIN_PAIRS_BY_LEVEL = (4, 3, 2, 1, 0, 0)
 _UNSAFE_OBSTACLE_TARGETS_BY_LEVEL = (4, 3, 2, 1, 0, 0)
@@ -50,12 +53,36 @@ _ACCIDENT_BACKGROUND_QUEUE_TARGET_XY_M = {
     "accident_background_L3_1": (542.0, 137.16),
     "accident_background_L3_2": (535.0, 132.96),
 }
+_LOW_MERGE_STABLE_END_MS = 10_000
+_LOW_MERGE_DISTURBANCE_END_MS = 22_000
+_LOW_MERGE_RAMP_CRUISE_SPEED_MPS = 14.0
+_LOW_MERGE_RAMP_CONFLICT_SPEED_MPS = 3.2
+_LOW_MERGE_RAMP_RECOVERY_SPEED_MPS = 12.0
+_LOW_MERGE_RAMP_NEAR_X_M = 80.0
+_LOW_MERGE_CLOSE_GAP_M = 8.0
+_LOW_MERGE_D1_SPEED_MPS = 1.5
+_LOW_MERGE_D1_DECEL_MPS2 = 4.5
+_LOW_MERGE_RAMP_DECEL_MPS2 = 4.5
+_LOW_MERGE_CASCADE_RADIUS_M = {1: 42.0, 2: 60.0}
+_LOW_MERGE_CASCADE_DELAY_MS = {1: 500, 2: 1_200}
+_LOW_MERGE_CASCADE_SPEED_MPS = {1: 6.0, 2: 5.2}
+_LOW_MERGE_CASCADE_DECEL_MPS2 = {1: 3.5, 2: 2.4}
+_LOW_MERGE_LANE_CHANGE_DURATION_S = 1.0
+_LOW_MERGE_LANE_CHANGE_CLEARANCE_M = {1: 6.5, 2: 9.0}
+_LOW_MERGE_LANE_CHANGE_ZONE_X_M = {1: (58.0, 94.0), 2: (58.0, 98.0)}
+_L5_MERGE_MAIN_SPEED_MPS = 20.0
+_L5_MERGE_RAMP_SPEED_MPS = 19.0
+_L5_MERGE_GAP_SPEED_MPS = 8.0
+_L5_MERGE_RAMP_NEAR_X_M = 78.0
+_L5_MERGE_GAP_ZONE_X_M = (20.0, 120.0)
 _SCENARIO_IDS = frozenset(
     {
         "mixed-automation-obstacle",
         "mixed-automation-cutin",
         "mixed-automation-emergency-yield",
         "mixed-automation-occasional-accident",
+        "mixed-automation-low-level-merge",
+        "mixed-automation-l5-merge",
     }
 )
 
@@ -70,6 +97,14 @@ class MixedAutomationScenarioController:
         self._accident_l1_emergency_observed = False
         self._accident_l5_lane_change_started = False
         self._accident_background_braking_ids: set[str] = set()
+        self._low_merge_gap_provider_id: str | None = None
+        self._low_merge_served_ramp_id: str | None = None
+        self._low_merge_conflict_started_ms: int | None = None
+        self._low_merge_lane_change_requested_ids: set[str] = set()
+        self._low_merge_d1_lane_change_request_count = 0
+        self._low_merge_d2_lane_change_requested = False
+        self._l5_merge_gap_provider_id: str | None = None
+        self._l5_merge_served_ramp_id: str | None = None
 
     def step(self, previous: TrafficSnapshot | None, dt_s: float) -> Mapping[str, ControlCommand]:
         if previous is None:
@@ -80,7 +115,11 @@ class MixedAutomationScenarioController:
             return self._cutin_controls(previous, dt_s)
         if self._scenario_id == "mixed-automation-emergency-yield":
             return self._emergency_controls(previous, dt_s)
-        return self._occasional_accident_controls(previous, dt_s)
+        if self._scenario_id == "mixed-automation-occasional-accident":
+            return self._occasional_accident_controls(previous, dt_s)
+        if self._scenario_id == "mixed-automation-low-level-merge":
+            return self._low_level_merge_controls(previous, dt_s)
+        return self._l5_merge_controls(previous, dt_s)
 
     @staticmethod
     def _obstacle_controls(snapshot: TrafficSnapshot, dt_s: float) -> dict[str, ControlCommand]:
@@ -524,6 +563,271 @@ class MixedAutomationScenarioController:
             safety_checks_override=True,
         )
 
+    def _low_level_merge_controls(
+        self,
+        snapshot: TrafficSnapshot,
+        dt_s: float,
+    ) -> dict[str, ControlCommand]:
+        del dt_s
+        disturbance_active = (
+            _LOW_MERGE_STABLE_END_MS <= snapshot.simulation_time_ms < _LOW_MERGE_DISTURBANCE_END_MS
+        )
+        active_ramp_vehicles = tuple(
+            vehicle
+            for vehicle in snapshot.vehicles
+            if disturbance_active
+            and _is_active_merge_ramp_vehicle(vehicle)
+            and vehicle.position.x >= _LOW_MERGE_RAMP_NEAR_X_M
+        )
+        active_ramp_ids = {vehicle.vehicle_id for vehicle in active_ramp_vehicles}
+        if self._low_merge_served_ramp_id not in active_ramp_ids:
+            self._low_merge_gap_provider_id = None
+            self._low_merge_served_ramp_id = None
+            self._low_merge_conflict_started_ms = None
+        if self._low_merge_served_ramp_id is None and active_ramp_vehicles:
+            leading_ramp = max(active_ramp_vehicles, key=lambda vehicle: vehicle.position.x)
+            gap_candidates = tuple(
+                vehicle
+                for vehicle in snapshot.vehicles
+                if vehicle.vehicle_id.startswith("merge_main_")
+                and vehicle.lane_id == "main_before_0"
+                and vehicle.position.x <= leading_ramp.position.x - _LOW_MERGE_CLOSE_GAP_M
+            )
+            if gap_candidates:
+                lane_change_candidates = tuple(
+                    vehicle
+                    for vehicle in gap_candidates
+                    if _low_merge_vehicle_is_selected_for_lane_change(vehicle, lane_index=0)
+                )
+                gap_provider = max(
+                    lane_change_candidates or gap_candidates,
+                    key=lambda vehicle: vehicle.position.x,
+                )
+                self._low_merge_gap_provider_id = gap_provider.vehicle_id
+                self._low_merge_served_ramp_id = leading_ramp.vehicle_id
+                self._low_merge_conflict_started_ms = snapshot.simulation_time_ms
+        current_gap_provider = next(
+            (
+                vehicle
+                for vehicle in snapshot.vehicles
+                if vehicle.vehicle_id == self._low_merge_gap_provider_id
+            ),
+            None,
+        )
+        cascade_lane_by_vehicle_id = _low_merge_cascade_lane_by_vehicle_id(
+            snapshot,
+            current_gap_provider,
+            self._low_merge_conflict_started_ms,
+        )
+        commands: dict[str, ControlCommand] = {}
+        for vehicle in snapshot.vehicles:
+            match = _MERGE_VEHICLE_PATTERN.match(vehicle.vehicle_id)
+            if match is None:
+                continue
+            stream, level_text, lane_text, sequence_text = match.groups()
+            level = int(level_text)
+            sequence = int(sequence_text)
+            if stream == "opposing":
+                desired_speed_mps = _low_merge_main_cruise_speed_mps(2, level)
+            elif stream == "ramp":
+                if vehicle.lane_id == "main_after_0":
+                    desired_speed_mps = _low_merge_main_cruise_speed_mps(0, level)
+                elif vehicle.lane_id == "merge_ramp_0":
+                    if (
+                        snapshot.simulation_time_ms < _LOW_MERGE_DISTURBANCE_END_MS
+                        and vehicle.position.x >= _LOW_MERGE_RAMP_NEAR_X_M
+                    ):
+                        commands[vehicle.vehicle_id] = _low_merge_slowdown_command(
+                            vehicle,
+                            target_speed_mps=_LOW_MERGE_RAMP_CONFLICT_SPEED_MPS,
+                            deceleration_mps2=_LOW_MERGE_RAMP_DECEL_MPS2,
+                        )
+                        continue
+                    desired_speed_mps = (
+                        _LOW_MERGE_RAMP_RECOVERY_SPEED_MPS
+                        if snapshot.simulation_time_ms >= _LOW_MERGE_DISTURBANCE_END_MS
+                        else _LOW_MERGE_RAMP_CRUISE_SPEED_MPS
+                    )
+                else:
+                    target_speed_mps = (
+                        _LOW_MERGE_RAMP_CONFLICT_SPEED_MPS
+                        if snapshot.simulation_time_ms < _LOW_MERGE_DISTURBANCE_END_MS
+                        else _LOW_MERGE_RAMP_RECOVERY_SPEED_MPS
+                    )
+                    commands[vehicle.vehicle_id] = _low_merge_slowdown_command(
+                        vehicle,
+                        target_speed_mps=target_speed_mps,
+                        deceleration_mps2=_LOW_MERGE_RAMP_DECEL_MPS2,
+                    )
+                    continue
+            else:
+                actual_lane_index = _lane_index(vehicle.lane_id)
+                lane_index = (
+                    actual_lane_index if actual_lane_index is not None else int(lane_text or 0)
+                )
+                if disturbance_active and vehicle.vehicle_id == self._low_merge_gap_provider_id:
+                    command = (
+                        _low_merge_cascade_command(vehicle, 1)
+                        if vehicle.vehicle_id in self._low_merge_lane_change_requested_ids
+                        and vehicle.lane_id == "main_before_0"
+                        else _low_merge_slowdown_command(
+                            vehicle,
+                            target_speed_mps=_LOW_MERGE_D1_SPEED_MPS,
+                            deceleration_mps2=_LOW_MERGE_D1_DECEL_MPS2,
+                        )
+                    )
+                    if (
+                        vehicle.lane_id == "main_before_0"
+                        and self._low_merge_d1_lane_change_request_count < 2
+                        and vehicle.vehicle_id not in self._low_merge_lane_change_requested_ids
+                        and _low_merge_should_change_lane(0, level, sequence)
+                        and _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=1)
+                    ):
+                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_d1_lane_change_request_count += 1
+                        command = _low_merge_cascade_command(vehicle, 1).model_copy(
+                            update={
+                                "lane_change": LaneChangeDirection.LEFT,
+                                "lane_change_duration_s": _LOW_MERGE_LANE_CHANGE_DURATION_S,
+                                "lane_change_mode": 512,
+                            }
+                        )
+                    commands[vehicle.vehicle_id] = command
+                    continue
+                if (
+                    disturbance_active
+                    and self._low_merge_conflict_started_ms is not None
+                    and vehicle.lane_id == "main_before_0"
+                    and _low_merge_should_change_lane(0, level, sequence)
+                    and (
+                        vehicle.vehicle_id in self._low_merge_lane_change_requested_ids
+                        or self._low_merge_d1_lane_change_request_count < 2
+                    )
+                ):
+                    command = _low_merge_cascade_command(vehicle, 1)
+                    if vehicle.vehicle_id in self._low_merge_lane_change_requested_ids:
+                        commands[vehicle.vehicle_id] = command
+                        continue
+                    if _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=1):
+                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_d1_lane_change_request_count += 1
+                        commands[vehicle.vehicle_id] = command.model_copy(
+                            update={
+                                "lane_change": LaneChangeDirection.LEFT,
+                                "lane_change_duration_s": _LOW_MERGE_LANE_CHANGE_DURATION_S,
+                                "lane_change_mode": 512,
+                            }
+                        )
+                        continue
+                if (
+                    disturbance_active
+                    and self._low_merge_conflict_started_ms is not None
+                    and snapshot.simulation_time_ms - self._low_merge_conflict_started_ms
+                    >= _LOW_MERGE_CASCADE_DELAY_MS[2]
+                    and vehicle.lane_id == "main_before_1"
+                    and not self._low_merge_d2_lane_change_requested
+                ):
+                    command = _low_merge_cascade_command(vehicle, 2)
+                    if vehicle.vehicle_id in self._low_merge_lane_change_requested_ids:
+                        commands[vehicle.vehicle_id] = command
+                        continue
+                    if _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=2):
+                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_d2_lane_change_requested = True
+                        commands[vehicle.vehicle_id] = command.model_copy(
+                            update={
+                                "lane_change": LaneChangeDirection.LEFT,
+                                "lane_change_duration_s": _LOW_MERGE_LANE_CHANGE_DURATION_S,
+                                "lane_change_mode": 512,
+                            }
+                        )
+                        continue
+                cascade_lane_index = cascade_lane_by_vehicle_id.get(vehicle.vehicle_id)
+                if disturbance_active and cascade_lane_index is not None:
+                    command = _low_merge_cascade_command(
+                        vehicle,
+                        (
+                            2
+                            if cascade_lane_index == 1
+                            and vehicle.vehicle_id in self._low_merge_lane_change_requested_ids
+                            else cascade_lane_index
+                        ),
+                    )
+                    if (
+                        cascade_lane_index == 1
+                        and not self._low_merge_d2_lane_change_requested
+                        and vehicle.vehicle_id not in self._low_merge_lane_change_requested_ids
+                        and _low_merge_should_change_lane(1, level, sequence)
+                        and _low_merge_lane_change_is_safe(snapshot, vehicle, target_lane_index=2)
+                    ):
+                        self._low_merge_lane_change_requested_ids.add(vehicle.vehicle_id)
+                        self._low_merge_d2_lane_change_requested = True
+                        command = command.model_copy(
+                            update={
+                                "lane_change": LaneChangeDirection.LEFT,
+                                "lane_change_duration_s": _LOW_MERGE_LANE_CHANGE_DURATION_S,
+                                "lane_change_mode": 512,
+                            }
+                        )
+                    commands[vehicle.vehicle_id] = command
+                    continue
+                desired_speed_mps = _low_merge_main_cruise_speed_mps(lane_index, level)
+            commands[vehicle.vehicle_id] = ControlCommand(
+                desired_speed_mps=desired_speed_mps,
+                lane_change_mode=0,
+            )
+        return commands
+
+    def _l5_merge_controls(
+        self,
+        snapshot: TrafficSnapshot,
+        dt_s: float,
+    ) -> dict[str, ControlCommand]:
+        del dt_s
+        active_ramp_vehicles = tuple(
+            vehicle
+            for vehicle in snapshot.vehicles
+            if _is_active_merge_ramp_vehicle(vehicle)
+            and vehicle.position.x >= _L5_MERGE_RAMP_NEAR_X_M
+        )
+        active_ramp_ids = {vehicle.vehicle_id for vehicle in active_ramp_vehicles}
+        if self._l5_merge_served_ramp_id not in active_ramp_ids:
+            self._l5_merge_gap_provider_id = None
+            self._l5_merge_served_ramp_id = None
+        if self._l5_merge_served_ramp_id is None and active_ramp_vehicles:
+            ramp_vehicle = max(active_ramp_vehicles, key=lambda vehicle: vehicle.position.x)
+            gap_candidates = tuple(
+                vehicle
+                for vehicle in snapshot.vehicles
+                if vehicle.vehicle_id.startswith("merge_main_L5_lane0")
+                and vehicle.lane_id == "main_before_0"
+                and _L5_MERGE_GAP_ZONE_X_M[0] <= vehicle.position.x < _L5_MERGE_GAP_ZONE_X_M[1]
+                and vehicle.position.x <= ramp_vehicle.position.x - 15.0
+            )
+            if gap_candidates:
+                gap_provider = min(
+                    gap_candidates,
+                    key=lambda vehicle: abs(vehicle.position.x - ramp_vehicle.position.x),
+                )
+                self._l5_merge_gap_provider_id = gap_provider.vehicle_id
+                self._l5_merge_served_ramp_id = ramp_vehicle.vehicle_id
+        commands: dict[str, ControlCommand] = {}
+        for vehicle in snapshot.vehicles:
+            match = _MERGE_VEHICLE_PATTERN.match(vehicle.vehicle_id)
+            if match is None:
+                continue
+            stream, _level_text, _lane_text, _sequence_text = match.groups()
+            desired_speed_mps = _L5_MERGE_MAIN_SPEED_MPS
+            if stream == "ramp":
+                desired_speed_mps = _L5_MERGE_RAMP_SPEED_MPS
+            elif stream == "main" and vehicle.vehicle_id == self._l5_merge_gap_provider_id:
+                desired_speed_mps = _L5_MERGE_GAP_SPEED_MPS
+            commands[vehicle.vehicle_id] = ControlCommand(
+                desired_speed_mps=desired_speed_mps,
+                lane_change_mode=0,
+            )
+        return commands
+
 
 def controller_for_sumo_package(
     package_id: str,
@@ -558,6 +862,119 @@ def _nearest_obstacle_distance_m(snapshot: TrafficSnapshot, vehicle: VehicleStat
             continue
         distances_m.append(other.position.x - vehicle.position.x - 5.0)
     return max(0.0, min(distances_m))
+
+
+def _low_merge_main_cruise_speed_mps(lane_index: int, level: int) -> float:
+    base_speed_mps = (14.8, 15.0, 15.2)[lane_index]
+    return base_speed_mps + level * 0.1
+
+
+def _low_merge_slowdown_command(
+    vehicle: VehicleState,
+    *,
+    target_speed_mps: float,
+    deceleration_mps2: float,
+) -> ControlCommand:
+    if vehicle.speed_mps > target_speed_mps + 0.1:
+        return ControlCommand(
+            desired_acceleration_mps2=-deceleration_mps2,
+            lane_change_mode=0,
+        )
+    return ControlCommand(
+        desired_speed_mps=target_speed_mps,
+        lane_change_mode=0,
+    )
+
+
+def _low_merge_cascade_lane_by_vehicle_id(
+    snapshot: TrafficSnapshot,
+    gap_provider: VehicleState | None,
+    conflict_started_ms: int | None,
+) -> dict[str, int]:
+    if gap_provider is None or conflict_started_ms is None:
+        return {}
+    elapsed_ms = snapshot.simulation_time_ms - conflict_started_ms
+    affected: dict[str, int] = {}
+    for vehicle in snapshot.vehicles:
+        if not vehicle.vehicle_id.startswith("merge_main_"):
+            continue
+        lane_index = _lane_index(vehicle.lane_id)
+        if lane_index not in _LOW_MERGE_CASCADE_SPEED_MPS:
+            continue
+        if elapsed_ms < _LOW_MERGE_CASCADE_DELAY_MS[lane_index]:
+            continue
+        if (
+            abs(vehicle.position.x - gap_provider.position.x)
+            > _LOW_MERGE_CASCADE_RADIUS_M[lane_index]
+        ):
+            continue
+        affected[vehicle.vehicle_id] = lane_index
+    return affected
+
+
+def _low_merge_lane_change_is_safe(
+    snapshot: TrafficSnapshot,
+    vehicle: VehicleState,
+    *,
+    target_lane_index: int,
+) -> bool:
+    minimum_x_m, maximum_x_m = _LOW_MERGE_LANE_CHANGE_ZONE_X_M[target_lane_index]
+    if not minimum_x_m <= vehicle.position.x <= maximum_x_m:
+        return False
+    target_lane_id = f"main_before_{target_lane_index}"
+    clearance_m = _LOW_MERGE_LANE_CHANGE_CLEARANCE_M[target_lane_index]
+    projected_vehicle_x_m = (
+        vehicle.position.x + vehicle.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
+    )
+    return all(
+        abs(other.position.x - vehicle.position.x) >= clearance_m
+        and abs(
+            other.position.x
+            + other.speed_mps * _LOW_MERGE_LANE_CHANGE_DURATION_S
+            - projected_vehicle_x_m
+        )
+        >= clearance_m
+        for other in snapshot.vehicles
+        if other.vehicle_id != vehicle.vehicle_id and other.lane_id == target_lane_id
+    )
+
+
+def _low_merge_should_change_lane(lane_index: int, level: int, sequence: int) -> bool:
+    if lane_index == 0:
+        return (level + sequence) % 4 != 3
+    if lane_index == 1:
+        return (level + sequence) % 4 == 0
+    return False
+
+
+def _low_merge_vehicle_is_selected_for_lane_change(
+    vehicle: VehicleState,
+    *,
+    lane_index: int,
+) -> bool:
+    match = _MERGE_VEHICLE_PATTERN.match(vehicle.vehicle_id)
+    if match is None:
+        return False
+    _stream, level_text, _lane_text, sequence_text = match.groups()
+    return _low_merge_should_change_lane(lane_index, int(level_text), int(sequence_text))
+
+
+def _low_merge_cascade_command(
+    vehicle: VehicleState,
+    lane_index: int,
+) -> ControlCommand:
+    target_speed_mps = _LOW_MERGE_CASCADE_SPEED_MPS[lane_index]
+    if vehicle.speed_mps > target_speed_mps + 0.1:
+        return ControlCommand(
+            desired_acceleration_mps2=-_LOW_MERGE_CASCADE_DECEL_MPS2[lane_index],
+            lane_change_mode=0,
+        )
+    return ControlCommand(desired_speed_mps=target_speed_mps, lane_change_mode=0)
+
+
+def _is_active_merge_ramp_vehicle(vehicle: VehicleState) -> bool:
+    match = _MERGE_VEHICLE_PATTERN.match(vehicle.vehicle_id)
+    return match is not None and match.group(1) == "ramp" and vehicle.lane_id != "main_after_0"
 
 
 def _lock_lane_changes(

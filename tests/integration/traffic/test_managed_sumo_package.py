@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
 
@@ -11,6 +12,7 @@ import pytest
 from trafficverse.adapters.sumo import SumoTrafficEngineAdapter
 from trafficverse.config.models import SumoConfig
 from trafficverse.controllers import MixedAutomationScenarioController
+from trafficverse.domain.enums import LaneChangeDirection
 from trafficverse.domain.models import VehicleState
 from trafficverse.maps.sumo_package import load_sumo_package, stage_sumo_package
 
@@ -21,8 +23,61 @@ ACCIDENT_CONFIG = (
     / "configs/maps/mixed-automation-occasional-accident"
     / "mixed-automation-occasional-accident.sumocfg"
 )
+LOW_LEVEL_MERGE_CONFIG = (
+    REPOSITORY_ROOT
+    / "configs/maps/mixed-automation-low-level-merge"
+    / "mixed-automation-low-level-merge.sumocfg"
+)
+L5_MERGE_CONFIG = (
+    REPOSITORY_ROOT / "configs/maps/mixed-automation-l5-merge" / "mixed-automation-l5-merge.sumocfg"
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.traffic]
+
+
+@dataclass(frozen=True, slots=True)
+class _DenseMergeResult:
+    seen_vehicle_ids: frozenset[str] = field(repr=False)
+    forward_arrived_vehicle_ids: frozenset[str] = field(repr=False)
+    merged_ramp_vehicle_ids: frozenset[str] = field(repr=False)
+    collision_vehicle_ids: frozenset[str] = field(repr=False)
+    forward_average_speed_mps: float
+    main_lane_speed_ranges_mps: tuple[float, float, float]
+    cooperative_gap_observed: bool
+    first_inner_vehicle_passed_merge: bool
+    first_inner_vehicle_recovered_speed: bool
+    initial_inner_to_ramp_gap_m: float | None
+    first_inner_pre_merge_speed_drop_mps: float
+    ramp_crossing_max_speed_mps: float
+    ramp_disturbance_crossing_max_speed_mps: float
+    final_ramp_states: tuple[tuple[str, str, float, float], ...]
+    lane_change_request_observed: bool
+    lane_change_observed: bool
+    cascade_slowdown_lane_indices: frozenset[int]
+    ramp_seen_vehicle_ids: frozenset[str] = field(repr=False)
+    peak_ramp_vehicle_count: int
+    peak_main_before_vehicle_count: int
+    ramp_last_new_vehicle_time_ms: int
+    ramp_zone_average_speeds_mps: tuple[float, float, float]
+    ramp_recovered_speed_observed: bool
+    phase_lane_average_speeds_mps: tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]
+    lane_change_request_times_ms: tuple[int, ...]
+    d1_to_d2_request_vehicle_ids: frozenset[str]
+    d2_to_d3_request_vehicle_ids: frozenset[str]
+    d1_to_d2_observed_vehicle_ids: frozenset[str]
+    d2_to_d3_observed_vehicle_ids: frozenset[str]
+    first_ramp_near_time_ms: int | None
+    first_d1_slowdown_time_ms: int | None
+    first_d1_slowdown_position_x_m: float | None
+    ramp_merge_times_ms: tuple[tuple[str, int], ...]
+    final_main_before_states: tuple[tuple[str, str, float, float], ...]
+    ramp_free_flow_average_speed_mps: float
+    pre_merge_peak_lane_vehicle_counts: tuple[int, int, int]
+    phase_main_before_average_vehicle_counts: tuple[float, float, float]
 
 
 def _lateral_separation_m(first: VehicleState, second: VehicleState) -> float:
@@ -138,7 +193,9 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     observed_background_ids: set[str] = set()
     background_initial_max_speed_mps = dict.fromkeys(background_ids, 0.0)
     background_minimum_acceleration_mps2 = dict.fromkeys(background_straight_ids, 0.0)
-    background_straight_lane_ids = {vehicle_id: set() for vehicle_id in background_straight_ids}
+    background_straight_lane_ids: dict[str, set[str]] = {
+        vehicle_id: set() for vehicle_id in background_straight_ids
+    }
     background_post_incident_cruise_ids: set[str] = set()
     background_l5_initial_lane_ids: dict[str, str] = {}
     background_l5_right_turn_ids: set[str] = set()
@@ -485,3 +542,484 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         and maximum_speed_mps == pytest.approx(12.0, abs=0.05)
         for minimum_speed_mps, maximum_speed_mps in background_l5_running_speed_range_mps.values()
     )
+
+
+def _run_dense_merge_scenario(
+    config_file: Path,
+    output_directory: Path,
+    experiment_id: UUID,
+) -> _DenseMergeResult:
+    package = load_sumo_package(
+        config_file,
+        allowed_root=REPOSITORY_ROOT / "configs/maps",
+    )
+    staged_config = stage_sumo_package(package, output_directory / "package")
+    adapter = SumoTrafficEngineAdapter(experiment_id)
+    controller = MixedAutomationScenarioController(package.package_id)
+    first_inner_vehicle_id = (
+        "merge_main_L5_lane0.0"
+        if package.package_id == "mixed-automation-l5-merge"
+        else "merge_main_L0_lane0.0"
+    )
+    first_ramp_vehicle_id = (
+        "merge_ramp_L5.0"
+        if package.package_id == "mixed-automation-l5-merge"
+        else "merge_ramp_L0.0"
+    )
+    previous = None
+    seen_vehicle_ids: set[str] = set()
+    arrived_vehicle_ids: set[str] = set()
+    merged_ramp_vehicle_ids: set[str] = set()
+    forward_speed_samples_mps: list[float] = []
+    main_lane_speed_samples_mps: tuple[list[float], list[float], list[float]] = ([], [], [])
+    cooperative_gap_observed = False
+    first_inner_vehicle_passed_merge = False
+    first_inner_vehicle_recovered_speed = False
+    initial_inner_to_ramp_gap_m: float | None = None
+    first_inner_pre_merge_speeds_mps: list[float] = []
+    ramp_crossing_speeds_mps: list[float] = []
+    ramp_disturbance_crossing_speeds_mps: list[float] = []
+    lane_change_request_observed = False
+    lane_change_observed = False
+    cascade_slowdown_lane_indices: set[int] = set()
+    ramp_seen_vehicle_ids: set[str] = set()
+    peak_ramp_vehicle_count = 0
+    peak_main_before_vehicle_count = 0
+    ramp_last_new_vehicle_time_ms = 0
+    ramp_zone_speed_samples_mps: tuple[list[float], list[float], list[float]] = ([], [], [])
+    ramp_recovered_speed_observed = False
+    phase_lane_speed_samples_mps: tuple[
+        tuple[list[float], list[float], list[float]],
+        tuple[list[float], list[float], list[float]],
+        tuple[list[float], list[float], list[float]],
+    ] = (([], [], []), ([], [], []), ([], [], []))
+    lane_change_request_times_ms: list[int] = []
+    d1_to_d2_request_vehicle_ids: set[str] = set()
+    d2_to_d3_request_vehicle_ids: set[str] = set()
+    d1_to_d2_observed_vehicle_ids: set[str] = set()
+    d2_to_d3_observed_vehicle_ids: set[str] = set()
+    first_ramp_near_time_ms: int | None = None
+    first_d1_slowdown_time_ms: int | None = None
+    first_d1_slowdown_position_x_m: float | None = None
+    ramp_merge_time_by_vehicle_id: dict[str, int] = {}
+    ramp_free_flow_speed_samples_mps: list[float] = []
+    pre_merge_peak_lane_vehicle_counts = [0, 0, 0]
+    phase_main_before_vehicle_count_samples: tuple[list[int], list[int], list[int]] = (
+        [],
+        [],
+        [],
+    )
+    try:
+        adapter.load(
+            SumoConfig(
+                launch_mode="managed",
+                config_file=str(staged_config),
+                step_ms=package.step_ms,
+                begin_time_ms=package.begin_time_ms,
+                expected_version=None,
+                output_directory=str(output_directory / "sumo"),
+                connect_retries=30,
+            )
+        )
+        end_time_ms = package.end_time_ms or 20_000
+        for target_time_ms in range(package.step_ms, end_time_ms + 1, package.step_ms):
+            controls = controller.step(previous, package.step_ms / 1000.0)
+            if package.package_id == "mixed-automation-low-level-merge" and previous is not None:
+                vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
+                lane_change_request_observed = lane_change_request_observed or any(
+                    command.lane_change is LaneChangeDirection.LEFT for command in controls.values()
+                )
+                for vehicle_id, command in controls.items():
+                    vehicle = vehicles_by_id.get(vehicle_id)
+                    if vehicle is not None and command.lane_change is LaneChangeDirection.LEFT:
+                        lane_change_request_times_ms.append(previous.simulation_time_ms)
+                        if vehicle.lane_id == "main_before_0":
+                            d1_to_d2_request_vehicle_ids.add(vehicle_id)
+                        elif vehicle.lane_id == "main_before_1":
+                            d2_to_d3_request_vehicle_ids.add(vehicle_id)
+                    if (
+                        vehicle is None
+                        or command.desired_acceleration_mps2 is None
+                        or command.desired_acceleration_mps2 >= 0.0
+                    ):
+                        continue
+                    if first_d1_slowdown_time_ms is None and vehicle.lane_id == "main_before_0":
+                        first_d1_slowdown_time_ms = previous.simulation_time_ms
+                        first_d1_slowdown_position_x_m = vehicle.position.x
+                    lane_index_text = vehicle.lane_id.rsplit("_", maxsplit=1)[-1]
+                    if lane_index_text in {"1", "2"}:
+                        cascade_slowdown_lane_indices.add(int(lane_index_text))
+            cooperative_gap_observed = cooperative_gap_observed or any(
+                vehicle_id.startswith("merge_main_L5_lane0")
+                and command.desired_speed_mps == pytest.approx(8.0, abs=0.05)
+                for vehicle_id, command in controls.items()
+            )
+            adapter.apply_controls(controls)
+            previous = adapter.step(target_time_ms)
+            arrived_vehicle_ids.update(adapter.diagnostics().arrived_vehicle_ids)
+            vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
+            current_ramp_vehicles = tuple(
+                vehicle
+                for vehicle in previous.vehicles
+                if vehicle.vehicle_id.startswith("merge_ramp_")
+            )
+            new_ramp_vehicle_ids = {
+                vehicle.vehicle_id for vehicle in current_ramp_vehicles
+            } - ramp_seen_vehicle_ids
+            if new_ramp_vehicle_ids:
+                ramp_last_new_vehicle_time_ms = target_time_ms
+                ramp_seen_vehicle_ids.update(new_ramp_vehicle_ids)
+            peak_ramp_vehicle_count = max(peak_ramp_vehicle_count, len(current_ramp_vehicles))
+            if first_ramp_near_time_ms is None and any(
+                vehicle.lane_id == "merge_ramp_0" and vehicle.position.x >= 80.0
+                for vehicle in current_ramp_vehicles
+            ):
+                first_ramp_near_time_ms = target_time_ms
+            peak_main_before_vehicle_count = max(
+                peak_main_before_vehicle_count,
+                sum(
+                    vehicle.lane_id.startswith("main_before_")
+                    for vehicle in previous.vehicles
+                    if vehicle.vehicle_id.startswith("merge_main_")
+                ),
+            )
+            if package.package_id == "mixed-automation-low-level-merge":
+                current_main_before_counts = [
+                    sum(
+                        vehicle.lane_id == f"main_before_{lane_index}"
+                        for vehicle in previous.vehicles
+                        if vehicle.vehicle_id.startswith("merge_main_")
+                    )
+                    for lane_index in range(3)
+                ]
+                if 8_000 <= target_time_ms < 10_000:
+                    pre_merge_peak_lane_vehicle_counts = [
+                        max(previous_peak, current_count)
+                        for previous_peak, current_count in zip(
+                            pre_merge_peak_lane_vehicle_counts,
+                            current_main_before_counts,
+                            strict=True,
+                        )
+                    ]
+                if target_time_ms < 10_000:
+                    density_phase_index = 0
+                elif target_time_ms < 22_000:
+                    density_phase_index = 1
+                elif target_time_ms >= 27_000:
+                    density_phase_index = 2
+                else:
+                    density_phase_index = None
+                if density_phase_index is not None:
+                    phase_main_before_vehicle_count_samples[density_phase_index].append(
+                        sum(current_main_before_counts)
+                    )
+            first_inner = vehicles_by_id.get(first_inner_vehicle_id)
+            first_ramp = vehicles_by_id.get(first_ramp_vehicle_id)
+            if (
+                initial_inner_to_ramp_gap_m is None
+                and first_inner is not None
+                and first_ramp is not None
+            ):
+                initial_inner_to_ramp_gap_m = abs(first_inner.position.x - first_ramp.position.x)
+            if first_inner is not None and first_inner.lane_id.startswith("main_before_"):
+                first_inner_pre_merge_speeds_mps.append(first_inner.speed_mps)
+            for vehicle in previous.vehicles:
+                seen_vehicle_ids.add(vehicle.vehicle_id)
+                lane_change_observed = lane_change_observed or (
+                    "_lane0." in vehicle.vehicle_id
+                    and vehicle.lane_id in {"main_before_1", "main_after_1"}
+                )
+                if (
+                    vehicle.vehicle_id.startswith("merge_main_")
+                    and "_lane0." in vehicle.vehicle_id
+                    and vehicle.lane_id
+                    in {"main_before_1", "main_after_1", "main_before_2", "main_after_2"}
+                ):
+                    d1_to_d2_observed_vehicle_ids.add(vehicle.vehicle_id)
+                if (
+                    vehicle.vehicle_id.startswith("merge_main_")
+                    and "_lane1." in vehicle.vehicle_id
+                    and vehicle.lane_id in {"main_before_2", "main_after_2"}
+                ):
+                    d2_to_d3_observed_vehicle_ids.add(vehicle.vehicle_id)
+                if vehicle.vehicle_id.startswith("merge_ramp_") and vehicle.lane_id.startswith(
+                    ":merge"
+                ):
+                    ramp_crossing_speeds_mps.append(vehicle.speed_mps)
+                    if target_time_ms < 22_000:
+                        ramp_disturbance_crossing_speeds_mps.append(vehicle.speed_mps)
+                if vehicle.vehicle_id.startswith("merge_ramp_"):
+                    if vehicle.lane_id == "merge_ramp_0":
+                        if target_time_ms < 10_000 and vehicle.position.x < 80.0:
+                            ramp_free_flow_speed_samples_mps.append(vehicle.speed_mps)
+                        zone_index = (
+                            0
+                            if vehicle.position.x < 35.0
+                            else 1
+                            if vehicle.position.x < 70.0
+                            else 2
+                        )
+                        ramp_zone_speed_samples_mps[zone_index].append(vehicle.speed_mps)
+                    elif vehicle.lane_id == "main_after_0" and vehicle.speed_mps >= 10.0:
+                        ramp_recovered_speed_observed = True
+                if vehicle.vehicle_id == first_inner_vehicle_id and vehicle.lane_id.startswith(
+                    "main_after_"
+                ):
+                    first_inner_vehicle_passed_merge = True
+                    first_inner_vehicle_recovered_speed = (
+                        first_inner_vehicle_recovered_speed or vehicle.speed_mps >= 12.0
+                    )
+                if (
+                    vehicle.vehicle_id.startswith("merge_ramp_")
+                    and vehicle.lane_id == "main_after_0"
+                ):
+                    merged_ramp_vehicle_ids.add(vehicle.vehicle_id)
+                    ramp_merge_time_by_vehicle_id.setdefault(vehicle.vehicle_id, target_time_ms)
+                if target_time_ms < 5_000 or not vehicle.vehicle_id.startswith(
+                    ("merge_main_", "merge_ramp_")
+                ):
+                    continue
+                forward_speed_samples_mps.append(vehicle.speed_mps)
+                if vehicle.vehicle_id.startswith("merge_main_") and vehicle.lane_id.startswith(
+                    "main_"
+                ):
+                    lane_index = int(vehicle.lane_id.rsplit("_", maxsplit=1)[1])
+                    main_lane_speed_samples_mps[lane_index].append(vehicle.speed_mps)
+                    if (
+                        vehicle.lane_id.startswith("main_before_")
+                        and 40.0 <= vehicle.position.x <= 115.0
+                    ):
+                        if target_time_ms < 10_000:
+                            phase_index = 0
+                        elif target_time_ms < 22_000:
+                            phase_index = 1
+                        elif target_time_ms >= 27_000:
+                            phase_index = 2
+                        else:
+                            continue
+                        phase_lane_speed_samples_mps[phase_index][lane_index].append(
+                            vehicle.speed_mps
+                        )
+    finally:
+        adapter.close()
+
+    assert previous is not None
+    assert forward_speed_samples_mps
+    assert all(main_lane_speed_samples_mps)
+    assert initial_inner_to_ramp_gap_m is not None
+    assert first_inner_pre_merge_speeds_mps
+    main_lane_speed_ranges_mps = tuple(
+        max(samples) - min(samples) for samples in main_lane_speed_samples_mps
+    )
+
+    def phase_lane_average_speeds_mps(
+        samples_by_lane: tuple[list[float], list[float], list[float]],
+    ) -> tuple[float, float, float]:
+        averages_mps = [
+            sum(samples) / len(samples) if samples else 0.0 for samples in samples_by_lane
+        ]
+        return averages_mps[0], averages_mps[1], averages_mps[2]
+
+    phase_main_before_average_vehicle_counts = [
+        sum(samples) / len(samples) if samples else 0.0
+        for samples in phase_main_before_vehicle_count_samples
+    ]
+
+    return _DenseMergeResult(
+        seen_vehicle_ids=frozenset(seen_vehicle_ids),
+        forward_arrived_vehicle_ids=frozenset(
+            vehicle_id
+            for vehicle_id in arrived_vehicle_ids
+            if vehicle_id.startswith(("merge_main_", "merge_ramp_"))
+        ),
+        merged_ramp_vehicle_ids=frozenset(merged_ramp_vehicle_ids),
+        collision_vehicle_ids=frozenset(previous.collision_vehicle_ids),
+        forward_average_speed_mps=sum(forward_speed_samples_mps) / len(forward_speed_samples_mps),
+        main_lane_speed_ranges_mps=(
+            main_lane_speed_ranges_mps[0],
+            main_lane_speed_ranges_mps[1],
+            main_lane_speed_ranges_mps[2],
+        ),
+        cooperative_gap_observed=cooperative_gap_observed,
+        first_inner_vehicle_passed_merge=first_inner_vehicle_passed_merge,
+        first_inner_vehicle_recovered_speed=first_inner_vehicle_recovered_speed,
+        initial_inner_to_ramp_gap_m=initial_inner_to_ramp_gap_m,
+        first_inner_pre_merge_speed_drop_mps=(
+            max(first_inner_pre_merge_speeds_mps) - min(first_inner_pre_merge_speeds_mps)
+        ),
+        ramp_crossing_max_speed_mps=max(ramp_crossing_speeds_mps, default=0.0),
+        ramp_disturbance_crossing_max_speed_mps=max(
+            ramp_disturbance_crossing_speeds_mps,
+            default=0.0,
+        ),
+        final_ramp_states=tuple(
+            sorted(
+                (
+                    vehicle.vehicle_id,
+                    vehicle.lane_id,
+                    vehicle.position.x,
+                    vehicle.speed_mps,
+                )
+                for vehicle in previous.vehicles
+                if vehicle.vehicle_id.startswith("merge_ramp_")
+            )
+        ),
+        lane_change_request_observed=lane_change_request_observed,
+        lane_change_observed=lane_change_observed,
+        cascade_slowdown_lane_indices=frozenset(cascade_slowdown_lane_indices),
+        ramp_seen_vehicle_ids=frozenset(ramp_seen_vehicle_ids),
+        peak_ramp_vehicle_count=peak_ramp_vehicle_count,
+        peak_main_before_vehicle_count=peak_main_before_vehicle_count,
+        ramp_last_new_vehicle_time_ms=ramp_last_new_vehicle_time_ms,
+        ramp_zone_average_speeds_mps=(
+            (
+                sum(ramp_zone_speed_samples_mps[0]) / len(ramp_zone_speed_samples_mps[0])
+                if ramp_zone_speed_samples_mps[0]
+                else 0.0
+            ),
+            (
+                sum(ramp_zone_speed_samples_mps[1]) / len(ramp_zone_speed_samples_mps[1])
+                if ramp_zone_speed_samples_mps[1]
+                else 0.0
+            ),
+            (
+                sum(ramp_zone_speed_samples_mps[2]) / len(ramp_zone_speed_samples_mps[2])
+                if ramp_zone_speed_samples_mps[2]
+                else 0.0
+            ),
+        ),
+        ramp_recovered_speed_observed=ramp_recovered_speed_observed,
+        phase_lane_average_speeds_mps=(
+            phase_lane_average_speeds_mps(phase_lane_speed_samples_mps[0]),
+            phase_lane_average_speeds_mps(phase_lane_speed_samples_mps[1]),
+            phase_lane_average_speeds_mps(phase_lane_speed_samples_mps[2]),
+        ),
+        lane_change_request_times_ms=tuple(lane_change_request_times_ms),
+        d1_to_d2_request_vehicle_ids=frozenset(d1_to_d2_request_vehicle_ids),
+        d2_to_d3_request_vehicle_ids=frozenset(d2_to_d3_request_vehicle_ids),
+        d1_to_d2_observed_vehicle_ids=frozenset(d1_to_d2_observed_vehicle_ids),
+        d2_to_d3_observed_vehicle_ids=frozenset(d2_to_d3_observed_vehicle_ids),
+        first_ramp_near_time_ms=first_ramp_near_time_ms,
+        first_d1_slowdown_time_ms=first_d1_slowdown_time_ms,
+        first_d1_slowdown_position_x_m=first_d1_slowdown_position_x_m,
+        ramp_merge_times_ms=tuple(sorted(ramp_merge_time_by_vehicle_id.items())),
+        final_main_before_states=tuple(
+            sorted(
+                (
+                    vehicle.vehicle_id,
+                    vehicle.lane_id,
+                    vehicle.position.x,
+                    vehicle.speed_mps,
+                )
+                for vehicle in previous.vehicles
+                if vehicle.vehicle_id.startswith("merge_main_")
+                and vehicle.lane_id.startswith("main_before_")
+            )
+        ),
+        ramp_free_flow_average_speed_mps=(
+            sum(ramp_free_flow_speed_samples_mps) / len(ramp_free_flow_speed_samples_mps)
+            if ramp_free_flow_speed_samples_mps
+            else 0.0
+        ),
+        pre_merge_peak_lane_vehicle_counts=(
+            pre_merge_peak_lane_vehicle_counts[0],
+            pre_merge_peak_lane_vehicle_counts[1],
+            pre_merge_peak_lane_vehicle_counts[2],
+        ),
+        phase_main_before_average_vehicle_counts=(
+            phase_main_before_average_vehicle_counts[0],
+            phase_main_before_average_vehicle_counts[1],
+            phase_main_before_average_vehicle_counts[2],
+        ),
+    )
+
+
+@pytest.mark.skipif(
+    os.getenv("TRAFFICVERSE_SUMO_PACKAGE_INTEGRATION") != "1" or shutil.which("sumo") is None,
+    reason="set TRAFFICVERSE_SUMO_PACKAGE_INTEGRATION=1 with host SUMO available",
+)
+def test_dense_merge_scenarios_preserve_safe_distinct_merge_behaviors(
+    tmp_path: Path,
+) -> None:
+    low_level = _run_dense_merge_scenario(
+        LOW_LEVEL_MERGE_CONFIG,
+        tmp_path / "low-level",
+        UUID(int=3),
+    )
+    l5 = _run_dense_merge_scenario(
+        L5_MERGE_CONFIG,
+        tmp_path / "l5",
+        UUID(int=4),
+    )
+
+    assert len(low_level.seen_vehicle_ids) == 70, (low_level, l5)
+    assert len(l5.seen_vehicle_ids) == 70, (low_level, l5)
+    assert not low_level.collision_vehicle_ids
+    assert not l5.collision_vehicle_ids
+    assert low_level.ramp_free_flow_average_speed_mps >= 12.0, (low_level, l5)
+    assert low_level.peak_ramp_vehicle_count >= 14, (low_level, l5)
+    assert len(low_level.ramp_seen_vehicle_ids) == 14, (low_level, l5)
+    assert low_level.ramp_last_new_vehicle_time_ms >= 28_000, (low_level, l5)
+    assert min(low_level.pre_merge_peak_lane_vehicle_counts) >= 5, (low_level, l5)
+    assert len(low_level.merged_ramp_vehicle_ids) >= 5, (low_level, l5)
+    assert (
+        sum(
+            lane_id != "main_after_0"
+            for _vehicle_id, lane_id, _position_x_m, _speed_mps in low_level.final_ramp_states
+        )
+        >= 8
+    ), (low_level, l5)
+    assert len(l5.merged_ramp_vehicle_ids) == 4, (
+        low_level,
+        l5,
+    )
+
+    stable_speeds_mps, disturbance_speeds_mps, recovery_speeds_mps = (
+        low_level.phase_lane_average_speeds_mps
+    )
+    assert stable_speeds_mps[0] >= 9.0, (low_level, l5)
+    assert min(stable_speeds_mps[1:]) >= 12.0, (low_level, l5)
+    assert disturbance_speeds_mps[0] < disturbance_speeds_mps[1], (low_level, l5)
+    assert disturbance_speeds_mps[1] < disturbance_speeds_mps[2], (low_level, l5)
+    assert max(disturbance_speeds_mps) <= 9.5, (low_level, l5)
+    assert 0.0 < low_level.ramp_disturbance_crossing_max_speed_mps <= 3.5, (low_level, l5)
+    assert all(
+        recovered_speed_mps > disturbed_speed_mps
+        for recovered_speed_mps, disturbed_speed_mps in zip(
+            recovery_speeds_mps,
+            disturbance_speeds_mps,
+            strict=True,
+        )
+    ), (
+        f"stable={stable_speeds_mps}, disturbance={disturbance_speeds_mps}, "
+        f"recovery={recovery_speeds_mps}, merges={low_level.ramp_merge_times_ms}, "
+        f"final={low_level.final_main_before_states}"
+    )
+
+    assert low_level.first_ramp_near_time_ms is not None
+    assert 5_000 <= low_level.first_ramp_near_time_ms <= 6_000, (low_level, l5)
+    assert low_level.first_d1_slowdown_time_ms is not None
+    assert low_level.first_d1_slowdown_time_ms >= 10_000, (low_level, l5)
+    assert low_level.first_d1_slowdown_time_ms >= low_level.first_ramp_near_time_ms, (
+        low_level,
+        l5,
+    )
+    assert low_level.first_d1_slowdown_position_x_m is not None
+    assert 65.0 <= low_level.first_d1_slowdown_position_x_m <= 82.0, (low_level, l5)
+    assert low_level.lane_change_request_times_ms, (low_level, l5)
+    assert all(10_000 <= time_ms < 22_000 for time_ms in low_level.lane_change_request_times_ms)
+    assert low_level.d2_to_d3_request_vehicle_ids, (low_level, l5)
+    assert len(low_level.d2_to_d3_request_vehicle_ids) <= 1, (low_level, l5)
+    assert len(low_level.d1_to_d2_request_vehicle_ids) >= len(
+        low_level.d2_to_d3_request_vehicle_ids
+    ), (low_level, l5)
+    assert low_level.d1_to_d2_observed_vehicle_ids, (low_level, l5)
+    assert low_level.d2_to_d3_observed_vehicle_ids, (low_level, l5)
+    assert len(low_level.d1_to_d2_observed_vehicle_ids) >= len(
+        low_level.d2_to_d3_observed_vehicle_ids
+    ), (low_level, l5)
+    _stable_density, disturbance_density, recovery_density = (
+        low_level.phase_main_before_average_vehicle_counts
+    )
+    assert recovery_density < disturbance_density * 0.65, (low_level, l5)
+    assert l5.cooperative_gap_observed

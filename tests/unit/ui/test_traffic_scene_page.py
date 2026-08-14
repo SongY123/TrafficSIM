@@ -5,6 +5,7 @@ from xml.etree import ElementTree
 import pytest
 from PySide6.QtWidgets import QApplication, QFrame, QLabel
 from ui.models import TRAFFIC_SCENARIO_PRESETS, MapSummary
+from ui.models.protocol import Vehicle
 from ui.models.traffic_scenario import scenario_preview_vehicles
 from ui.views.traffic_scene_page import TrafficScenePage
 from ui.widgets import MapLibreDeckMapWidget
@@ -159,6 +160,16 @@ def test_occasional_accident_level_average_speeds_are_close_but_not_identical() 
             {"accident_actor_L0_0", "accident_victim_L0_0", "accident_follow_L5_0"},
             {"L0", "L1", "L3", "L5"},
         ),
+        (
+            4,
+            {"merge_preview_main_L0_0", "merge_preview_ramp_L2_2"},
+            {"L0", "L1", "L2", "L3"},
+        ),
+        (
+            5,
+            {"merge_preview_main_L5_0", "merge_preview_ramp_L5_0"},
+            {"L5"},
+        ),
     ),
 )
 def test_scenario_preview_is_a_feature_key_frame(
@@ -172,11 +183,25 @@ def test_scenario_preview_is_a_feature_key_frame(
 
     assert levels == expected_levels
     assert required_ids <= vehicle_ids
-    minimum_lane_count = 2 if preset_index == 3 else 3
+    minimum_lane_count = 7 if preset_index in {4, 5} else 2 if preset_index == 3 else 3
     assert len({vehicle.lane_id for vehicle in vehicles}) >= minimum_lane_count
 
 
-def _distance_to_lane_m(vehicle: object, lane_shape: str) -> float:
+def test_dense_merge_presets_expose_equal_demand_and_distinct_automation_levels() -> None:
+    low_level, l5 = TRAFFIC_SCENARIO_PRESETS[4:6]
+
+    assert low_level.name == "低智驾等级会车（L0-L3）"
+    assert l5.name == "L5会车"
+    assert low_level.vehicle_total == l5.vehicle_total == 70
+    assert low_level.duration_s == 30
+    assert dict(low_level.automation_counts) == {"L0": 21, "L1": 21, "L2": 14, "L3": 14}
+    assert dict(l5.automation_counts) == {"L5": 70}
+    assert any(
+        vehicle.action == "LANE_CHANGE_LEFT" for vehicle in scenario_preview_vehicles(low_level)
+    )
+
+
+def _distance_to_lane_m(vehicle: Vehicle, lane_shape: str) -> float:
     points = [tuple(float(value) for value in point.split(",")[:2]) for point in lane_shape.split()]
     distances = []
     for start, end in zip(points, points[1:], strict=False):

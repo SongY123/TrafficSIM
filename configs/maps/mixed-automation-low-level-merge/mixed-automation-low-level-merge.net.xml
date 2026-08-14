@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-08-14T15:11:06.150763+08:00 by Eclipse SUMO netconvert 1.27.1
+<netconvertConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <node-files value="mixed-automation-low-level-merge.nod.xml"/>
+        <edge-files value="mixed-automation-low-level-merge.edg.xml"/>
+        <connection-files value="mixed-automation-low-level-merge.con.xml"/>
+        <type-files value="mixed-automation-low-level-merge.typ.xml"/>
+    </input>
+
+    <output>
+        <output-file value="mixed-automation-low-level-merge.net.xml"/>
+    </output>
+
+</netconvertConfiguration>
+-->
+
+<net version="1.20" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+
+    <location netOffset="0.00,20.00" convBoundary="0.00,0.00,320.00,20.00" origBoundary="0.00,-20.00,320.00,0.00" projParameter="!"/>
+
+    <type id="arterial_three" priority="3" numLanes="3" speed="22.22" allow="passenger" width="3.50"/>
+    <type id="merge_lane" priority="3" numLanes="1" speed="16.67" allow="passenger" spreadType="center" width="3.50"/>
+
+    <edge id=":east_0" function="internal">
+        <lane id=":east_0_0" index="0" allow="passenger" speed="3.82" length="5.11" width="3.50" shape="320.00,18.25 321.31,19.12 321.75,20.00 321.31,20.88 320.00,21.75"/>
+    </edge>
+    <edge id=":merge_0" function="internal">
+        <lane id=":merge_0_0" index="0" allow="passenger" speed="22.22" length="9.86" width="3.50" shape="110.40,28.75 100.54,28.75"/>
+        <lane id=":merge_0_1" index="1" allow="passenger" speed="22.22" length="9.86" width="3.50" shape="110.40,25.25 100.54,25.25"/>
+        <lane id=":merge_0_2" index="2" allow="passenger" speed="22.22" length="9.86" width="3.50" shape="110.40,21.75 100.54,21.75"/>
+    </edge>
+    <edge id=":merge_3" function="internal">
+        <lane id=":merge_3_0" index="0" allow="passenger" speed="19.45" length="9.51" width="3.50" shape="101.83,7.53 104.34,8.84 105.99,10.04 107.70,10.91 110.40,11.25"/>
+    </edge>
+    <edge id=":merge_4" function="internal">
+        <lane id=":merge_4_0" index="0" allow="passenger" speed="22.22" length="9.86" width="3.50" shape="100.54,11.25 110.40,11.25"/>
+        <lane id=":merge_4_1" index="1" allow="passenger" speed="22.22" length="9.86" width="3.50" shape="100.54,14.75 110.40,14.75"/>
+        <lane id=":merge_4_2" index="2" allow="passenger" speed="22.22" length="9.86" width="3.50" shape="100.54,18.25 110.40,18.25"/>
+    </edge>
+    <edge id=":west_0" function="internal">
+        <lane id=":west_0_0" index="0" allow="passenger" speed="3.82" length="5.11" width="3.50" shape="0.00,21.75 -1.31,20.88 -1.75,20.00 -1.31,19.12 0.00,18.25"/>
+    </edge>
+
+    <edge id="main_after" from="merge" to="east" priority="3" type="arterial_three">
+        <lane id="main_after_0" index="0" allow="passenger" speed="22.22" length="209.60" width="3.50" shape="110.40,11.25 320.00,11.25"/>
+        <lane id="main_after_1" index="1" allow="passenger" speed="22.22" length="209.60" width="3.50" shape="110.40,14.75 320.00,14.75"/>
+        <lane id="main_after_2" index="2" allow="passenger" speed="22.22" length="209.60" width="3.50" shape="110.40,18.25 320.00,18.25"/>
+    </edge>
+    <edge id="main_before" from="west" to="merge" priority="3" type="arterial_three">
+        <lane id="main_before_0" index="0" allow="passenger" speed="22.22" length="100.54" width="3.50" shape="0.00,11.25 100.54,11.25"/>
+        <lane id="main_before_1" index="1" allow="passenger" speed="22.22" length="100.54" width="3.50" shape="0.00,14.75 100.54,14.75"/>
+        <lane id="main_before_2" index="2" allow="passenger" speed="22.22" length="100.54" width="3.50" shape="0.00,18.25 100.54,18.25"/>
+    </edge>
+    <edge id="merge_ramp" from="ramp_start" to="merge" priority="3" type="merge_lane" spreadType="center" shape="0.00,0.00 30.00,0.00 55.00,0.00 70.00,0.00 88.00,2.00 103.00,8.00 113.00,14.00 120.00,20.00">
+        <lane id="merge_ramp_0" index="0" allow="passenger" speed="16.67" length="103.01" width="3.50" shape="0.00,0.00 30.00,0.00 55.00,0.00 70.00,0.00 88.00,2.00 101.83,7.53"/>
+    </edge>
+    <edge id="opposing_after" from="merge" to="west" priority="3" type="arterial_three">
+        <lane id="opposing_after_0" index="0" allow="passenger" speed="22.22" length="100.54" width="3.50" shape="100.54,28.75 0.00,28.75"/>
+        <lane id="opposing_after_1" index="1" allow="passenger" speed="22.22" length="100.54" width="3.50" shape="100.54,25.25 0.00,25.25"/>
+        <lane id="opposing_after_2" index="2" allow="passenger" speed="22.22" length="100.54" width="3.50" shape="100.54,21.75 0.00,21.75"/>
+    </edge>
+    <edge id="opposing_before" from="east" to="merge" priority="3" type="arterial_three">
+        <lane id="opposing_before_0" index="0" allow="passenger" speed="22.22" length="209.60" width="3.50" shape="320.00,28.75 110.40,28.75"/>
+        <lane id="opposing_before_1" index="1" allow="passenger" speed="22.22" length="209.60" width="3.50" shape="320.00,25.25 110.40,25.25"/>
+        <lane id="opposing_before_2" index="2" allow="passenger" speed="22.22" length="209.60" width="3.50" shape="320.00,21.75 110.40,21.75"/>
+    </edge>
+
+    <junction id="east" type="priority" x="320.00" y="20.00" incLanes="main_after_0 main_after_1 main_after_2" intLanes=":east_0_0" shape="320.00,20.00 320.00,9.50 320.00,20.00">
+        <request index="0" response="0" foes="0" cont="0"/>
+    </junction>
+    <junction id="merge" type="zipper" x="120.00" y="20.00" incLanes="opposing_before_0 opposing_before_1 opposing_before_2 merge_ramp_0 main_before_0 main_before_1 main_before_2" intLanes=":merge_0_0 :merge_0_1 :merge_0_2 :merge_3_0 :merge_4_0 :merge_4_1 :merge_4_2" shape="110.40,30.50 110.40,9.50 107.52,8.96 106.60,8.38 105.70,7.67 104.59,6.89 103.01,6.12 100.65,8.94 100.54,9.50 100.54,30.50">
+        <request index="0" response="0000000" foes="0000000" cont="0"/>
+        <request index="1" response="0000000" foes="0000000" cont="0"/>
+        <request index="2" response="0000000" foes="0000000" cont="0"/>
+        <request index="3" response="0010000" foes="0010000" cont="0"/>
+        <request index="4" response="0001000" foes="0001000" cont="0"/>
+        <request index="5" response="0000000" foes="0000000" cont="0"/>
+        <request index="6" response="0000000" foes="0000000" cont="0"/>
+    </junction>
+    <junction id="ramp_start" type="dead_end" x="0.00" y="0.00" incLanes="" intLanes="" shape="0.00,1.75 0.00,-1.75"/>
+    <junction id="west" type="priority" x="0.00" y="20.00" incLanes="opposing_after_0 opposing_after_1 opposing_after_2" intLanes=":west_0_0" shape="0.00,20.00 0.00,30.50 0.00,20.00">
+        <request index="0" response="0" foes="0" cont="0"/>
+    </junction>
+
+    <connection from="main_after" to="opposing_before" fromLane="2" toLane="2" via=":east_0_0" dir="t" state="M"/>
+    <connection from="main_before" to="main_after" fromLane="0" toLane="0" via=":merge_4_0" dir="s" state="Z"/>
+    <connection from="main_before" to="main_after" fromLane="1" toLane="1" via=":merge_4_1" dir="s" state="M"/>
+    <connection from="main_before" to="main_after" fromLane="2" toLane="2" via=":merge_4_2" dir="s" state="M"/>
+    <connection from="merge_ramp" to="main_after" fromLane="0" toLane="0" via=":merge_3_0" dir="s" state="Z"/>
+    <connection from="opposing_after" to="main_before" fromLane="2" toLane="2" via=":west_0_0" dir="t" state="M"/>
+    <connection from="opposing_before" to="opposing_after" fromLane="0" toLane="0" via=":merge_0_0" dir="s" state="M"/>
+    <connection from="opposing_before" to="opposing_after" fromLane="1" toLane="1" via=":merge_0_1" dir="s" state="M"/>
+    <connection from="opposing_before" to="opposing_after" fromLane="2" toLane="2" via=":merge_0_2" dir="s" state="M"/>
+
+    <connection from=":east_0" to="opposing_before" fromLane="0" toLane="2" dir="t" state="M"/>
+    <connection from=":merge_0" to="opposing_after" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":merge_0" to="opposing_after" fromLane="1" toLane="1" dir="s" state="M"/>
+    <connection from=":merge_0" to="opposing_after" fromLane="2" toLane="2" dir="s" state="M"/>
+    <connection from=":merge_3" to="main_after" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":merge_4" to="main_after" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":merge_4" to="main_after" fromLane="1" toLane="1" dir="s" state="M"/>
+    <connection from=":merge_4" to="main_after" fromLane="2" toLane="2" dir="s" state="M"/>
+    <connection from=":west_0" to="main_before" fromLane="0" toLane="2" dir="t" state="M"/>
+
+</net>

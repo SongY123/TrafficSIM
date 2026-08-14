@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<types>
+    <type
+        id="arterial_three"
+        priority="3"
+        numLanes="3"
+        speed="22.22"
+        allow="passenger"
+        spreadType="right"
+        width="3.50" />
+    <type
+        id="merge_lane"
+        priority="3"
+        numLanes="1"
+        speed="16.67"
+        allow="passenger"
+        spreadType="center"
+        width="3.50" />
+</types>
