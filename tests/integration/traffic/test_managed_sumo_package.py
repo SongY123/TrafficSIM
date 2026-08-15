@@ -215,7 +215,13 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         "accident_background_L3_2",
     }
     background_cruise_speed_mps = {
-        vehicle_id: 16.0 if vehicle_id in background_fast_ids else 8.0
+        vehicle_id: (
+            12.0
+            if vehicle_id in {"accident_background_L3_1", "accident_background_L3_2"}
+            else 16.0
+            if vehicle_id in background_fast_ids
+            else 8.0
+        )
         for vehicle_id in background_straight_ids
     }
     background_l5_ids = {
@@ -591,7 +597,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     for vehicle_id in ("accident_background_L0_1", "accident_background_L3_1"):
         lane_id = background_lane_change_command_lane_ids[vehicle_id]
         position_x_m = background_lane_change_command_positions_x_m[vehicle_id]
-        assert lane_id == "road_curve_0" or (lane_id == "road_approach_0" and position_x_m >= 500.0)
+        assert lane_id == "road_curve_0" or (lane_id == "road_approach_0" and position_x_m >= 490.0)
     assert all(
         len(
             {
@@ -608,6 +614,19 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     )
     assert all(
         vehicles[vehicle_id].lane_id == "road_curve_1" for vehicle_id in background_lane_1_ids
+    )
+    expected_curve_heading_rad = math.atan2(30.0, 50.0)
+    final_curve_heading_errors_rad = {
+        vehicle_id: abs(
+            math.atan2(
+                math.sin(vehicles[vehicle_id].heading_rad - expected_curve_heading_rad),
+                math.cos(vehicles[vehicle_id].heading_rad - expected_curve_heading_rad),
+            )
+        )
+        for vehicle_id in ("accident_background_L0_1", "accident_background_L3_1")
+    }
+    assert max(final_curve_heading_errors_rad.values()) <= math.radians(5.0), (
+        final_curve_heading_errors_rad
     )
     queue_target_xy_m = {
         "accident_background_L0_0": (556.0, 145.56),

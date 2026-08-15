@@ -254,18 +254,30 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     assert {
         vehicle_id: vehicles[vehicle_id]["departLane"] for vehicle_id in straight_background_ids
     } == expected_straight_lanes
-    assert {
+    straight_depart_positions_m = {
         vehicle_id: float(vehicles[vehicle_id]["departPos"])
         for vehicle_id in straight_background_ids
-    } == {
+    }
+    assert straight_depart_positions_m == {
         "accident_background_L0_0": 500.0,
         "accident_background_L0_1": 300.0,
         "accident_background_L1_0": 440.0,
         "accident_background_L1_1": 250.0,
         "accident_background_L3_0": 425.0,
-        "accident_background_L3_1": 60.0,
-        "accident_background_L3_2": 10.0,
+        "accident_background_L3_1": 235.0,
+        "accident_background_L3_2": 220.0,
     }
+    background_l5_depart_positions_m = tuple(
+        float(vehicles[vehicle_id]["departPos"]) for vehicle_id in background_ids_by_level[5]
+    )
+    assert all(
+        min(abs(position_m - l5_position_m) for l5_position_m in background_l5_depart_positions_m)
+        <= 40.0
+        for position_m in (
+            straight_depart_positions_m["accident_background_L3_1"],
+            straight_depart_positions_m["accident_background_L3_2"],
+        )
+    )
     assert all(
         routes[vehicles[vehicle_id]["route"]] == "road_approach right_exit"
         and vehicles[vehicle_id]["departLane"] == "0"
@@ -292,10 +304,10 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         "accident_background_L5_0",
         "accident_background_L0_1",
         "accident_background_L1_1",
-        "accident_background_L5_1",
-        "accident_background_L5_2",
         "accident_background_L3_1",
         "accident_background_L3_2",
+        "accident_background_L5_1",
+        "accident_background_L5_2",
     ]
     assert vehicle_types["L0"]["length"] == "4.55"
     assert vehicle_types["L0"]["color"] == "168,162,158"

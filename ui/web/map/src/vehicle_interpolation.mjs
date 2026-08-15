@@ -40,6 +40,10 @@ export function interpolateAngleRad(previous, current, progress) {
   return previous + difference * alpha;
 }
 
+function angleDifferenceRad(first, second) {
+  return ((first - second + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+}
+
 function interpolatePosition(previous, current, progress) {
   const alpha = clampUnit(progress);
   return {
@@ -80,11 +84,15 @@ export function stabilizeVehicleHeadings(previous, current) {
       vehicle.vehicle_id.startsWith("merge_main_") &&
       Math.abs(deltaY) > MIN_HEADING_MOVEMENT_M &&
       Number.isFinite(vehicle.heading_rad);
+    const displacementHeadingRad = Math.atan2(deltaY, deltaX);
+    const movesAgainstBodyHeading =
+      Number.isFinite(vehicle.heading_rad) &&
+      Math.abs(angleDifferenceRad(displacementHeadingRad, vehicle.heading_rad)) > Math.PI / 2;
     return {
       ...vehicle,
-      heading_rad: usesMergeBodyHeading
+      heading_rad: usesMergeBodyHeading || movesAgainstBodyHeading
         ? vehicle.heading_rad
-        : Math.atan2(deltaY, deltaX)
+        : displacementHeadingRad
     };
   });
 }

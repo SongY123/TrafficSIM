@@ -22,8 +22,8 @@
     <vehicle id="accident_background_L3_0" type="L3" route="route_main" depart="0" departLane="1" departPos="425" departSpeed="0" />
     <vehicle id="accident_background_L0_1" type="L0" route="route_main" depart="0" departLane="0" departPos="300" departSpeed="0" />
     <vehicle id="accident_background_L1_1" type="L1" route="route_main" depart="0" departLane="0" departPos="250" departSpeed="0" />
-    <vehicle id="accident_background_L3_1" type="L3" route="route_main" depart="0" departLane="0" departPos="60" departSpeed="0" />
-    <vehicle id="accident_background_L3_2" type="L3" route="route_main" depart="0" departLane="0" departPos="10" departSpeed="0" />
+    <vehicle id="accident_background_L3_1" type="L3" route="route_main" depart="0" departLane="0" departPos="235" departSpeed="0" />
+    <vehicle id="accident_background_L3_2" type="L3" route="route_main" depart="0" departLane="0" departPos="220" departSpeed="0" />
 
     <vehicle id="accident_background_L5_0" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="490" departSpeed="0" />
     <vehicle id="accident_background_L5_1" type="L5" route="route_right_turn" depart="0" departLane="0" departPos="200" departSpeed="0" />

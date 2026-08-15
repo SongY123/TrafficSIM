@@ -45,6 +45,7 @@ _ACCIDENT_L3_EMERGENCY_RESPONSE_DECEL_MPS2 = 1.75
 _ACCIDENT_PARKED_MANEUVER_TRIGGER_DISTANCE_M = 24.55
 _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS = 8.0
 _ACCIDENT_BACKGROUND_FAST_SPEED_MPS = 16.0
+_ACCIDENT_BACKGROUND_L5_PACED_SPEED_MPS = 12.0
 _ACCIDENT_BACKGROUND_BRAKING_DECEL_MPS2 = 1.5
 _ACCIDENT_BACKGROUND_FAST_BRAKING_DECEL_MPS2 = 6.0
 _ACCIDENT_BACKGROUND_STOPPED_SPEED_MPS = 0.05
@@ -53,6 +54,12 @@ _ACCIDENT_BACKGROUND_FAST_IDS = frozenset(
     {
         "accident_background_L0_1",
         "accident_background_L1_1",
+        "accident_background_L3_1",
+        "accident_background_L3_2",
+    }
+)
+_ACCIDENT_BACKGROUND_L5_PACED_IDS = frozenset(
+    {
         "accident_background_L3_1",
         "accident_background_L3_2",
     }
@@ -87,7 +94,7 @@ _ACCIDENT_BACKGROUND_CURVE_LANE_CHANGE_IDS = frozenset(
         "accident_background_L3_1",
     }
 )
-_ACCIDENT_BACKGROUND_CURVE_ENTRY_X_M = 500.0
+_ACCIDENT_BACKGROUND_CURVE_ENTRY_X_M = 490.0
 _LOW_MERGE_STABLE_END_MS = 10_000
 _LOW_MERGE_DISTURBANCE_END_MS = 22_000
 _LOW_MERGE_RAMP_CRUISE_SPEED_MPS = 14.0
@@ -590,6 +597,8 @@ class MixedAutomationScenarioController:
             )
         current_lane_index = _lane_index(vehicle.lane_id)
         if current_lane_index is not None and current_lane_index != target_lane_index:
+            if vehicle.vehicle_id in self._accident_background_lane_change_requested_ids:
+                return self._accident_background_target_command(vehicle, target_xy_m)
             if not self._accident_background_lane_change_ready(vehicle, vehicle_by_id):
                 return ControlCommand(
                     desired_speed_mps=_accident_background_cruise_speed_mps(vehicle.vehicle_id),
@@ -613,8 +622,6 @@ class MixedAutomationScenarioController:
         vehicle: VehicleState,
         vehicle_by_id: Mapping[str, VehicleState],
     ) -> bool:
-        if vehicle.vehicle_id in self._accident_background_lane_change_requested_ids:
-            return True
         if vehicle.vehicle_id in _ACCIDENT_BACKGROUND_CURVE_LANE_CHANGE_IDS:
             return vehicle.lane_id.startswith("road_curve_") or (
                 vehicle.lane_id.startswith("road_approach_")
@@ -1081,6 +1088,8 @@ def _low_merge_lane_change_is_safe(
 
 
 def _accident_background_cruise_speed_mps(vehicle_id: str) -> float:
+    if vehicle_id in _ACCIDENT_BACKGROUND_L5_PACED_IDS:
+        return _ACCIDENT_BACKGROUND_L5_PACED_SPEED_MPS
     if vehicle_id in _ACCIDENT_BACKGROUND_FAST_IDS:
         return _ACCIDENT_BACKGROUND_FAST_SPEED_MPS
     return _ACCIDENT_BACKGROUND_STRAIGHT_SPEED_MPS

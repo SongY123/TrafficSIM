@@ -85,6 +85,12 @@ const stoppedVehicleHeading = stabilizeVehicleHeadings(
 );
 assert.equal(stoppedVehicleHeading[0].heading_rad, 0.75);
 
+const collisionReboundHeading = stabilizeVehicleHeadings(
+  [vehicle("accident_actor_L0_0", 10, 500, 1, 0)],
+  [vehicle("accident_actor_L0_0", 11, 550, 0.9, 0)]
+);
+assert.equal(collisionReboundHeading[0].heading_rad, 0);
+
 const degrees = (radians) => radians * 180 / Math.PI;
 const wrappedMidpoint = interpolateAngleRad(179 * Math.PI / 180, -179 * Math.PI / 180, 0.5);
 assert.ok(Math.abs(Math.abs(degrees(wrappedMidpoint)) - 180) < 1e-9);

@@ -308,8 +308,8 @@ def test_occasional_accident_background_traffic_changes_lanes_after_incident_the
         _vehicle("accident_background_L3_0", x_m=425.0, lane_index=1, speed_mps=8.0),
         _vehicle("accident_background_L0_1", x_m=300.0, lane_index=0, speed_mps=16.0),
         _vehicle("accident_background_L1_1", x_m=250.0, lane_index=0, speed_mps=16.0),
-        _vehicle("accident_background_L3_1", x_m=60.0, lane_index=0, speed_mps=16.0),
-        _vehicle("accident_background_L3_2", x_m=10.0, lane_index=0, speed_mps=16.0),
+        _vehicle("accident_background_L3_1", x_m=235.0, lane_index=0, speed_mps=12.0),
+        _vehicle("accident_background_L3_2", x_m=220.0, lane_index=0, speed_mps=12.0),
     )
 
     cruising = controller.step(_snapshot(*backgrounds, time_ms=4_000), 0.05)
@@ -360,8 +360,8 @@ def test_occasional_accident_background_traffic_changes_lanes_after_incident_the
         "accident_background_L3_0": 8.0,
         "accident_background_L0_1": 16.0,
         "accident_background_L1_1": 16.0,
-        "accident_background_L3_1": 16.0,
-        "accident_background_L3_2": 16.0,
+        "accident_background_L3_1": 12.0,
+        "accident_background_L3_2": 12.0,
     }
     assert all(command.lane_change is LaneChangeDirection.NONE for command in cruising.values())
     assert {
@@ -470,6 +470,14 @@ def test_occasional_accident_background_lane_changes_follow_queue_and_curve_trig
         ),
         0.05,
     )
+    continuing_curve_changes = controller.step(
+        _snapshot(
+            later_l0_on_curve,
+            later_l3_on_curve,
+            collision_vehicle_ids=collision_ids,
+        ),
+        0.05,
+    )
 
     assert all(
         command.lane_change is LaneChangeDirection.NONE for command in before_triggers.values()
@@ -481,6 +489,10 @@ def test_occasional_accident_background_lane_changes_follow_queue_and_curve_trig
     assert following_l1_change[staying_l3.vehicle_id].lane_change is LaneChangeDirection.NONE
     assert curve_changes[later_l0_on_curve.vehicle_id].lane_change is LaneChangeDirection.LEFT
     assert curve_changes[later_l3_on_curve.vehicle_id].lane_change is LaneChangeDirection.LEFT
+    assert all(
+        command.lane_change is LaneChangeDirection.NONE
+        for command in continuing_curve_changes.values()
+    )
     assert all(
         command.lane_change_mode == 512
         for command in (
