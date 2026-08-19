@@ -285,12 +285,12 @@ def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     assert "isAmbulanceVehicle" in models
     assert "stableStringHash" in models
     level_colors = {
-        "L0": ("85, 183, 233", "#55b7e9"),
-        "L1": ("54, 157, 214", "#369dd6"),
-        "L2": ("37, 129, 196", "#2581c4"),
-        "L3": ("56, 104, 183", "#3868b7"),
-        "L4": ("85, 79, 167", "#554fa7"),
-        "L5": ("116, 55, 143", "#74378f"),
+        "L0": ("23, 59, 114", "#173b72"),
+        "L1": ("54, 93, 136", "#365d88"),
+        "L2": ("96, 125, 145", "#607d91"),
+        "L3": ("152, 154, 120", "#989a78"),
+        "L4": ("208, 182, 85", "#d0b655"),
+        "L5": ("242, 212, 61", "#f2d43d"),
     }
     for level, (rgb, hex_color) in level_colors.items():
         assert style.count(f"{level}: [{rgb}]") == 4

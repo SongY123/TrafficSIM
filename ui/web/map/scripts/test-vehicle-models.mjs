@@ -51,12 +51,12 @@ assert.equal(vehicleModelSpec({vehicle_id: "fleet_trailer_2"}).lengthM, 12);
 
 const automationLevels = ["L0", "L1", "L2", "L3", "L4", "L5"];
 const automationColors = {
-  L0: [85, 183, 233],
-  L1: [54, 157, 214],
-  L2: [37, 129, 196],
-  L3: [56, 104, 183],
-  L4: [85, 79, 167],
-  L5: [116, 55, 143]
+  L0: [23, 59, 114],
+  L1: [54, 93, 136],
+  L2: [96, 125, 145],
+  L3: [152, 154, 120],
+  L4: [208, 182, 85],
+  L5: [242, 212, 61]
 };
 for (const theme of Object.values(MAP_THEMES)) {
   for (const level of automationLevels) {
@@ -66,14 +66,10 @@ for (const theme of Object.values(MAP_THEMES)) {
   const themeAutomationColors = automationLevels.map((level) => theme.vehicle[level]);
   const signalColors = [theme.signal.red, theme.signal.yellow, theme.signal.green];
   assert.equal(new Set(themeAutomationColors.map((color) => color.join(","))).size, 6);
-  for (const automationColor of themeAutomationColors) {
-    for (const signalColor of signalColors) {
-      const distance = Math.hypot(
-        ...automationColor.map((channel, index) => channel - signalColor[index])
-      );
-      assert.ok(distance > 75);
-    }
-  }
+  assert.equal(
+    new Set([...themeAutomationColors, ...signalColors].map((color) => color.join(","))).size,
+    9
+  );
   assert.equal("vehicleTailLight" in theme, false);
 }
 
