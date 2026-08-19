@@ -78,7 +78,9 @@ def test_map_source_uses_interleaved_meter_offset_layers_with_snapshot_interpola
     assert "function isAmbulance(vehicle)" in source
     assert "function isStaticObstacle(vehicle)" in source
     assert "trafficverse-obstacle-bodies" in source
-    assert "救护车" in (MAP_WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    legend_html = (MAP_WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    assert "救护车" not in legend_html
+    assert "障碍物" not in legend_html
 
 
 def test_signal_layers_remain_legible_and_render_above_vehicles() -> None:
@@ -282,12 +284,19 @@ def test_map_renders_automation_colored_vehicle_models_with_zoom_lod() -> None:
     assert all(f'"{kind}"' in models for kind in ("sedan", "truck", "trailer", "ambulance"))
     assert "isAmbulanceVehicle" in models
     assert "stableStringHash" in models
-    assert "L0: [231, 229, 228]" in style
-    assert "L0: [168, 162, 158]" in style
-    assert style.count("L5: [0, 0, 0]") == 4
+    level_colors = {
+        "L0": ("85, 183, 233", "#55b7e9"),
+        "L1": ("54, 157, 214", "#369dd6"),
+        "L2": ("37, 129, 196", "#2581c4"),
+        "L3": ("56, 104, 183", "#3868b7"),
+        "L4": ("85, 79, 167", "#554fa7"),
+        "L5": ("116, 55, 143", "#74378f"),
+    }
+    for level, (rgb, hex_color) in level_colors.items():
+        assert style.count(f"{level}: [{rgb}]") == 4
+        assert css.count(f"--{level.lower()}: {hex_color}") == 2
+        assert f"{level}:[{rgb.replace(' ', '')}]" in bundle
     assert 'vehicle.automation_level === "L5" ? theme.vehicleOutline' in source
-    assert css.count("--l5: #000000") == 2
-    assert ':root:not([data-theme="light"]) .legend-icon.l5' in css
     assert "vehicleTailLight" not in style
     assert "emergencyVehicle: [239, 68, 68]" in style
     assert "emergencyVehicle: [220, 38, 38]" in style
@@ -318,27 +327,27 @@ def test_map_hud_has_a_safe_inset_from_the_webview_edge() -> None:
     assert "border-left: 0;" not in hud_rules
 
 
-def test_map_hud_shows_automation_and_special_vehicle_legends() -> None:
+def test_map_hud_shows_large_automation_and_signal_legends_only() -> None:
     html = (MAP_WEB_ROOT / "index.html").read_text(encoding="utf-8")
     css = (MAP_WEB_ROOT / "styles.css").read_text(encoding="utf-8")
 
     assert 'aria-label="地图图例"' in html
-    assert html.count('class="legend-item"') == 9
+    assert html.count('class="legend-item"') == 7
+    assert all(label in html for label in ("L0", "L1", "L2", "L3", "L4", "L5", "交通信号"))
+    assert "救护车" not in html
+    assert "障碍物" not in html
     assert all(
-        label in html
-        for label in ("L0", "L1", "L2", "L3", "L4", "L5", "救护车", "障碍物", "交通信号")
+        f"legend-icon {icon}" in html for icon in ("l0", "l1", "l2", "l3", "l4", "l5", "signal")
     )
-    assert all(
-        f"legend-icon {icon}" in html
-        for icon in ("l0", "l1", "l2", "l3", "l4", "l5", "emergency", "obstacle", "signal")
-    )
+    assert "legend-icon emergency" not in html
+    assert "legend-icon obstacle" not in html
+    legend_rules = css.split(".map-legend {", maxsplit=1)[1].split("}", maxsplit=1)[0]
+    assert "font-size: 20px;" in legend_rules
     assert "map-eyebrow" not in html
     assert "map-title" not in html
     assert 'id="map-status" hidden' in html
     assert ".legend-icon.ai" in css
     assert ".legend-icon.automated" in css
-    assert ".legend-icon.emergency" in css
-    assert ".legend-icon.obstacle" in css
     assert ".legend-icon.signal" in css
 
 

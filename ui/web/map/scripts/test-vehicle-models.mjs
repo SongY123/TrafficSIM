@@ -50,15 +50,23 @@ assert.equal(
 assert.equal(vehicleModelSpec({vehicle_id: "fleet_trailer_2"}).lengthM, 12);
 
 const automationLevels = ["L0", "L1", "L2", "L3", "L4", "L5"];
-assert.deepEqual(MAP_THEMES.dark.vehicle.L0, [231, 229, 228]);
-assert.deepEqual(MAP_THEMES.light.vehicle.L0, [168, 162, 158]);
-assert.deepEqual(MAP_THEMES.dark.vehicle.L5, [0, 0, 0]);
-assert.deepEqual(MAP_THEMES.light.vehicle.L5, [0, 0, 0]);
+const automationColors = {
+  L0: [85, 183, 233],
+  L1: [54, 157, 214],
+  L2: [37, 129, 196],
+  L3: [56, 104, 183],
+  L4: [85, 79, 167],
+  L5: [116, 55, 143]
+};
 for (const theme of Object.values(MAP_THEMES)) {
-  const automationColors = automationLevels.map((level) => theme.vehicle[level]);
+  for (const level of automationLevels) {
+    assert.deepEqual(theme.vehicle[level], automationColors[level]);
+    assert.deepEqual(theme.vehicleAccent[level], automationColors[level]);
+  }
+  const themeAutomationColors = automationLevels.map((level) => theme.vehicle[level]);
   const signalColors = [theme.signal.red, theme.signal.yellow, theme.signal.green];
-  assert.equal(new Set(automationColors.map((color) => color.join(","))).size, 6);
-  for (const automationColor of automationColors) {
+  assert.equal(new Set(themeAutomationColors.map((color) => color.join(","))).size, 6);
+  for (const automationColor of themeAutomationColors) {
     for (const signalColor of signalColors) {
       const distance = Math.hypot(
         ...automationColor.map((channel, index) => channel - signalColor[index])
