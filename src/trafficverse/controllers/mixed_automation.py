@@ -37,6 +37,8 @@ _EMERGENCY_CRUISE_SPEED_MPS = (10.0, 13.0, 16.0, 19.0, 22.0, 25.0)
 _EMERGENCY_BACKGROUND_SPEED_MPS = (12.0, 13.5, 15.0, 16.5, 18.0, 21.0)
 _ACCIDENT_L1_BRAKE_TRIGGER_DISTANCE_M = 13.0
 _ACCIDENT_L5_CRUISE_SPEED_MPS = 12.0
+_ACCIDENT_L5_PHASE_START_MS = 60_000
+_ACCIDENT_L5_MOVEMENT_START_MS = _ACCIDENT_L5_PHASE_START_MS + _INITIAL_LAYOUT_DURATION_MS
 _ACCIDENT_INSERTED_L5_MERGE_SPEED_MPS = 8.0
 _ACCIDENT_INSERTED_L5_MERGE_DECEL_MPS2 = 2.0
 _ACCIDENT_INSERTED_L5_LANE_CHANGE_TRIGGER_X_M = 400.0
@@ -443,6 +445,15 @@ class MixedAutomationScenarioController:
         maneuver_started = parked_distance_m <= _ACCIDENT_PARKED_MANEUVER_TRIGGER_DISTANCE_M
 
         for vehicle in snapshot.vehicles:
+            if (
+                _level(vehicle.vehicle_id) == 5
+                and snapshot.simulation_time_ms < _ACCIDENT_L5_MOVEMENT_START_MS
+            ):
+                commands[vehicle.vehicle_id] = ControlCommand(
+                    desired_speed_mps=0.0,
+                    safety_checks_override=True,
+                )
+                continue
             if vehicle.vehicle_id == "accident_parked_L0_0":
                 commands[vehicle.vehicle_id] = ControlCommand(
                     desired_speed_mps=0.0,

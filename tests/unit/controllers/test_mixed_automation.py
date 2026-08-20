@@ -516,7 +516,7 @@ def test_occasional_accident_background_l5_keeps_constant_speed_on_right_turn_ro
     command = controller.step(
         _snapshot(
             l5,
-            time_ms=5_000,
+            time_ms=65_000,
             collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
         ),
         0.05,
@@ -525,6 +525,33 @@ def test_occasional_accident_background_l5_keeps_constant_speed_on_right_turn_ro
     assert command.desired_speed_mps == 12.0
     assert command.lane_change is LaneChangeDirection.NONE
     assert command.safety_checks_override
+
+
+def test_occasional_accident_holds_all_l5s_until_the_second_half_layout_finishes() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    l5s = (
+        _vehicle("accident_follow_L5_0", x_m=400.0, lane_index=1, speed_mps=0.0),
+        _vehicle("accident_background_L5_0", x_m=390.0, lane_index=0, speed_mps=0.0),
+        _vehicle("accident_inserted_L5_0", x_m=380.0, lane_index=1, speed_mps=0.0),
+    )
+    collision_ids = ("accident_actor_L0_0", "accident_victim_L0_0")
+
+    before_second_half = controller.step(
+        _snapshot(*l5s, time_ms=59_950, collision_vehicle_ids=collision_ids),
+        0.05,
+    )
+    layout = controller.step(
+        _snapshot(*l5s, time_ms=62_950, collision_vehicle_ids=collision_ids),
+        0.05,
+    )
+    running = controller.step(
+        _snapshot(*l5s, time_ms=63_000, collision_vehicle_ids=collision_ids),
+        0.05,
+    )
+
+    assert all(command.desired_speed_mps == 0.0 for command in before_second_half.values())
+    assert all(command.desired_speed_mps == 0.0 for command in layout.values())
+    assert all(command.desired_speed_mps == 12.0 for command in running.values())
 
 
 def test_occasional_accident_inserted_l5s_detour_without_changing_existing_commands() -> None:
@@ -561,11 +588,11 @@ def test_occasional_accident_inserted_l5s_detour_without_changing_existing_comma
     inserted_controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
 
     baseline = baseline_controller.step(
-        _snapshot(*existing, time_ms=9_000, collision_vehicle_ids=collision_ids),
+        _snapshot(*existing, time_ms=69_000, collision_vehicle_ids=collision_ids),
         0.05,
     )
     with_inserted = inserted_controller.step(
-        _snapshot(*existing, *inserted, time_ms=9_000, collision_vehicle_ids=collision_ids),
+        _snapshot(*existing, *inserted, time_ms=69_000, collision_vehicle_ids=collision_ids),
         0.05,
     )
 
@@ -594,8 +621,8 @@ def test_occasional_accident_inserted_upper_lane_l5s_request_safe_merge_until_co
         for index, lane_index in enumerate(lane_index_by_id)
     )
 
-    first = controller.step(_snapshot(*inserted, time_ms=29_000), 0.05)
-    repeated = controller.step(_snapshot(*inserted, time_ms=29_050), 0.05)
+    first = controller.step(_snapshot(*inserted, time_ms=89_000), 0.05)
+    repeated = controller.step(_snapshot(*inserted, time_ms=89_050), 0.05)
 
     assert {
         vehicle_id
@@ -672,9 +699,8 @@ def test_occasional_accident_keeps_followers_moving_until_the_front_collision_oc
     l0 = _vehicle("accident_follow_L0_0", x_m=510.0, lane_index=1)
     l1 = _vehicle("accident_follow_L1_0", x_m=520.0, lane_index=1)
     l3 = _vehicle("accident_follow_L3_0", x_m=480.0, lane_index=1)
-    l5 = _vehicle("accident_follow_L5_0", x_m=400.0, lane_index=1)
 
-    commands = controller.step(_snapshot(l0, l1, l3, l5, time_ms=8_000), 0.05)
+    commands = controller.step(_snapshot(l0, l1, l3, time_ms=8_000), 0.05)
 
     assert commands[l0.vehicle_id].desired_speed_mps == 16.0
     assert commands[l0.vehicle_id].safety_checks_override
@@ -682,7 +708,6 @@ def test_occasional_accident_keeps_followers_moving_until_the_front_collision_oc
     assert commands[l1.vehicle_id].safety_checks_override
     assert commands[l3.vehicle_id].desired_speed_mps == 8.0
     assert commands[l3.vehicle_id].safety_checks_override
-    assert commands[l5.vehicle_id].desired_speed_mps == 12.0
     assert all(command.lane_change is LaneChangeDirection.NONE for command in commands.values())
 
 
@@ -691,14 +716,12 @@ def test_occasional_accident_opens_a_safe_gap_after_the_front_collision() -> Non
     l0 = _vehicle("accident_follow_L0_0", x_m=510.0, lane_index=1)
     l1 = _vehicle("accident_follow_L1_0", x_m=500.0, lane_index=1)
     l3 = _vehicle("accident_follow_L3_0", x_m=430.0, lane_index=1)
-    l5 = _vehicle("accident_follow_L5_0", x_m=350.0, lane_index=0)
 
     commands = controller.step(
         _snapshot(
             l0,
             l1,
             l3,
-            l5,
             time_ms=9_000,
             collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
         ),
@@ -710,7 +733,6 @@ def test_occasional_accident_opens_a_safe_gap_after_the_front_collision() -> Non
             l0,
             decelerating_l1,
             l3,
-            l5,
             time_ms=9_050,
             collision_vehicle_ids=("accident_actor_L0_0", "accident_victim_L0_0"),
         ),
@@ -722,9 +744,6 @@ def test_occasional_accident_opens_a_safe_gap_after_the_front_collision() -> Non
     assert commands[l1.vehicle_id].safety_checks_override
     assert commands[l3.vehicle_id].desired_speed_mps == 8.0
     assert commands[l3.vehicle_id].safety_checks_override
-    assert commands[l5.vehicle_id].desired_speed_mps == 12.0
-    assert commands[l5.vehicle_id].lane_change is LaneChangeDirection.NONE
-    assert commands[l5.vehicle_id].safety_checks_override
     assert coordinated_commands[l3.vehicle_id].desired_acceleration_mps2 == -0.65
 
 
@@ -749,7 +768,7 @@ def test_occasional_accident_l5_changes_near_turn_after_incident_starts() -> Non
         _snapshot(
             l5,
             moving_l3,
-            time_ms=6_000,
+            time_ms=66_000,
             collision_vehicle_ids=collision_ids,
         ),
         0.05,
@@ -758,7 +777,7 @@ def test_occasional_accident_l5_changes_near_turn_after_incident_starts() -> Non
         _snapshot(
             l5,
             stopped_l3,
-            time_ms=15_000,
+            time_ms=75_000,
             collision_vehicle_ids=collision_ids,
         ),
         0.05,
@@ -767,7 +786,7 @@ def test_occasional_accident_l5_changes_near_turn_after_incident_starts() -> Non
         _snapshot(
             near_turn_l5,
             stopped_l3,
-            time_ms=17_000,
+            time_ms=77_000,
             collision_vehicle_ids=collision_ids,
         ),
         0.05,
@@ -776,7 +795,7 @@ def test_occasional_accident_l5_changes_near_turn_after_incident_starts() -> Non
         _snapshot(
             near_turn_l5,
             stopped_l3,
-            time_ms=17_050,
+            time_ms=77_050,
             collision_vehicle_ids=collision_ids,
         ),
         0.05,
@@ -786,7 +805,7 @@ def test_occasional_accident_l5_changes_near_turn_after_incident_starts() -> Non
         _snapshot(
             lower_lane_l5,
             stopped_l3,
-            time_ms=18_000,
+            time_ms=78_000,
             collision_vehicle_ids=collision_ids,
         ),
         0.05,
@@ -814,8 +833,8 @@ def test_occasional_accident_l5_switches_directly_to_constant_cruise_speed() -> 
     )
     cruising_l5 = accelerating_l5.model_copy(update={"speed_mps": 12.0})
 
-    accelerating = controller.step(_snapshot(accelerating_l5, time_ms=3_500), 0.05)
-    cruising = controller.step(_snapshot(cruising_l5, time_ms=4_000), 0.05)
+    accelerating = controller.step(_snapshot(accelerating_l5, time_ms=63_500), 0.05)
+    cruising = controller.step(_snapshot(cruising_l5, time_ms=64_000), 0.05)
 
     assert accelerating[accelerating_l5.vehicle_id].desired_speed_mps == 12.0
     assert accelerating[accelerating_l5.vehicle_id].safety_checks_override

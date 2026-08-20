@@ -189,7 +189,7 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
         scene_name="偶发事故",
         description="固定事故台本",
         map_id=ACCIDENT_PACKAGE_ID,
-        duration_ms=60_000,
+        duration_ms=120_000,
         automation_demands=(
             AutomationDemand(level=AutomationLevel.L0, vehicle_count=6),
             AutomationDemand(level=AutomationLevel.L1, vehicle_count=3),
@@ -208,7 +208,8 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
         / f"{ACCIDENT_PACKAGE_ID}.rou.xml"
     )
     route_root = ElementTree.parse(route_path).getroot()
-    vehicle_ids = {vehicle.attrib["id"] for vehicle in route_root.findall("vehicle")}
+    vehicles = {vehicle.attrib["id"]: vehicle.attrib for vehicle in route_root.findall("vehicle")}
+    vehicle_ids = set(vehicles)
     assert vehicle_ids == {
         "accident_parked_L0_0",
         "accident_actor_L0_0",
@@ -234,6 +235,15 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
         "accident_inserted_L5_4",
         "accident_inserted_L5_5",
     }
+    assert all(
+        attributes["depart"] == ("60" if attributes["type"] == "L5" else "0")
+        for attributes in vehicles.values()
+    )
+    config_path = route_path.with_name(f"{ACCIDENT_PACKAGE_ID}.sumocfg")
+    config_root = ElementTree.parse(config_path).getroot()
+    end = config_root.find("time/end")
+    assert end is not None
+    assert end.attrib["value"] == "120"
 
 
 @pytest.mark.parametrize(

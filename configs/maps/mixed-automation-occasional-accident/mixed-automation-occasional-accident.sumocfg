@@ -8,7 +8,7 @@
     </input>
     <time>
         <begin value="0" />
-        <end value="60" />
+        <end value="120" />
         <step-length value="0.05" />
     </time>
     <processing>

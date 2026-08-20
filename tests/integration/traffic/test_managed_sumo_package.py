@@ -264,6 +264,12 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         "accident_follow_L1_0",
         "accident_follow_L3_0",
     }
+    low_level_ids = front_vehicle_ids | background_straight_ids
+    l5_ids = {"accident_follow_L5_0"} | background_l5_ids | inserted_l5_ids
+    l5_first_seen_time_ms: dict[str, int] = {}
+    last_low_level_motion_time_ms: int | None = None
+    first_l5_motion_time_ms: int | None = None
+    low_level_state_at_phase_boundary: dict[str, tuple[float, float, str]] = {}
 
     try:
         adapter.load(
@@ -278,7 +284,8 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 freeze_collisions=True,
             )
         )
-        for target_time_ms in range(package.step_ms, 60_001, package.step_ms):
+        assert package.end_time_ms == 120_000
+        for target_time_ms in range(package.step_ms, package.end_time_ms + 1, package.step_ms):
             controls = controller.step(previous, package.step_ms / 1000.0)
             l5_command = controls.get("accident_follow_L5_0")
             if (
@@ -327,12 +334,31 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 set(adapter.diagnostics().arrived_vehicle_ids) & inserted_l5_ids
             )
             vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
+            for vehicle_id in low_level_ids:
+                low_level_vehicle = vehicles_by_id.get(vehicle_id)
+                if low_level_vehicle is None:
+                    continue
+                if low_level_vehicle.speed_mps >= 0.5:
+                    last_low_level_motion_time_ms = target_time_ms
+                if target_time_ms == 60_000:
+                    low_level_state_at_phase_boundary[vehicle_id] = (
+                        low_level_vehicle.position.x,
+                        low_level_vehicle.position.y,
+                        low_level_vehicle.lane_id,
+                    )
+            for vehicle_id in l5_ids:
+                l5_vehicle = vehicles_by_id.get(vehicle_id)
+                if l5_vehicle is None:
+                    continue
+                l5_first_seen_time_ms.setdefault(vehicle_id, target_time_ms)
+                if l5_vehicle.speed_mps >= 0.5 and first_l5_motion_time_ms is None:
+                    first_l5_motion_time_ms = target_time_ms
             l5 = vehicles_by_id.get("accident_follow_L5_0")
             if l5 is not None:
                 initial_l5_lane_id = initial_l5_lane_id or l5.lane_id
-                if target_time_ms <= 3_000:
+                if 60_000 <= target_time_ms <= 63_000:
                     l5_initial_max_speed_mps = max(l5_initial_max_speed_mps, l5.speed_mps)
-                else:
+                elif target_time_ms > 63_000:
                     l5_running_min_speed_mps = min(l5_running_min_speed_mps, l5.speed_mps)
                     l5_running_max_speed_mps = max(l5_running_max_speed_mps, l5.speed_mps)
                 if l5.lane_id == "road_approach_0":
@@ -363,7 +389,12 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
             for vehicle in previous.vehicles:
                 if vehicle.vehicle_id in background_ids:
                     observed_background_ids.add(vehicle.vehicle_id)
-                    if target_time_ms <= 3_000:
+                    if (
+                        vehicle.vehicle_id in background_straight_ids and target_time_ms <= 3_000
+                    ) or (
+                        vehicle.vehicle_id in background_l5_ids
+                        and 60_000 <= target_time_ms <= 63_000
+                    ):
                         background_initial_max_speed_mps[vehicle.vehicle_id] = max(
                             background_initial_max_speed_mps[vehicle.vehicle_id],
                             vehicle.speed_mps,
@@ -399,7 +430,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         vehicle.vehicle_id,
                         vehicle.lane_id,
                     )
-                    if target_time_ms > 3_000:
+                    if target_time_ms > 63_000:
                         speed_range_mps = background_l5_running_speed_range_mps[vehicle.vehicle_id]
                         speed_range_mps[0] = min(speed_range_mps[0], vehicle.speed_mps)
                         speed_range_mps[1] = max(speed_range_mps[1], vehicle.speed_mps)
@@ -414,7 +445,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         vehicle.vehicle_id,
                         vehicle.lane_id,
                     )
-                    if target_time_ms > 3_000:
+                    if target_time_ms > 63_000:
                         speed_range_mps = inserted_l5_running_speed_range_mps[vehicle.vehicle_id]
                         speed_range_mps[0] = min(speed_range_mps[0], vehicle.speed_mps)
                         speed_range_mps[1] = max(speed_range_mps[1], vehicle.speed_mps)
@@ -477,7 +508,6 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         "accident_follow_L0_0",
         "accident_follow_L1_0",
         "accident_follow_L3_0",
-        "accident_follow_L5_0",
     }
     assert all(
         first_collision_vehicles[vehicle_id].speed_mps > 3.0 for vehicle_id in moving_follower_ids
@@ -559,6 +589,30 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     assert l1_emergency_brake_time_ms is not None
     assert l3_gentle_brake_time_ms is not None
     assert l3_gentle_brake_time_ms > l1_emergency_brake_time_ms
+    assert set(l5_first_seen_time_ms) == l5_ids
+    assert set(l5_first_seen_time_ms.values()) == {60_050}
+    assert last_low_level_motion_time_ms is not None
+    assert last_low_level_motion_time_ms < 60_000
+    assert first_l5_motion_time_ms is not None
+    assert first_l5_motion_time_ms >= 63_000
+    assert last_low_level_motion_time_ms < first_l5_motion_time_ms
+    assert set(low_level_state_at_phase_boundary) == low_level_ids
+    low_level_phase_drift_m = {
+        vehicle_id: math.hypot(
+            vehicles[vehicle_id].position.x - boundary_x_m,
+            vehicles[vehicle_id].position.y - boundary_y_m,
+        )
+        for vehicle_id, (boundary_x_m, boundary_y_m, _lane_id) in (
+            low_level_state_at_phase_boundary.items()
+        )
+    }
+    assert max(low_level_phase_drift_m.values()) <= 0.05, low_level_phase_drift_m
+    assert all(
+        vehicles[vehicle_id].lane_id == boundary_lane_id
+        for vehicle_id, (_x_m, _y_m, boundary_lane_id) in (
+            low_level_state_at_phase_boundary.items()
+        )
+    )
     assert initial_l5_lane_id == "road_approach_1"
     assert l5_initial_max_speed_mps < 0.5
     assert l5_lower_lane_time_ms is not None
@@ -721,7 +775,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         for minimum_speed_mps, maximum_speed_mps in background_l5_running_speed_range_mps.values()
     )
     assert set(inserted_l5_first_seen_time_ms) == inserted_l5_ids
-    assert set(inserted_l5_first_seen_time_ms.values()) == {50}
+    assert set(inserted_l5_first_seen_time_ms.values()) == {60_050}
     assert {
         lane_id: sum(
             initial_lane_id == lane_id for initial_lane_id in inserted_l5_initial_lane_ids.values()
