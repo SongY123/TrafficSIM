@@ -298,10 +298,40 @@ def test_occasional_accident_preview_shows_a_lane_aligned_three_car_two_impact_s
         "L3": 3,
         "L5": 3,
     }
+    inserted_l5_ids = {
+        vehicle_id for vehicle_id in vehicles if vehicle_id.startswith("accident_inserted_L5_")
+    }
+    assert inserted_l5_ids == {f"accident_inserted_L5_{index}" for index in range(6)}
+    assert {
+        lane_id: sum(vehicles[vehicle_id].lane_id == lane_id for vehicle_id in inserted_l5_ids)
+        for lane_id in ("road_approach_0", "road_approach_1")
+    } == {"road_approach_0": 2, "road_approach_1": 4}
+    mixed_l5_ids = {
+        "accident_background_L5_1",
+        "accident_background_L5_2",
+        *inserted_l5_ids,
+    }
+    assert {
+        lane_id: sum(vehicles[vehicle_id].lane_id == lane_id for vehicle_id in mixed_l5_ids)
+        for lane_id in ("road_approach_0", "road_approach_1")
+    } == {"road_approach_0": 4, "road_approach_1": 4}
+    right_turn_l5s = [
+        vehicle
+        for vehicle in vehicles.values()
+        if vehicle.automation_level == "L5" and vehicle.lane_id == "right_exit_0"
+    ]
     assert all(
-        vehicles[vehicle_id].lane_id == "right_exit_0"
-        for vehicle_id in background_ids_by_level["L5"]
+        math.hypot(
+            first.position.x - second.position.x,
+            first.position.y - second.position.y,
+        )
+        >= 8.0
+        for index, first in enumerate(right_turn_l5s)
+        for second in right_turn_l5s[index + 1 :]
     )
+    assert vehicles["accident_background_L5_0"].lane_id == "right_exit_0"
+    assert vehicles["accident_background_L5_1"].lane_id == "road_approach_0"
+    assert vehicles["accident_background_L5_2"].lane_id == "road_approach_0"
     assert {
         vehicle_id: vehicles[vehicle_id].lane_id
         for vehicle_id in {
@@ -314,13 +344,13 @@ def test_occasional_accident_preview_shows_a_lane_aligned_three_car_two_impact_s
             "accident_background_L3_2",
         }
     } == {
-        "accident_background_L0_0": "road_curve_0",
-        "accident_background_L1_0": "road_curve_0",
-        "accident_background_L3_0": "road_curve_1",
-        "accident_background_L0_1": "road_curve_1",
-        "accident_background_L1_1": "road_curve_0",
-        "accident_background_L3_1": "road_curve_1",
-        "accident_background_L3_2": "road_curve_0",
+        "accident_background_L0_0": "road_approach_1",
+        "accident_background_L1_0": "road_approach_1",
+        "accident_background_L3_0": "road_approach_1",
+        "accident_background_L0_1": "road_approach_0",
+        "accident_background_L1_1": "road_approach_0",
+        "accident_background_L3_1": "road_approach_0",
+        "accident_background_L3_2": "road_approach_0",
     }
     network_path = (
         REPOSITORY_ROOT

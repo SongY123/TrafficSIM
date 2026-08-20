@@ -211,6 +211,12 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         "accident_background_L5_0",
         "accident_background_L5_1",
         "accident_background_L5_2",
+        "accident_inserted_L5_0",
+        "accident_inserted_L5_1",
+        "accident_inserted_L5_2",
+        "accident_inserted_L5_3",
+        "accident_inserted_L5_4",
+        "accident_inserted_L5_5",
     }
     assert vehicles["accident_actor_L0_0"]["departLane"] == "0"
     assert vehicles["accident_parked_L0_0"]["departLane"] == "0"
@@ -267,17 +273,14 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         "accident_background_L3_1": 235.0,
         "accident_background_L3_2": 220.0,
     }
-    background_l5_depart_positions_m = tuple(
-        float(vehicles[vehicle_id]["departPos"]) for vehicle_id in background_ids_by_level[5]
-    )
-    assert all(
-        min(abs(position_m - l5_position_m) for l5_position_m in background_l5_depart_positions_m)
-        <= 40.0
-        for position_m in (
-            straight_depart_positions_m["accident_background_L3_1"],
-            straight_depart_positions_m["accident_background_L3_2"],
-        )
-    )
+    assert {
+        vehicle_id: float(vehicles[vehicle_id]["departPos"])
+        for vehicle_id in background_ids_by_level[5]
+    } == {
+        "accident_background_L5_0": 490.0,
+        "accident_background_L5_1": 410.0,
+        "accident_background_L5_2": 385.0,
+    }
     assert all(
         routes[vehicles[vehicle_id]["route"]] == "road_approach right_exit"
         and vehicles[vehicle_id]["departLane"] == "0"
@@ -287,6 +290,46 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
         vehicles[vehicle_id]["departSpeed"] == "0"
         for vehicle_id in straight_background_ids.union(background_ids_by_level[5])
     )
+    inserted_l5_ids = {f"accident_inserted_L5_{index}" for index in range(6)}
+    assert {
+        vehicle_id: float(vehicles[vehicle_id]["departPos"]) for vehicle_id in inserted_l5_ids
+    } == {
+        "accident_inserted_L5_0": 370.0,
+        "accident_inserted_L5_1": 340.0,
+        "accident_inserted_L5_2": 310.0,
+        "accident_inserted_L5_3": 280.0,
+        "accident_inserted_L5_4": 210.0,
+        "accident_inserted_L5_5": 180.0,
+    }
+    assert all(
+        routes[vehicles[vehicle_id]["route"]] == "road_approach right_exit"
+        and vehicles[vehicle_id]["depart"] == "0"
+        and vehicles[vehicle_id]["departSpeed"] == "0"
+        for vehicle_id in inserted_l5_ids
+    )
+    assert {
+        lane_index: sum(
+            vehicles[vehicle_id]["departLane"] == lane_index for vehicle_id in inserted_l5_ids
+        )
+        for lane_index in ("0", "1")
+    } == {"0": 2, "1": 4}
+    mixed_l5_ids = {
+        "accident_background_L5_1",
+        "accident_background_L5_2",
+        *inserted_l5_ids,
+    }
+    assert {
+        lane_index: sum(
+            vehicles[vehicle_id]["departLane"] == lane_index for vehicle_id in mixed_l5_ids
+        )
+        for lane_index in ("0", "1")
+    } == {"0": 4, "1": 4}
+    mixed_l5_positions_m = sorted(
+        (float(vehicles[vehicle_id]["departPos"]) for vehicle_id in mixed_l5_ids),
+        reverse=True,
+    )
+    assert mixed_l5_positions_m == [410.0, 385.0, 370.0, 340.0, 310.0, 280.0, 210.0, 180.0]
+    assert all(vehicles[vehicle_id]["depart"] == "0" for vehicle_id in mixed_l5_ids)
     assert {
         vehicles[vehicle_id]["departLane"]
         for vehicle_id in straight_background_ids.union(background_ids_by_level[5])
@@ -302,12 +345,12 @@ def test_occasional_accident_uses_a_curved_one_way_two_lane_road_and_ordered_car
     ]
     assert mixed_lane_zero_ids == [
         "accident_background_L5_0",
+        "accident_background_L5_1",
+        "accident_background_L5_2",
         "accident_background_L0_1",
         "accident_background_L1_1",
         "accident_background_L3_1",
         "accident_background_L3_2",
-        "accident_background_L5_1",
-        "accident_background_L5_2",
     ]
     assert vehicle_types["L0"]["length"] == "4.55"
     assert vehicle_types["L0"]["color"] == "168,162,158"

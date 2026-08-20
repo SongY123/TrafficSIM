@@ -527,6 +527,113 @@ def test_occasional_accident_background_l5_keeps_constant_speed_on_right_turn_ro
     assert command.safety_checks_override
 
 
+def test_occasional_accident_inserted_l5s_detour_without_changing_existing_commands() -> None:
+    collision_ids = ("accident_actor_L0_0", "accident_victim_L0_0")
+    existing = (
+        _vehicle("accident_parked_L0_0", x_m=582.0, lane_index=0, speed_mps=0.0),
+        _vehicle("accident_actor_L0_0", x_m=568.0, lane_index=0, speed_mps=0.0),
+        _vehicle("accident_victim_L0_0", x_m=570.0, lane_index=1, speed_mps=0.0),
+        _vehicle("accident_follow_L0_0", x_m=563.0, lane_index=1, speed_mps=0.0),
+        _vehicle("accident_follow_L1_0", x_m=554.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_follow_L3_0", x_m=545.0, lane_index=1, speed_mps=6.0),
+        _vehicle("accident_follow_L5_0", x_m=480.0, lane_index=0, speed_mps=12.0),
+        _vehicle("accident_background_L0_0", x_m=510.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_background_L1_0", x_m=490.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_background_L3_0", x_m=470.0, lane_index=1, speed_mps=8.0),
+        _vehicle("accident_background_L0_1", x_m=300.0, lane_index=0),
+        _vehicle("accident_background_L1_1", x_m=250.0, lane_index=0),
+        _vehicle("accident_background_L3_1", x_m=235.0, lane_index=0, speed_mps=12.0),
+        _vehicle("accident_background_L3_2", x_m=220.0, lane_index=0, speed_mps=12.0),
+        _vehicle("accident_background_L5_0", x_m=490.0, lane_index=0, speed_mps=12.0),
+        _vehicle("accident_background_L5_1", x_m=200.0, lane_index=0, speed_mps=12.0),
+        _vehicle("accident_background_L5_2", x_m=180.0, lane_index=0, speed_mps=12.0),
+    )
+    inserted = tuple(
+        _vehicle(
+            f"accident_inserted_L5_{index}",
+            x_m=400.0 - index * 20.0,
+            lane_index=index % 2,
+            speed_mps=12.0,
+        )
+        for index in range(6)
+    )
+    baseline_controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    inserted_controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+
+    baseline = baseline_controller.step(
+        _snapshot(*existing, time_ms=9_000, collision_vehicle_ids=collision_ids),
+        0.05,
+    )
+    with_inserted = inserted_controller.step(
+        _snapshot(*existing, *inserted, time_ms=9_000, collision_vehicle_ids=collision_ids),
+        0.05,
+    )
+
+    assert {
+        vehicle.vehicle_id: with_inserted[vehicle.vehicle_id] for vehicle in existing
+    } == baseline
+    assert set(with_inserted) == {vehicle.vehicle_id for vehicle in (*existing, *inserted)}
+    assert all(with_inserted[vehicle.vehicle_id].desired_speed_mps == 12.0 for vehicle in inserted)
+    assert all(
+        with_inserted[vehicle.vehicle_id].lane_change is LaneChangeDirection.NONE
+        for vehicle in inserted
+    )
+    assert all(with_inserted[vehicle.vehicle_id].safety_checks_override for vehicle in inserted)
+
+
+def test_occasional_accident_inserted_upper_lane_l5s_request_safe_merge_until_completed() -> None:
+    controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
+    lane_index_by_id = (1, 1, 1, 1, 0, 0)
+    inserted = tuple(
+        _vehicle(
+            f"accident_inserted_L5_{index}",
+            x_m=450.0,
+            lane_index=lane_index,
+            speed_mps=12.0,
+        ).model_copy(update={"lane_id": f"road_approach_{lane_index}"})
+        for index, lane_index in enumerate(lane_index_by_id)
+    )
+
+    first = controller.step(_snapshot(*inserted, time_ms=29_000), 0.05)
+    repeated = controller.step(_snapshot(*inserted, time_ms=29_050), 0.05)
+
+    assert {
+        vehicle_id
+        for vehicle_id, command in first.items()
+        if command.lane_change is LaneChangeDirection.RIGHT
+    } == {
+        "accident_inserted_L5_0",
+        "accident_inserted_L5_1",
+        "accident_inserted_L5_2",
+        "accident_inserted_L5_3",
+    }
+    assert {
+        vehicle_id
+        for vehicle_id, command in repeated.items()
+        if command.lane_change is LaneChangeDirection.RIGHT
+    } == {
+        "accident_inserted_L5_0",
+        "accident_inserted_L5_1",
+        "accident_inserted_L5_2",
+        "accident_inserted_L5_3",
+    }
+    assert all(
+        command.lane_change_mode == 512
+        for command in (*first.values(), *repeated.values())
+        if command.lane_change is LaneChangeDirection.RIGHT
+    )
+    assert all(
+        command.desired_acceleration_mps2
+        == (-2.0 if command.lane_change is LaneChangeDirection.RIGHT else None)
+        for command in first.values()
+    )
+    assert all(
+        command.desired_speed_mps
+        == (None if command.lane_change is LaneChangeDirection.RIGHT else 12.0)
+        for command in first.values()
+    )
+
+
 def test_occasional_accident_scripts_right_to_left_collision_then_stops_both_cars() -> None:
     controller = MixedAutomationScenarioController("mixed-automation-occasional-accident")
     parked = _vehicle("accident_parked_L0_0", x_m=582.0, lane_index=0, speed_mps=0.0)

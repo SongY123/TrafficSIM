@@ -247,6 +247,15 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
     background_l5_running_speed_range_mps = {
         vehicle_id: [float("inf"), 0.0] for vehicle_id in background_l5_ids
     }
+    inserted_l5_ids = {f"accident_inserted_L5_{index}" for index in range(6)}
+    inserted_l5_first_seen_time_ms: dict[str, int] = {}
+    inserted_l5_initial_lane_ids: dict[str, str] = {}
+    inserted_l5_lane_change_command_ids: set[str] = set()
+    inserted_l5_right_turn_ids: set[str] = set()
+    inserted_l5_arrived_ids: set[str] = set()
+    inserted_l5_running_speed_range_mps = {
+        vehicle_id: [float("inf"), 0.0] for vehicle_id in inserted_l5_ids
+    }
     front_vehicle_ids = {
         "accident_parked_L0_0",
         "accident_actor_L0_0",
@@ -269,7 +278,7 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 freeze_collisions=True,
             )
         )
-        for target_time_ms in range(package.step_ms, 45_001, package.step_ms):
+        for target_time_ms in range(package.step_ms, 60_001, package.step_ms):
             controls = controller.step(previous, package.step_ms / 1000.0)
             l5_command = controls.get("accident_follow_L5_0")
             if (
@@ -290,6 +299,12 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                 if (command := controls.get(vehicle_id)) is not None
                 and command.lane_change is not LaneChangeDirection.NONE
             )
+            inserted_l5_lane_change_command_ids.update(
+                vehicle_id
+                for vehicle_id in inserted_l5_ids
+                if (command := controls.get(vehicle_id)) is not None
+                and command.lane_change is LaneChangeDirection.RIGHT
+            )
             if previous is not None:
                 previous_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
                 for vehicle_id in background_straight_ids:
@@ -308,6 +323,9 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         ].position.x
             adapter.apply_controls(controls)
             previous = adapter.step(target_time_ms)
+            inserted_l5_arrived_ids.update(
+                set(adapter.diagnostics().arrived_vehicle_ids) & inserted_l5_ids
+            )
             vehicles_by_id = {vehicle.vehicle_id: vehicle for vehicle in previous.vehicles}
             l5 = vehicles_by_id.get("accident_follow_L5_0")
             if l5 is not None:
@@ -387,6 +405,21 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
                         speed_range_mps[1] = max(speed_range_mps[1], vehicle.speed_mps)
                     if vehicle.lane_id == "right_exit_0":
                         background_l5_right_turn_ids.add(vehicle.vehicle_id)
+                if vehicle.vehicle_id in inserted_l5_ids:
+                    inserted_l5_first_seen_time_ms.setdefault(
+                        vehicle.vehicle_id,
+                        target_time_ms,
+                    )
+                    inserted_l5_initial_lane_ids.setdefault(
+                        vehicle.vehicle_id,
+                        vehicle.lane_id,
+                    )
+                    if target_time_ms > 3_000:
+                        speed_range_mps = inserted_l5_running_speed_range_mps[vehicle.vehicle_id]
+                        speed_range_mps[0] = min(speed_range_mps[0], vehicle.speed_mps)
+                        speed_range_mps[1] = max(speed_range_mps[1], vehicle.speed_mps)
+                    if vehicle.lane_id == "right_exit_0":
+                        inserted_l5_right_turn_ids.add(vehicle.vehicle_id)
                 if vehicle.vehicle_id == "accident_parked_L0_0":
                     parked_max_speed_mps = max(parked_max_speed_mps, vehicle.speed_mps)
                 if vehicle.vehicle_id in minimum_acceleration_mps2:
@@ -686,6 +719,38 @@ def test_occasional_accident_produces_real_collisions_and_level_responses(
         minimum_speed_mps == pytest.approx(12.0, abs=0.05)
         and maximum_speed_mps == pytest.approx(12.0, abs=0.05)
         for minimum_speed_mps, maximum_speed_mps in background_l5_running_speed_range_mps.values()
+    )
+    assert set(inserted_l5_first_seen_time_ms) == inserted_l5_ids
+    assert set(inserted_l5_first_seen_time_ms.values()) == {50}
+    assert {
+        lane_id: sum(
+            initial_lane_id == lane_id for initial_lane_id in inserted_l5_initial_lane_ids.values()
+        )
+        for lane_id in ("road_approach_0", "road_approach_1")
+    } == {"road_approach_0": 2, "road_approach_1": 4}
+    assert inserted_l5_lane_change_command_ids == {
+        "accident_inserted_L5_0",
+        "accident_inserted_L5_1",
+        "accident_inserted_L5_2",
+        "accident_inserted_L5_3",
+    }
+    assert inserted_l5_right_turn_ids == inserted_l5_ids
+    assert inserted_l5_arrived_ids == inserted_l5_ids
+    lower_inserted_l5_ids = {"accident_inserted_L5_4", "accident_inserted_L5_5"}
+    assert all(
+        inserted_l5_running_speed_range_mps[vehicle_id][0] == pytest.approx(12.0, abs=0.05)
+        and inserted_l5_running_speed_range_mps[vehicle_id][1] == pytest.approx(12.0, abs=0.05)
+        for vehicle_id in lower_inserted_l5_ids
+    )
+    upper_inserted_l5_ids = inserted_l5_ids - lower_inserted_l5_ids
+    assert all(
+        7.9 <= inserted_l5_running_speed_range_mps[vehicle_id][0] <= 12.0
+        and inserted_l5_running_speed_range_mps[vehicle_id][1] == pytest.approx(12.0, abs=0.05)
+        for vehicle_id in upper_inserted_l5_ids
+    )
+    assert any(
+        inserted_l5_running_speed_range_mps[vehicle_id][0] < 11.0
+        for vehicle_id in upper_inserted_l5_ids
     )
 
 

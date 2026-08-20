@@ -141,8 +141,8 @@ def _emergency_preview() -> tuple[Vehicle, ...]:
 
 
 def _occasional_accident_preview() -> tuple[Vehicle, ...]:
-    # Display the deterministic 25 s key frame from the scripted SUMO run. These coordinates
-    # include the native network offset and keep the two impacts visually distinct.
+    # Combine the deterministic post-impact state with the injected L5 starting formation so
+    # the preview shows both the incident outcome and the requested two-lane distribution.
     vehicles = [
         _preview_vehicle(
             "accident_parked_L0_0",
@@ -230,13 +230,13 @@ def _occasional_accident_preview() -> tuple[Vehicle, ...]:
         ),
     ]
     straight_specs = (
-        ("L0", 0, 556.0, 145.56, 0.5404, 0),
-        ("L1", 0, 549.0, 141.36, 0.5404, 0),
-        ("L3", 0, 538.0, 138.84, 0.5404, 1),
-        ("L0", 1, 531.0, 134.64, 0.5404, 1),
-        ("L1", 1, 542.0, 137.16, 0.5404, 0),
-        ("L3", 1, 524.0, 130.44, 0.5404, 1),
-        ("L3", 2, 535.0, 132.96, 0.5404, 0),
+        ("L0", 0, 500.0, 121.75, 0.0, 1),
+        ("L1", 0, 440.0, 121.75, 0.0, 1),
+        ("L3", 0, 425.0, 121.75, 0.0, 1),
+        ("L0", 1, 300.0, 118.25, 0.0, 0),
+        ("L1", 1, 250.0, 118.25, 0.0, 0),
+        ("L3", 1, 235.0, 118.25, 0.0, 0),
+        ("L3", 2, 220.0, 118.25, 0.0, 0),
     )
     for sequence, (level, index, x_m, y_m, heading_rad, lane_index) in enumerate(
         straight_specs,
@@ -252,28 +252,47 @@ def _occasional_accident_preview() -> tuple[Vehicle, ...]:
                 0.0,
                 y_m=y_m,
                 heading_rad=heading_rad,
-                action="BRAKE",
-                lane_prefix="road_curve",
+                action="QUEUE",
+                lane_prefix="road_approach",
             )
         )
-    right_turn_specs = (
-        (570.0, 81.25, -0.8961),
-        (590.0, 48.75, -1.0517),
-        (615.0, 17.14, -0.8520),
+    vehicles.append(
+        _preview_vehicle(
+            "accident_background_L5_0",
+            "L5",
+            14,
+            570.0,
+            0,
+            12.0,
+            y_m=81.25,
+            heading_rad=-0.8961,
+            action="TURN_RIGHT",
+            lane_prefix="right_exit",
+        )
     )
-    for index, (x_m, y_m, heading_rad) in enumerate(right_turn_specs):
+    mixed_l5_specs = (
+        ("accident_background_L5_1", 410.0, 118.25, 0),
+        ("accident_background_L5_2", 385.0, 118.25, 0),
+        ("accident_inserted_L5_0", 370.0, 121.75, 1),
+        ("accident_inserted_L5_1", 340.0, 121.75, 1),
+        ("accident_inserted_L5_2", 310.0, 121.75, 1),
+        ("accident_inserted_L5_3", 280.0, 121.75, 1),
+        ("accident_inserted_L5_4", 210.0, 118.25, 0),
+        ("accident_inserted_L5_5", 180.0, 118.25, 0),
+    )
+    for sequence, (vehicle_id, x_m, y_m, lane_index) in enumerate(mixed_l5_specs, start=15):
         vehicles.append(
             _preview_vehicle(
-                f"accident_background_L5_{index}",
+                vehicle_id,
                 "L5",
-                14 + index,
+                sequence,
                 x_m,
-                0,
+                lane_index,
                 12.0,
                 y_m=y_m,
-                heading_rad=heading_rad,
-                action="TURN_RIGHT",
-                lane_prefix="right_exit",
+                heading_rad=0.0,
+                action="DETOUR",
+                lane_prefix="road_approach",
             )
         )
     return tuple(vehicles)
@@ -562,12 +581,14 @@ TRAFFIC_SCENARIO_PRESETS = (
             "留出约一个车长且未发生碰撞。L5从继续前移30米后的上方车道出发，先静止3秒，"
             "随后以翻倍后的恒定速度接近路口，首次碰撞发生后向下方车道变道并右转绕行。"
             "双车道另加入10辆保持安全间距的背景车：L0、L1、L3保留原发车顺序，事故后"
-            "部分车辆通过变道在两条车道形成停车队列；3辆新增L5仍从右转支路绕行，"
-            "原有7辆场景车的状态和时序保持不变。"
+            "部分车辆通过变道在两条车道形成停车队列。除最前方2辆L5外，其余8辆L5从"
+            "第0秒起便以4辆对4辆均匀分布在双车道，并沿道路穿插在L0、L1、L3车流之间。"
+            "它们静止展示3秒后同步启动，上方车道车辆在出口前依次并入下方车道，最终"
+            "全部右转绕行。"
         ),
         map_id="mixed-automation-occasional-accident",
         duration_s=60,
-        automation_counts=(("L0", 6), ("L1", 3), ("L3", 4), ("L5", 4)),
+        automation_counts=(("L0", 6), ("L1", 3), ("L3", 4), ("L5", 10)),
         scene_type="偶发事故",
         level_behaviors=(
             (
@@ -580,7 +601,7 @@ TRAFFIC_SCENARIO_PRESETS = (
             ("L4", "本场景未配置该等级车辆。"),
             (
                 "L5",
-                "原有L5维持既定变道时序，另3辆L5保持安全间距并以12m/s恒速右转绕行。",
+                "最前方2辆L5维持既定时序；其余8辆L5从场景开始便均匀混排在双车道，上方车辆并线时降速等待安全间隙，随后全部右转绕行。",
             ),
         ),
     ),

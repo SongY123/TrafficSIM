@@ -19,6 +19,7 @@ _CUTIN_FOLLOWER_PATTERN = re.compile(r"^cutin_follower_L([0-5])_(\d+)$")
 _YIELD_PATTERN = re.compile(r"^yield_L([0-5])_(\d+)$")
 _ACCIDENT_FOLLOWER_PATTERN = re.compile(r"^accident_follow_L([0135])_(\d+)$")
 _ACCIDENT_BACKGROUND_PATTERN = re.compile(r"^accident_background_L([0135])_(\d+)$")
+_ACCIDENT_INSERTED_L5_PATTERN = re.compile(r"^accident_inserted_L5_(\d+)$")
 _MERGE_VEHICLE_PATTERN = re.compile(
     r"^merge_(main|ramp|opposing)_L([0-5])(?:_lane([0-2]))?\.(\d+)$"
 )
@@ -36,6 +37,9 @@ _EMERGENCY_CRUISE_SPEED_MPS = (10.0, 13.0, 16.0, 19.0, 22.0, 25.0)
 _EMERGENCY_BACKGROUND_SPEED_MPS = (12.0, 13.5, 15.0, 16.5, 18.0, 21.0)
 _ACCIDENT_L1_BRAKE_TRIGGER_DISTANCE_M = 13.0
 _ACCIDENT_L5_CRUISE_SPEED_MPS = 12.0
+_ACCIDENT_INSERTED_L5_MERGE_SPEED_MPS = 8.0
+_ACCIDENT_INSERTED_L5_MERGE_DECEL_MPS2 = 2.0
+_ACCIDENT_INSERTED_L5_LANE_CHANGE_TRIGGER_X_M = 400.0
 _ACCIDENT_PRE_INCIDENT_SPEED_MPS = {0: 16.0, 1: 12.0, 3: 8.0, 5: _ACCIDENT_L5_CRUISE_SPEED_MPS}
 _ACCIDENT_FOLLOWING_L0_POST_INCIDENT_SPEED_MPS = 6.5
 _ACCIDENT_L5_LANE_CHANGE_TRIGGER_X_M = 475.0
@@ -392,6 +396,7 @@ class MixedAutomationScenarioController:
             "accident_victim_",
             "accident_follow_",
             "accident_background_",
+            "accident_inserted_",
         )
         if snapshot.simulation_time_ms < _INITIAL_LAYOUT_DURATION_MS:
             return _hold_vehicles(snapshot, prefixes)
@@ -466,6 +471,35 @@ class MixedAutomationScenarioController:
             if vehicle.vehicle_id == "accident_victim_L0_0":
                 commands[vehicle.vehicle_id] = ControlCommand(
                     desired_speed_mps=(0.0 if vehicle.vehicle_id in collision_ids else 9.0),
+                    safety_checks_override=True,
+                )
+                continue
+
+            if _ACCIDENT_INSERTED_L5_PATTERN.match(vehicle.vehicle_id) is not None:
+                start_lane_change = (
+                    vehicle.lane_id.startswith("road_approach_")
+                    and vehicle.position.x >= _ACCIDENT_INSERTED_L5_LANE_CHANGE_TRIGGER_X_M
+                    and _lane_index(vehicle.lane_id) == 1
+                )
+                commands[vehicle.vehicle_id] = ControlCommand(
+                    desired_speed_mps=(
+                        None
+                        if start_lane_change
+                        and vehicle.speed_mps > _ACCIDENT_INSERTED_L5_MERGE_SPEED_MPS
+                        else _ACCIDENT_INSERTED_L5_MERGE_SPEED_MPS
+                        if start_lane_change
+                        else _ACCIDENT_L5_CRUISE_SPEED_MPS
+                    ),
+                    desired_acceleration_mps2=(
+                        -_ACCIDENT_INSERTED_L5_MERGE_DECEL_MPS2
+                        if start_lane_change
+                        and vehicle.speed_mps > _ACCIDENT_INSERTED_L5_MERGE_SPEED_MPS
+                        else None
+                    ),
+                    lane_change=(
+                        LaneChangeDirection.RIGHT if start_lane_change else LaneChangeDirection.NONE
+                    ),
+                    lane_change_duration_s=_ACCIDENT_L5_LANE_CHANGE_DURATION_S,
                     safety_checks_override=True,
                 )
                 continue
@@ -577,7 +611,7 @@ class MixedAutomationScenarioController:
         commands = _lock_lane_changes(commands, snapshot, prefixes, mode=0)
         for vehicle_id, command in tuple(commands.items()):
             if (
-                vehicle_id.startswith("accident_background_")
+                vehicle_id.startswith(("accident_background_", "accident_inserted_"))
                 and command.lane_change is not LaneChangeDirection.NONE
             ):
                 commands[vehicle_id] = command.model_copy(update={"lane_change_mode": 512})

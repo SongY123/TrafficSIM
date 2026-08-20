@@ -194,7 +194,7 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
             AutomationDemand(level=AutomationLevel.L0, vehicle_count=6),
             AutomationDemand(level=AutomationLevel.L1, vehicle_count=3),
             AutomationDemand(level=AutomationLevel.L3, vehicle_count=4),
-            AutomationDemand(level=AutomationLevel.L5, vehicle_count=4),
+            AutomationDemand(level=AutomationLevel.L5, vehicle_count=10),
         ),
     )
 
@@ -227,6 +227,12 @@ def test_save_preserves_scripted_accident_vehicles_when_demands_are_present(
         "accident_background_L5_0",
         "accident_background_L5_1",
         "accident_background_L5_2",
+        "accident_inserted_L5_0",
+        "accident_inserted_L5_1",
+        "accident_inserted_L5_2",
+        "accident_inserted_L5_3",
+        "accident_inserted_L5_4",
+        "accident_inserted_L5_5",
     }
 
 
