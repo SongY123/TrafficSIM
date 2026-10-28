@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# 敏感配置（包含模型地址和 key，绝不提交）
+.env
+
+# 运行时生成的任务产物
+backend/workspaces/
+generated_map.py
+
+# 第三方库（不提交 roadgen 源码，README 里写明依赖）
+hdmap_generator-main/
+
+# 本地编辑器配置
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 压缩包
+*.zip
